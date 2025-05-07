@@ -145,7 +145,7 @@ export function Sidebar({ className }: SidebarProps) {
       title: "Regras de Faturamento",
       href: "/billing/rules",
       icon: CreditCard,
-      roles: ["super_admin", "admin", "plan_admin", "clinic_admin"],
+      roles: ["super_admin", "admin",],
     },
     {
       title: "Contratos",
@@ -157,13 +157,13 @@ export function Sidebar({ className }: SidebarProps) {
       title: "Privacidade (LGPD)",
       href: "/settings/privacy",
       icon: Shield,
-      roles: ["super_admin", "admin", "plan_admin", "clinic_admin", "professional"],
+      roles: ["super_admin", "admin"],
     },
     {
       title: "Assistente SURI",
       href: "/chatbot",
       icon: MessageSquare,
-      roles: ["super_admin", "admin", "plan_admin", "clinic_admin", "professional"],
+      roles: ["super_admin", "admin",],
     },
     {
       title: "Notificações",
@@ -187,8 +187,7 @@ export function Sidebar({ className }: SidebarProps) {
   ]
 
   const filteredNavItems = navItems.filter(
-    (item) => hasRole(item.roles) && (!item.permission || hasPermission(item.permission)),
-  )
+    (item) => hasRole(item.roles))
 
   return (
     <>

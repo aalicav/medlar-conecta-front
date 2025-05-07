@@ -129,7 +129,11 @@ export default function DashboardHomepage() {
 
   const user = JSON.parse(localStorage.getItem("user") || "{}")
 
-  if(user?.roles?.some((role: string) => role === "plan_admin")){
+  if(!user){
+    redirect("/login")
+  }
+
+  if(user.roles?.some((role: any) => role.name === "plan_admin")){
     redirect("/dashboard/health-plans")
   }
 
