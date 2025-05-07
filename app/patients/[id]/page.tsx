@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator"
 import { toast } from "@/components/ui/use-toast"
 import { Loader2, Edit, ArrowLeft, Trash2, Phone, Mail, CalendarIcon, MapPin, CreditCard, List } from "lucide-react"
 import api from "@/services/api-client"
-import { maskCPF, maskPhone, maskCEP } from "@/utils/masks"
+import { maskCPF, maskPhone, maskCEP } from "@/components/utils/masks"
 import { formatDate } from "@/lib/utils"
 import { fetchResourceById } from "@/services/resource-service"
 

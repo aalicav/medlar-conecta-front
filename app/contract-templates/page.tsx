@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { 
@@ -66,7 +66,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/components/ui/use-toast"
 
-export default function ContractTemplatesPage() {
+function ContractTemplatesContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   
@@ -388,5 +388,35 @@ export default function ContractTemplatesPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  )
+}
+
+export default function ContractTemplatesPage() {
+  return (
+    <Suspense fallback={
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Templates de Contrato</h1>
+            <p className="text-muted-foreground">
+              Carregando...
+            </p>
+          </div>
+        </div>
+        <Card>
+          <CardContent className="p-8">
+            <div className="space-y-4">
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <ContractTemplatesContent />
+    </Suspense>
   )
 } 
