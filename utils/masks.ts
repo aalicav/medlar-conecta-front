@@ -55,6 +55,18 @@ export function formatCEP(cep: string): string {
 }
 
 /**
+ * Mask for CEP (postal code) - Alternative version for direct component use
+ * @param value Value to mask as CEP
+ * @returns Masked CEP string (XXXXX-XXX)
+ */
+export function maskCEP(value: string): string {
+  const digits = value.replace(/\D/g, '')
+  return digits
+    .replace(/(\d{5})(\d)/, '$1-$2')
+    .substring(0, 9)
+}
+
+/**
  * Apply CNPJ mask to input value (for use in controlled inputs)
  * @param value Current input value
  * @returns Masked CNPJ value
