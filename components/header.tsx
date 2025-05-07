@@ -157,10 +157,10 @@ export function Header({ className }: HeaderProps) {
 
   const getNotificationIcon = (type: string) => {
     switch(type) {
-      case "appointment_notification": return <CalendarClock className="h-5 w-5 text-sky-500" />;
-      case "solicitation_notification": return <FileText className="h-5 w-5 text-sky-500" />;
-      case "payment_notification": return <FileText className="h-5 w-5 text-sky-400" />;
-      case "system_notification": return <AlertCircle className="h-5 w-5 text-sky-500" />;
+      case "appointment_notification": return <CalendarClock className="h-5 w-5 text-primary" />;
+      case "solicitation_notification": return <FileText className="h-5 w-5 text-primary" />;
+      case "payment_notification": return <FileText className="h-5 w-5 text-primary" />;
+      case "system_notification": return <AlertCircle className="h-5 w-5 text-primary" />;
       default: return <Bell className="h-5 w-5 text-muted-foreground" />;
     }
   }
@@ -174,8 +174,8 @@ export function Header({ className }: HeaderProps) {
       <div className="flex items-center md:hidden">
         {/* Logo for mobile - sidebar toggle is in the Sidebar component */}
         <Link href="/dashboard" className="flex items-center space-x-2">
-          <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-sky-100">
-            <span className="text-lg font-bold text-sky-600">CS</span>
+          <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+            <span className="text-lg font-bold text-primary">CS</span>
           </div>
         </Link>
       </div>
@@ -184,12 +184,12 @@ export function Header({ className }: HeaderProps) {
       <div className={`hidden md:flex items-center transition-all duration-300 ${searchExpanded ? 'w-96' : 'w-64'}`}>
         <div className="relative w-full">
           <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-            <Search className="h-4 w-4 text-sky-400" />
+            <Search className="h-4 w-4 text-primary" />
           </div>
           <input 
             type="text" 
             placeholder="Buscar..." 
-            className="w-full py-2 pl-10 pr-4 rounded-full text-sm bg-sky-50/50 focus:bg-sky-50 border-none ring-1 ring-sky-100 focus:ring-sky-200 focus:outline-none transition-all duration-200"
+            className="w-full py-2 pl-10 pr-4 rounded-full text-sm bg-muted/50 focus:bg-muted border-none ring-1 ring-border focus:ring-primary/30 focus:outline-none transition-all duration-200"
             onFocus={() => setSearchExpanded(true)}
             onBlur={() => setSearchExpanded(false)}
           />
@@ -199,16 +199,16 @@ export function Header({ className }: HeaderProps) {
       <div className="flex flex-1 items-center justify-end space-x-4">
         <nav className="flex items-center space-x-1 md:space-x-2">
           {/* Help button */}
-          <Button variant="ghost" size="icon" className="relative rounded-full text-sky-400 hover:text-sky-500 hover:bg-sky-50 transition-colors duration-200">
+          <Button variant="ghost" size="icon" className="relative rounded-full text-primary hover:text-primary hover:bg-muted transition-colors duration-200">
             <HelpCircle className="h-5 w-5" />
           </Button>
 
           {/* Messages */}
-          <Button variant="ghost" size="icon" className="relative rounded-full text-sky-400 hover:text-sky-500 hover:bg-sky-50 transition-colors duration-200">
+          <Button variant="ghost" size="icon" className="relative rounded-full text-primary hover:text-primary hover:bg-muted transition-colors duration-200">
             <MessageSquare className="h-5 w-5" />
             <Badge 
               variant="secondary" 
-              className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center bg-sky-500 text-white"
+              className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center bg-primary text-primary-foreground"
             >
               2
             </Badge>
@@ -220,13 +220,13 @@ export function Header({ className }: HeaderProps) {
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="relative rounded-full text-sky-400 hover:text-sky-500 hover:bg-sky-50 transition-colors duration-200"
+                className="relative rounded-full text-primary hover:text-primary hover:bg-muted transition-colors duration-200"
               >
                 <Bell className="h-5 w-5" />
                 {unreadCount > 0 && (
                   <Badge 
                     variant="default" 
-                    className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center bg-rose-500 text-white"
+                    className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center bg-destructive text-destructive-foreground"
                   >
                     {unreadCount}
                   </Badge>
@@ -234,13 +234,13 @@ export function Header({ className }: HeaderProps) {
               </Button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-[360px] p-0 rounded-xl shadow-lg border-border/50 overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b bg-sky-50">
-                <h4 className="font-semibold text-sm text-sky-900">Notificações</h4>
+              <div className="flex items-center justify-between px-4 py-3 border-b bg-muted">
+                <h4 className="font-semibold text-sm text-foreground">Notificações</h4>
                 {unreadCount > 0 && (
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    className="h-8 text-xs hover:bg-sky-100 text-sky-600"
+                    className="h-8 text-xs hover:bg-muted text-primary"
                     onClick={markAllAsRead}
                     disabled={isMarkingRead}
                   >
@@ -256,18 +256,18 @@ export function Header({ className }: HeaderProps) {
               <div className="max-h-[320px] overflow-y-auto overscroll-contain">
                 {isLoading && notifications.length === 0 ? (
                   <div className="p-8 text-center">
-                    <Loader2 className="h-12 w-12 text-sky-300 mx-auto mb-3 animate-spin" />
-                    <p className="text-sky-600/60">Carregando notificações...</p>
+                    <Loader2 className="h-12 w-12 text-muted-foreground mx-auto mb-3 animate-spin" />
+                    <p className="text-muted-foreground">Carregando notificações...</p>
                   </div>
                 ) : notifications.length === 0 ? (
                   <div className="p-8 text-center">
-                    <Bell className="h-12 w-12 text-sky-200 mx-auto mb-3" />
-                    <p className="text-sky-600/60">Nenhuma notificação</p>
+                    <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                    <p className="text-muted-foreground">Nenhuma notificação</p>
                   </div>
                 ) : (
                   <div>
                     {notifications.some(n => !n.read_at) && (
-                      <p className="text-[11px] uppercase font-semibold text-sky-500 tracking-wider px-4 pt-3 pb-1">
+                      <p className="text-[11px] uppercase font-semibold text-primary tracking-wider px-4 pt-3 pb-1">
                         Não lidas
                       </p>
                     )}
@@ -275,22 +275,22 @@ export function Header({ className }: HeaderProps) {
                     {notifications.filter(n => !n.read_at).map((notification) => (
                       <div 
                         key={notification.id}
-                        className="p-3 hover:bg-sky-50 cursor-pointer border-b border-sky-100/60 transition-colors duration-150"
+                        className="p-3 hover:bg-muted cursor-pointer border-b border-border/60 transition-colors duration-150"
                         onClick={() => markAsRead(notification.id)}
                       >
                         <div className="flex gap-3">
-                          <div className="mt-0.5 p-2 bg-sky-100 rounded-full">
+                          <div className="mt-0.5 p-2 bg-muted rounded-full">
                             {getNotificationIcon(notification.type)}
                           </div>
                           <div className="flex-1">
                             <div className="flex justify-between items-start">
-                              <p className="text-sm font-medium text-sky-700">
+                              <p className="text-sm font-medium text-foreground">
                                 {notification.title}
                               </p>
-                              <Badge variant="secondary" className="h-2 w-2 rounded-full p-0 bg-sky-500" />
+                              <Badge variant="secondary" className="h-2 w-2 rounded-full p-0 bg-primary" />
                             </div>
-                            <p className="text-xs text-sky-900 mt-0.5">{notification.message}</p>
-                            <p className="text-xs text-sky-400 mt-1.5 flex items-center">
+                            <p className="text-xs text-foreground mt-0.5">{notification.message}</p>
+                            <p className="text-xs text-muted-foreground mt-1.5 flex items-center">
                               <Clock className="h-3.5 w-3.5 mr-1" />
                               {formatNotificationTime(notification.created_at)}
                             </p>
@@ -300,7 +300,7 @@ export function Header({ className }: HeaderProps) {
                     ))}
 
                     {notifications.some(n => n.read_at) && (
-                      <p className="text-[11px] uppercase font-semibold text-sky-400 tracking-wider px-4 pt-3 pb-1">
+                      <p className="text-[11px] uppercase font-semibold text-muted-foreground tracking-wider px-4 pt-3 pb-1">
                         Anteriores
                       </p>
                     )}
@@ -308,16 +308,16 @@ export function Header({ className }: HeaderProps) {
                     {notifications.filter(n => n.read_at).map((notification) => (
                       <div 
                         key={notification.id}
-                        className="p-3 hover:bg-sky-50 cursor-pointer border-b border-sky-100/40 opacity-70 hover:opacity-100 transition-all duration-150"
+                        className="p-3 hover:bg-muted cursor-pointer border-b border-border/40 opacity-70 hover:opacity-100 transition-all duration-150"
                       >
                         <div className="flex gap-3">
-                          <div className="mt-0.5 p-2 bg-sky-50 rounded-full">
+                          <div className="mt-0.5 p-2 bg-muted rounded-full">
                             {getNotificationIcon(notification.type)}
                           </div>
                           <div className="flex-1">
-                            <p className="text-sm font-medium text-sky-600">{notification.title}</p>
-                            <p className="text-xs text-sky-700 mt-0.5">{notification.message}</p>
-                            <p className="text-xs text-sky-400 mt-1.5 flex items-center">
+                            <p className="text-sm font-medium text-primary">{notification.title}</p>
+                            <p className="text-xs text-foreground mt-0.5">{notification.message}</p>
+                            <p className="text-xs text-muted-foreground mt-1.5 flex items-center">
                               <Clock className="h-3.5 w-3.5 mr-1" />
                               {formatNotificationTime(notification.created_at)}
                             </p>
@@ -328,11 +328,11 @@ export function Header({ className }: HeaderProps) {
                   </div>
                 )}
               </div>
-              <div className="p-2 border-t bg-sky-50">
+              <div className="p-2 border-t bg-muted">
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  className="w-full text-xs text-sky-600 hover:bg-sky-100 hover:text-sky-700 border-sky-200"
+                  className="w-full text-xs text-primary hover:bg-muted hover:text-primary border-border"
                   asChild
                 >
                   <Link href="/notifications">Ver todas notificações</Link>
@@ -347,42 +347,42 @@ export function Header({ className }: HeaderProps) {
             <DropdownMenuTrigger asChild>
               <Button 
                 variant="ghost" 
-                className="relative h-9 flex items-center gap-2 pl-2 pr-2.5 rounded-full hover:bg-sky-50 transition-colors duration-200"
+                className="relative h-9 flex items-center gap-2 pl-2 pr-2.5 rounded-full hover:bg-muted transition-colors duration-200"
               >
-                <Avatar className="h-7 w-7 border ring-2 ring-sky-100 shadow-sm">
+                <Avatar className="h-7 w-7 border ring-2 ring-border shadow-sm">
                   <AvatarImage src={user?.avatar_url} />
-                  <AvatarFallback className="bg-gradient-to-br from-sky-400 to-sky-500 text-white text-xs">
+                  <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-primary-foreground text-xs">
                     {user?.name ? getInitials(user.name) : <User className="h-4 w-4" />}
                   </AvatarFallback>
                 </Avatar>
-                <span className="text-sm hidden md:inline-block font-medium truncate max-w-[100px] text-sky-700">
+                <span className="text-sm hidden md:inline-block font-medium truncate max-w-[100px] text-foreground">
                   {user?.name?.split(" ")[0]}
                 </span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-60" align="end" forceMount>
-              <div className="flex items-center justify-start p-2 border-b border-sky-100 space-x-2">
-                <Avatar className="h-10 w-10 border-2 border-sky-100">
+              <div className="flex items-center justify-start p-2 border-b border-border space-x-2">
+                <Avatar className="h-10 w-10 border-2 border-border">
                   <AvatarImage src={user?.avatar_url} />
-                  <AvatarFallback className="bg-gradient-to-br from-sky-400 to-sky-500 text-white">
+                  <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-primary-foreground">
                     {user?.name ? getInitials(user.name) : <User className="h-4 w-4" />}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col space-y-0.5">
-                  <p className="text-sm font-medium leading-none text-sky-800">{user?.name}</p>
-                  <p className="text-xs leading-none text-sky-500">{user?.email}</p>
+                  <p className="text-sm font-medium leading-none text-foreground">{user?.name}</p>
+                  <p className="text-xs leading-none text-primary">{user?.email}</p>
                 </div>
               </div>
               
               <div className="p-2">
                 <DropdownMenuItem asChild className="cursor-pointer">
-                  <Link href="/profile" className="flex items-center rounded-md py-1.5 text-sky-700 hover:text-sky-800 hover:bg-sky-50">
+                  <Link href="/profile" className="flex items-center rounded-md py-1.5 text-foreground hover:text-foreground hover:bg-muted">
                     <UserRound className="mr-2 h-4 w-4" />
                     <span>Meu Perfil</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild className="cursor-pointer">
-                  <Link href="/settings" className="flex items-center rounded-md py-1.5 text-sky-700 hover:text-sky-800 hover:bg-sky-50">
+                  <Link href="/settings" className="flex items-center rounded-md py-1.5 text-foreground hover:text-foreground hover:bg-muted">
                     <Settings className="mr-2 h-4 w-4" />
                     <span>Configurações</span>
                   </Link>
@@ -392,7 +392,7 @@ export function Header({ className }: HeaderProps) {
               <div className="p-2 pt-0">
                 <DropdownMenuItem 
                   onClick={() => logout()} 
-                  className="flex items-center cursor-pointer text-rose-500 focus:text-rose-600 hover:bg-rose-50 rounded-md py-1.5"
+                  className="flex items-center cursor-pointer text-destructive focus:text-destructive hover:bg-destructive/10 rounded-md py-1.5"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Sair da conta</span>

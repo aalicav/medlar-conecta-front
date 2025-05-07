@@ -212,37 +212,23 @@ export function Sidebar({ className }: SidebarProps) {
       {/* Sidebar */}
       <div
         className={cn(
-          "flex flex-col h-full bg-gradient-to-br from-sky-400 via-sky-500 to-sky-600 text-white shadow-xl transition-all duration-300 ease-in-out",
+          "flex flex-col h-full bg-primary text-primary-foreground shadow-xl transition-all duration-300 ease-in-out",
           isMobile ? "fixed top-0 left-0 z-50 w-[280px]" : isCollapsed ? "w-[80px]" : "w-[280px]",
           isMobile ? (isOpen ? "translate-x-0" : "-translate-x-full") : "",
           className,
         )}
-        style={{
-          backgroundSize: "400% 400%",
-          backgroundPosition: isOpen ? "0% 0%" : "100% 100%",
-        }}
       >
         {/* Decorative elements */}
         <div className="absolute top-0 right-0 w-1/2 h-1/3 bg-gradient-to-bl from-white/10 to-transparent rounded-bl-full pointer-events-none"></div>
-        <div className="absolute bottom-0 left-0 w-1/3 h-1/4 bg-gradient-to-tr from-sky-700/30 to-transparent rounded-tr-full pointer-events-none"></div>
+        <div className="absolute bottom-0 left-0 w-1/3 h-1/4 bg-gradient-to-tr from-secondary/30 to-transparent rounded-tr-full pointer-events-none"></div>
 
-        <div className="flex h-16 items-center justify-between px-6 border-b border-white/10 relative backdrop-blur-sm bg-sky-600/20">
-          {!isCollapsed && (
-            <Link href="/dashboard" className="flex items-center space-x-2">
-              <Image src="/logo.png" alt="Logo" width={150} height={150} />
-            </Link>
-          )}
-          {isCollapsed && (
-            <div className="mx-auto">
-              <Image src="/favicon.ico" alt="Logo" width={32} height={32} />
-            </div>
-          )}
+        <div className="flex h-16 items-center justify-between px-6 border-b border-white/10 relative backdrop-blur-sm">
           <div className="flex items-center">
             {!isMobile && (
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="text-white hover:bg-white/10 rounded-full transition-all duration-200 mr-2" 
+                className="text-primary-foreground hover:bg-white/10 rounded-full transition-all duration-200 mr-2" 
                 onClick={toggleCollapsed}
               >
                 {isCollapsed ? (
@@ -256,7 +242,7 @@ export function Sidebar({ className }: SidebarProps) {
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="text-white hover:bg-white/10 rounded-full transition-all duration-200" 
+                className="text-primary-foreground hover:bg-white/10 rounded-full transition-all duration-200" 
                 onClick={closeSidebar}
               >
                 <X className="h-5 w-5" />
@@ -295,7 +281,7 @@ export function Sidebar({ className }: SidebarProps) {
                     {/* Background effect for active and hovered items */}
                     {(isActive || isHovered) && (
                       <div className={cn(
-                        "absolute inset-0 bg-sky-500/40 rounded-md -z-10 transition-opacity duration-200",
+                        "absolute inset-0 bg-secondary/40 rounded-md -z-10 transition-opacity duration-200",
                         isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"
                       )}></div>
                     )}
@@ -312,8 +298,8 @@ export function Sidebar({ className }: SidebarProps) {
                       <div className={cn(
                         "h-8 w-8 flex items-center justify-center rounded-md transition-all duration-200",
                         isActive 
-                          ? "bg-sky-600/80 text-white shadow-sm" 
-                          : "text-white/80 group-hover:bg-sky-600/50 group-hover:text-white"
+                          ? "bg-secondary text-secondary-foreground shadow-sm" 
+                          : "text-primary-foreground/80 group-hover:bg-secondary/50 group-hover:text-primary-foreground"
                       )}>
                         <item.icon className="h-5 w-5" />
                       </div>
@@ -330,13 +316,13 @@ export function Sidebar({ className }: SidebarProps) {
           </div>
         </ScrollArea>
 
-        <div className="border-t border-white/10 p-4 backdrop-blur-sm bg-sky-600/20">
+        <div className="border-t border-white/10 p-4">
           <div className={cn(
-            "flex items-center rounded-md bg-sky-700/30 p-3 transition-all duration-200 hover:bg-sky-700/40",
+            "flex items-center rounded-md bg-secondary/30 p-3 transition-all duration-200 hover:bg-secondary/40",
             isCollapsed ? "justify-center" : "space-x-3"
           )}>
-            <Avatar className="h-10 w-10 border-2 border-white/20 ring-2 ring-sky-600/50 shadow-lg">
-              <AvatarFallback className="bg-gradient-to-br from-sky-400 to-sky-600 text-white">
+            <Avatar className="h-10 w-10 border-2 border-white/20 ring-2 ring-secondary/50 shadow-lg">
+              <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-primary-foreground">
                 {user?.name ? getInitials(user.name) : ""}
               </AvatarFallback>
             </Avatar>
