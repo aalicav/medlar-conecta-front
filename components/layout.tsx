@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 import { Sidebar } from "./sidebar"
 import { Header } from "./header"
 import Image from "next/image"
+import { Menu } from "lucide-react"
 
 interface MainLayoutProps {
   children: ReactNode
@@ -11,7 +12,7 @@ interface MainLayoutProps {
 
 export function MainLayout({ children }: MainLayoutProps) {
   return (
-    <div className="min-h-screen bg-[#F8F9FF] flex overflow-hidden">
+    <div className="min-h-screen h-screen bg-[#F8F9FF] flex flex-col md:flex-row overflow-hidden">
       {/* Sidebar - Hidden on mobile, visible on md and up */}
       <div className="hidden md:block h-screen flex-shrink-0 border-r border-[#E6E9F0] bg-[#BBDEFB] shadow-sm">
         <div className="h-16 flex items-center justify-center border-b border-[#E6E9F0] bg-[#1E88E5]">
@@ -27,35 +28,18 @@ export function MainLayout({ children }: MainLayoutProps) {
       </div>
       
       {/* Mobile Sidebar Toggle - Visible only on mobile */}
-      <div className="md:hidden fixed bottom-4 right-4 z-50">
-        <button
-          className="bg-[#1E88E5] text-white rounded-full p-3 shadow-lg hover:bg-[#1976D2] transition-colors border-2 border-white"
-          onClick={() => {
-            const sidebar = document.getElementById('mobile-sidebar')
-            if (sidebar) {
-              sidebar.classList.toggle('translate-x-0')
-              sidebar.classList.toggle('-translate-x-full')
-            }
-          }}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-6 w-6"
-          >
-            <line x1="4" x2="20" y1="12" y2="12" />
-            <line x1="4" x2="20" y1="6" y2="6" />
-            <line x1="4" x2="20" y1="18" y2="18" />
-          </svg>
-        </button>
-      </div>
+      <button
+        className="md:hidden fixed top-4 left-4 z-[9999] bg-[#1E88E5] text-white rounded-full p-2 shadow-lg hover:bg-[#1976D2] transition-colors border-2 border-white"
+        onClick={() => {
+          const sidebar = document.getElementById('mobile-sidebar')
+          if (sidebar) {
+            sidebar.classList.toggle('translate-x-0')
+            sidebar.classList.toggle('-translate-x-full')
+          }
+        }}
+      >
+        <Menu className="h-6 w-6" />
+      </button>
 
       {/* Mobile Sidebar */}
       <div
@@ -75,14 +59,14 @@ export function MainLayout({ children }: MainLayoutProps) {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <Header />
-        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-auto">
+      <div className="flex-1 flex flex-col h-screen max-h-screen">
+        <Header className="flex-shrink-0" />
+        <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-sm border border-[#E6E9F0] p-6">
             {children}
           </div>
         </main>
-        <footer className="py-4 px-6 text-center text-sm text-[#64B5F6] border-t border-[#E6E9F0] bg-white">
+        <footer className="flex-shrink-0 py-4 px-6 text-center text-sm text-[#64B5F6] border-t border-[#E6E9F0] bg-white">
           <p>© {new Date().getFullYear()} Conecta Saúde. Todos os direitos reservados.</p>
         </footer>
       </div>
