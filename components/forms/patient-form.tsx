@@ -102,7 +102,7 @@ interface PatientFormProps {
 
 export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: PatientFormProps) {
   const router = useRouter()
-  const { hasPermission } = useAuth()
+  const { hasPermission, hasRole } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [healthPlans, setHealthPlans] = useState<HealthPlan[]>([])
@@ -110,6 +110,7 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
   
   // Verificar se usuário tem permissão para gerenciar pacientes
   const canManagePatients = hasPermission("manage patients")
+  const isPlanAdmin = hasRole("plan_admin")
   
   // Inicializar formulário
   const form = useForm<PatientFormValues>({
@@ -136,9 +137,14 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
     name: "phones"
   })
   
-  // Carregar planos de saúde
+  // Carregar planos de saúde apenas se não for plan_admin
   useEffect(() => {
     const loadHealthPlans = async () => {
+      if (isPlanAdmin) {
+        // Se for plan_admin, não precisa carregar a lista de planos
+        return;
+      }
+
       try {
         const response = await fetchResource<HealthPlan>("health-plans", { per_page: 100 })
         setHealthPlans(response.data)
@@ -153,7 +159,7 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
     }
     
     loadHealthPlans()
-  }, [])
+  }, [isPlanAdmin])
   
   // Carregar dados do paciente para edição
   useEffect(() => {
@@ -548,55 +554,57 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
             
             <div>
               <h2 className="text-xl font-semibold mb-4">Plano de Saúde</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="health_plan_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Plano de Saúde</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione o plano de saúde" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {isLoadingOptions ? (
-                            <SelectItem value="loading" disabled>
-                              Carregando...
-                            </SelectItem>
-                          ) : (
-                            healthPlans.map((plan) => (
-                              <SelectItem key={plan.id} value={plan.id.toString()}>
-                                {plan.name}
+              {!isPlanAdmin && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="health_plan_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Plano de Saúde</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o plano de saúde" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {isLoadingOptions ? (
+                              <SelectItem value="loading" disabled>
+                                Carregando...
                               </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="health_card_number"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Número da Carteirinha</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Número da carteirinha do plano" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+                            ) : (
+                              healthPlans.map((plan) => (
+                                <SelectItem key={plan.id} value={plan.id.toString()}>
+                                  {plan.name}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="health_card_number"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Número da Carteirinha</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Número da carteirinha do plano" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
             </div>
             
             <div>
