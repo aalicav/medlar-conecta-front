@@ -20,13 +20,15 @@ import {
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/contexts/auth-context"
-import { Loader2, Plus, Trash, SearchIcon, DollarSign, AlertCircle, CheckCircle, InfoIcon } from "lucide-react"
+import { Loader2, Plus, Trash, SearchIcon, DollarSign, AlertCircle, CheckCircle, InfoIcon, X } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { useToast } from "@/components/ui/use-toast"
 
 // Estados brasileiros
 const BRAZILIAN_STATES = [
@@ -154,6 +156,11 @@ interface TussProcedure {
   description?: string
 }
 
+interface Specialty {
+  id: string;
+  name: string;
+}
+
 // Interface for HealthPlanForm props
 interface HealthPlanFormProps {
   initialData?: any;
@@ -175,6 +182,12 @@ export function HealthPlanForm({ initialData, isEditing = false, healthPlanId }:
   const [searchTerm, setSearchTerm] = useState("")
   const [isSearching, setIsSearching] = useState(false)
   const [showTussDialog, setShowTussDialog] = useState(false)
+  const { toast: useToastToast } = useToast()
+  const { toast } = useToast()
+  const { user } = useAuth()
+  const [loading, setLoading] = useState(false)
+  const [specialties, setSpecialties] = useState<Specialty[]>([])
+  const [loadingSpecialties, setLoadingSpecialties] = useState(false)
 
   // Verificar se usuário tem permissão para criar planos
   const canCreateHealthPlan = hasPermission("create health plans")
@@ -306,7 +319,7 @@ export function HealthPlanForm({ initialData, isEditing = false, healthPlanId }:
         
       } catch (error) {
         console.error("Error populating form with initial data:", error);
-        toast({
+        useToastToast({
           title: "Erro ao carregar dados",
           description: "Ocorreu um erro ao carregar os dados do plano de saúde",
           variant: "destructive"
@@ -342,7 +355,7 @@ export function HealthPlanForm({ initialData, isEditing = false, healthPlanId }:
       }
     } catch (error) {
       console.error("Error fetching health plan procedures:", error);
-      toast({
+      useToastToast({
         title: "Erro ao carregar procedimentos",
         description: "Não foi possível carregar os procedimentos do plano de saúde",
         variant: "destructive"
@@ -434,7 +447,7 @@ export function HealthPlanForm({ initialData, isEditing = false, healthPlanId }:
       const data = await response.json();
       
       if (data.erro) {
-        toast({
+        useToastToast({
           title: "CEP não encontrado",
           description: "Verifique o CEP informado",
           variant: "destructive"
@@ -447,13 +460,13 @@ export function HealthPlanForm({ initialData, isEditing = false, healthPlanId }:
       form.setValue("city", data.localidade);
       form.setValue("state", data.uf);
       
-      toast({
+      useToastToast({
         title: "Endereço preenchido",
         description: "Os dados de endereço foram preenchidos automaticamente",
       });
     } catch (error) {
       console.error("Erro ao buscar CEP:", error);
-      toast({
+      useToastToast({
         title: "Erro ao buscar CEP",
         description: "Não foi possível buscar o endereço pelo CEP",
         variant: "destructive"
@@ -471,7 +484,7 @@ export function HealthPlanForm({ initialData, isEditing = false, healthPlanId }:
       setTussProcedures(response.data.data || [])
     } catch (error) {
       console.error("Erro ao buscar procedimentos TUSS:", error)
-      toast({
+      useToastToast({
         title: "Erro na busca",
         description: "Não foi possível buscar os procedimentos TUSS",
         variant: "destructive"
@@ -486,7 +499,7 @@ export function HealthPlanForm({ initialData, isEditing = false, healthPlanId }:
     // Verificar se o procedimento já está na lista
     const exists = procedureFields.some((p: any) => p.tuss_id === procedure.id)
     if (exists) {
-      toast({
+      useToastToast({
         title: "Procedimento já adicionado",
         description: "Este procedimento já está na lista",
         variant: "destructive"
@@ -504,7 +517,7 @@ export function HealthPlanForm({ initialData, isEditing = false, healthPlanId }:
     })
     
     setShowTussDialog(false)
-    toast({
+    useToastToast({
       title: "Procedimento adicionado",
       description: "O procedimento foi adicionado à lista",
     })
@@ -516,7 +529,7 @@ export function HealthPlanForm({ initialData, isEditing = false, healthPlanId }:
       const file = e.target.files[0]
       
       if (file.size > 2 * 1024 * 1024) {
-        toast({
+        useToastToast({
           title: "Arquivo muito grande",
           description: "A imagem deve ter no máximo 2MB",
           variant: "destructive"
@@ -564,7 +577,7 @@ export function HealthPlanForm({ initialData, isEditing = false, healthPlanId }:
       const file = e.target.files[0]
       
       if (file.size > 10 * 1024 * 1024) {
-        toast({
+        useToastToast({
           title: "Arquivo muito grande",
           description: "O documento deve ter no máximo 10MB",
           variant: "destructive"
@@ -580,7 +593,7 @@ export function HealthPlanForm({ initialData, isEditing = false, healthPlanId }:
       // Atualizar o nome do arquivo no formulário para exibição
       form.setValue(`documents.${index}.file`, file.name)
       
-      toast({
+      useToastToast({
         title: "Documento adicionado",
         description: `O arquivo "${file.name}" foi adicionado com sucesso`,
       });
@@ -594,7 +607,7 @@ export function HealthPlanForm({ initialData, isEditing = false, healthPlanId }:
       const missingFiles = documentFields.some((doc, index) => !documentFiles[index]);
       
       if (missingFiles) {
-        toast({
+        useToastToast({
           title: "Documentos incompletos",
           description: "Um ou mais documentos não possuem arquivos anexados",
           variant: "destructive"
@@ -612,7 +625,7 @@ export function HealthPlanForm({ initialData, isEditing = false, healthPlanId }:
     
     // Check permission
     if (!isEditing && !canCreateHealthPlan) {
-      toast({
+      useToastToast({
         title: "Permissão negada",
         description: "Você não tem permissão para criar planos de saúde",
         variant: "destructive"
@@ -720,7 +733,7 @@ export function HealthPlanForm({ initialData, isEditing = false, healthPlanId }:
       
       console.log("API response:", response);
       
-      toast({
+      useToastToast({
         title: isEditing ? "Plano de saúde atualizado" : "Plano de saúde criado",
         description: isEditing 
           ? "O plano de saúde foi atualizado com sucesso" 
@@ -734,7 +747,7 @@ export function HealthPlanForm({ initialData, isEditing = false, healthPlanId }:
       console.error(`Erro ao ${isEditing ? 'atualizar' : 'criar'} plano de saúde:`, error);
       console.log("Error response:", error.response);
       
-      toast({
+      useToastToast({
         title: `Erro ao ${isEditing ? 'atualizar' : 'criar'} plano de saúde`,
         description: error.response?.data?.message || "Ocorreu um erro ao processar sua solicitação",
         variant: "destructive"
@@ -744,655 +757,266 @@ export function HealthPlanForm({ initialData, isEditing = false, healthPlanId }:
     }
   };
 
+  useEffect(() => {
+    const fetchSpecialties = async () => {
+      setLoadingSpecialties(true)
+      try {
+        const response = await fetch("/api/specialties")
+        const data = await response.json()
+        setSpecialties(data)
+      } catch (error) {
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar as especialidades",
+          variant: "destructive",
+        })
+      } finally {
+        setLoadingSpecialties(false)
+      }
+    }
+
+    fetchSpecialties()
+  }, [toast])
+
   return (
-    <Card className="w-full shadow-sm">
-      <CardContent className="pt-6 px-2 sm:px-6">
-        <Tabs defaultValue="basic-info" value={activeTab} onValueChange={setActiveTab}>
-          <div className="overflow-x-auto pb-2">
-            <TabsList className="mb-6 w-full max-w-none grid grid-cols-3">
-              <TabsTrigger value="basic-info" className="text-xs sm:text-sm">
-                Informações Básicas
-                {!!formErrors.name || !!formErrors.cnpj || !!formErrors.email && (
-                  <span className="ml-2 text-red-500">•</span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="additional-info" className="text-xs sm:text-sm">
-                Informações Adicionais
-                {!!formErrors.legal_representative_name || !!formErrors.legal_representative_cpf || 
-                 !!formErrors.address || !!formErrors.city || !!formErrors.state || 
-                 !!formErrors.postal_code || !!formErrors.phones && (
-                  <span className="ml-2 text-red-500">•</span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="documents" className="text-xs sm:text-sm">
-                Documentos
-                {!!formErrors.documents && (
-                  <span className="ml-2 text-red-500">•</span>
-                )}
-              </TabsTrigger>
-            </TabsList>
-          </div>
-          
+    <Card className="w-full max-w-3xl mx-auto">
+      <CardHeader>
+        <CardTitle>Novo Plano de Saúde</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ScrollArea className="h-[calc(100vh-16rem)]">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <TabsContent value="basic-info">
-                {/* Seção: Informações Básicas */}
-                <div>
-                  <h2 className="text-xl font-semibold mb-4">Informações Básicas</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Nome do Plano *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Nome completo do plano de saúde" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="cnpj"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>CNPJ *</FormLabel>
-                          <FormControl>
-                            <Input 
-                              placeholder="00.000.000/0000-00" 
-                              {...field}
-                              onChange={(e) => {
-                                handleCNPJChange(e);
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="municipal_registration"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Inscrição Municipal *</FormLabel>
-                          <FormControl>
-                            <Input 
-                              {...field}
-                              onChange={(e) => {
-                                handleMunicipalRegistrationChange(e);
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>E-mail *</FormLabel>
-                          <FormControl>
-                            <Input 
-                              placeholder="E-mail do plano de saúde" 
-                              type="email"
-                              {...field} 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {!isEditing && (
-                      <FormField
-                        control={form.control}
-                        name="password"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Senha</FormLabel>
-                            <FormControl>
-                              <Input type="password" placeholder="Senha para acesso" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    )}
-
-                    <FormField
-                      control={form.control}
-                      name="ans_code"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Código ANS</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Código da Agência Nacional de Saúde" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="sm:col-span-2">
-                      <FormLabel>Logo</FormLabel>
-                      <div className="mt-1">
-                        <div className="flex items-center justify-center border rounded-md p-2">
-                          <label className="cursor-pointer flex flex-col items-center space-y-2 w-full">
-                            {logoPreview ? (
-                              <div className="w-24 h-24 sm:w-32 sm:h-32 relative">
-                                <img
-                                  src={logoPreview}
-                                  alt="Logo preview"
-                                  className="w-full h-full object-contain"
-                                  onError={handleLogoError}
-                                />
-                              </div>
-                            ) : (
-                              <div className="w-24 h-24 sm:w-32 sm:h-32 border-2 border-dashed rounded-md flex items-center justify-center bg-gray-50">
-                                <div className="text-center">
-                                  <div className="flex justify-center">
-                                    <svg
-                                      className="mx-auto h-12 w-12 text-gray-400"
-                                      stroke="currentColor"
-                                      fill="none"
-                                      viewBox="0 0 48 48"
-                                      aria-hidden="true"
-                                    >
-                                      <path
-                                        d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                                        strokeWidth={2}
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                      />
-                                    </svg>
-                                  </div>
-                                  <span className="mt-2 block text-sm text-gray-500">
-                                    Selecionar logo
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={handleLogoChange}
-                            />
-                            <Button type="button" variant="outline" size="sm">
-                              {logoPreview ? "Alterar imagem" : "Escolher imagem"}
-                            </Button>
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4">
-                    <FormField
-                      control={form.control}
-                      name="description"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Descrição</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              placeholder="Informações adicionais sobre o plano de saúde"
-                              className="resize-none"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </div>
-                
-                <div className="flex justify-end mt-6">
-                  <Button type="button" onClick={() => setActiveTab("additional-info")} className="w-full sm:w-auto">
-                    Próximo
-                  </Button>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="additional-info">
-                {/* Seção: Representante Legal */}
-                <div>
-                  <h2 className="text-xl font-semibold mb-4">Representante Legal</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="legal_representative_name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Nome do Representante *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Nome completo" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="legal_representative_cpf"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>CPF do Representante *</FormLabel>
-                          <FormControl>
-                            <Input 
-                              placeholder="000.000.000-00" 
-                              {...field}
-                              onChange={(e) => {
-                                handleCPFChange(e);
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="legal_representative_position"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Cargo do Representante *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Ex: Diretor, Presidente" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </div>
-
-                {/* Seção: Endereço */}
-                <div className="mt-8">
-                  <h2 className="text-xl font-semibold mb-4">Endereço</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="address"
-                      render={({ field }) => (
-                        <FormItem className="col-span-2">
-                          <FormLabel>Endereço Completo *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Rua, número, complemento, bairro" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="city"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Cidade *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Nome da cidade" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="state"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Estado *</FormLabel>
-                          <Select
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Selecione o estado" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {BRAZILIAN_STATES.map((state) => (
-                                <SelectItem key={state} value={state}>
-                                  {state}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="postal_code"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>CEP *</FormLabel>
-                          <FormControl>
-                            <Input 
-                              placeholder="00000-000" 
-                              {...field}
-                              onChange={(e) => {
-                                handleCEPChange(e);
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </div>
-
-                {/* Seção: Telefones */}
-                <div className="mt-8">
-                  <h2 className="text-xl font-semibold mb-4">Telefones</h2>
-                  <div className="space-y-4">
-                    {phoneFields.map((field, index) => (
-                      <div key={field.id} className="flex flex-col sm:flex-row items-start space-y-4 sm:space-y-0 sm:space-x-4">
-                        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
-                          <FormField
-                            control={form.control}
-                            name={`phones.${index}.number`}
-                            render={({ field: phoneField }) => (
-                              <FormItem>
-                                <FormLabel>Número *</FormLabel>
-                                <FormControl>
-                                  <Input 
-                                    placeholder="(00) 00000-0000" 
-                                    {...phoneField}
-                                    onChange={(e) => {
-                                      handlePhoneChange(e, index);
-                                    }}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-
-                          <FormField
-                            control={form.control}
-                            name={`phones.${index}.type`}
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Tipo *</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Selecione o tipo de telefone" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    {PHONE_TYPES.map(type => (
-                                      <SelectItem key={type.value} value={type.value}>
-                                        {type.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                        
-                        {/* Botão para remover telefone */}
-                        {phoneFields.length > 1 && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="mt-0 sm:mt-8"
-                            onClick={() => removePhone(index)}
-                          >
-                            <Trash className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    ))}
-
-                    {/* Botão para adicionar telefone */}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => appendPhone({ number: "", type: "mobile" })}
-                      className="w-full sm:w-auto"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Adicionar telefone
-                    </Button>
-                  </div>
-                </div>
-                
-                <div className="flex flex-col sm:flex-row justify-between mt-6 space-y-2 sm:space-y-0">
-                  <Button type="button" variant="outline" onClick={() => setActiveTab("basic-info")} className="w-full sm:w-auto">
-                    Anterior
-                  </Button>
-                  <Button type="button" onClick={() => setActiveTab("documents")} className="w-full sm:w-auto">
-                    Próximo
-                  </Button>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="documents">
-                <div>
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 space-y-2 sm:space-y-0">
-                    <h2 className="text-xl font-semibold">Documentos</h2>
-                    
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => appendDocument({ file: null, type: "contract", description: "", reference_date: "", expiration_date: "" })}
-                      className="w-full sm:w-auto"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Adicionar Documento
-                    </Button>
-                  </div>
-                  
-                  <div className="mt-4">
-                    {documentFields.length > 0 ? (
-                      <div className="space-y-4">
-                        {documentFields.map((field, index) => (
-                          <div key={field.id} className="border rounded-md p-4 bg-gray-50">
-                            <div className="flex justify-between items-start">
-                              <h3 className="font-medium">Documento {index + 1}</h3>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => removeDocument(index)}
-                              >
-                                <Trash className="h-4 w-4 text-red-500" />
-                              </Button>
-                            </div>
-                            
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                              <div className="sm:col-span-2">
-                                <FormLabel>Arquivo*</FormLabel>
-                                <div className="mt-1">
-                                  <div className="flex items-center justify-center border rounded-md p-2">
-                                    <label className="cursor-pointer flex flex-col items-center space-y-2 w-full">
-                                      <div className="w-full h-16 border-2 border-dashed rounded-md flex items-center justify-center px-2">
-                                        <span className="text-sm text-gray-500 text-center truncate max-w-full">
-                                          {documentFiles[index] ? documentFiles[index]?.name : "Selecionar arquivo"}
-                                        </span>
-                                      </div>
-                                      <input
-                                        type="file"
-                                        className="hidden"
-                                        onChange={(e) => handleDocumentChange(e, index)}
-                                      />
-                                      <Button type="button" variant="outline" size="sm" className="w-full sm:w-auto">
-                                        Escolher arquivo
-                                      </Button>
-                                    </label>
-                                  </div>
-                                </div>
-                                {/* Error message for file */}
-                                {!documentFiles[index] && form.formState.isSubmitted && (
-                                  <p className="text-sm text-red-500 mt-1">Por favor, selecione um arquivo</p>
-                                )}
-                              </div>
-                              
-                              <FormField
-                                control={form.control}
-                                name={`documents.${index}.type`}
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>Tipo*</FormLabel>
-                                    <Select
-                                      onValueChange={field.onChange}
-                                      defaultValue={field.value}
-                                    >
-                                      <FormControl>
-                                        <SelectTrigger>
-                                          <SelectValue placeholder="Selecione o tipo" />
-                                        </SelectTrigger>
-                                      </FormControl>
-                                      <SelectContent>
-                                        {DOCUMENT_TYPES.map((type) => (
-                                          <SelectItem key={type.value} value={type.value}>
-                                            {type.label}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                              
-                              <FormField
-                                control={form.control}
-                                name={`documents.${index}.description`}
-                                render={({ field }) => (
-                                  <FormItem className="col-span-2">
-                                    <FormLabel>Descrição*</FormLabel>
-                                    <FormControl>
-                                      <Input placeholder="Descrição do documento" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                              
-                              <FormField
-                                control={form.control}
-                                name={`documents.${index}.reference_date`}
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>Data de Referência</FormLabel>
-                                    <FormControl>
-                                      <Input type="date" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                              
-                              <FormField
-                                control={form.control}
-                                name={`documents.${index}.expiration_date`}
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>Data de Expiração</FormLabel>
-                                    <FormControl>
-                                      <Input type="date" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="border border-dashed rounded-md p-4 sm:p-8 text-center">
-                        <div className="flex flex-col items-center justify-center text-muted-foreground">
-                          <AlertCircle className="h-8 w-8 mb-2" />
-                          <p className="mb-2">Nenhum documento adicionado</p>
-                          <p className="text-sm">Adicione documentos relevantes como contrato, certificado ANS, etc.</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Display form-level error message for documents */}
-                  {formErrors.documents && (
-                    <div className="mt-4 p-4 border rounded-md bg-red-50 text-red-800">
-                      <p className="text-sm flex items-start">
-                        <AlertCircle className="h-4 w-4 mr-2 flex-shrink-0 mt-0.5" />
-                        <span>
-                          {formErrors.documents.message || "Verifique os documentos anexados"}
-                        </span>
-                      </p>
-                    </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nome do Plano</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Digite o nome do plano" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
                   )}
+                />
 
-                  <div className="mt-4 p-4 border rounded-md bg-blue-50 text-blue-800">
-                    <p className="text-sm flex items-start">
-                      <InfoIcon className="h-4 w-4 mr-2 flex-shrink-0 mt-0.5" />
-                      <span>
-                        Você pode adicionar documentos como contrato, certificados e autorizações diretamente na criação do plano.
-                      </span>
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex flex-col sm:flex-row justify-between mt-6 space-y-2 sm:space-y-0">
-                  <Button type="button" variant="outline" onClick={() => setActiveTab("additional-info")} className="w-full sm:w-auto">
-                    Anterior
-                  </Button>
-                  <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => router.back()}
-                      disabled={isSubmitting}
-                      className="w-full sm:w-auto"
+                <FormField
+                  control={form.control}
+                  name="cnpj"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>CNPJ</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Digite o CNPJ" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Telefone</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Digite o telefone" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="Digite o email" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="address"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Endereço</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Digite o endereço" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="zip_code"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>CEP</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Digite o CEP" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="city"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Cidade</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Digite a cidade" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="state"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Estado</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Digite o estado" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Descrição</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Digite a descrição do plano"
+                        className="resize-none"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="website"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Website</FormLabel>
+                    <FormControl>
+                      <Input type="url" placeholder="Digite o website" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="specialties"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Especialidades</FormLabel>
+                    <Select
+                      disabled={loadingSpecialties}
+                      onValueChange={(value) => {
+                        const currentValues = field.value || []
+                        if (!currentValues.includes(value)) {
+                          field.onChange([...currentValues, value])
+                        }
+                      }}
                     >
-                      Cancelar
-                    </Button>
-                    
-                    <Button 
-                      type="submit" 
-                      disabled={isSubmitting}
-                      className="w-full sm:w-auto"
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Enviando...
-                        </>
-                      ) : (
-                        isEditing ? 'Salvar Alterações' : 'Criar Plano'
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </TabsContent>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione as especialidades" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {specialties.map((specialty) => (
+                          <SelectItem key={specialty.id} value={specialty.id}>
+                            {specialty.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {field.value?.map((specialtyId: string) => {
+                        const specialty = specialties.find((s: Specialty) => s.id === specialtyId)
+                        return specialty ? (
+                          <Badge
+                            key={specialtyId}
+                            variant="secondary"
+                            className="flex items-center gap-1"
+                          >
+                            {specialty.name}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-4 w-4 p-0"
+                              onClick={() => {
+                                field.onChange(
+                                  field.value?.filter((id: string) => id !== specialtyId)
+                                )
+                              }}
+                            >
+                              <X className="h-3 w-3" />
+                              <span className="sr-only">Remover especialidade</span>
+                            </Button>
+                          </Badge>
+                        ) : null
+                      })}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex justify-end space-x-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => form.reset()}
+                  disabled={loading}
+                >
+                  Limpar
+                </Button>
+                <Button type="submit" disabled={loading}>
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Salvar
+                </Button>
+              </div>
             </form>
           </Form>
-        </Tabs>
+        </ScrollArea>
       </CardContent>
     </Card>
   )

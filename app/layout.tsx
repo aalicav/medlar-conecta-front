@@ -1,3 +1,5 @@
+'use client'
+
 import type React from "react"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -5,25 +7,25 @@ import { AuthProvider } from "@/contexts/auth-context"
 import { Toaster } from "@/components/ui/toaster"
 import { MainLayout } from "@/components/layout"
 import "./globals.css"
-import { usePathname } from "next/dist/client/components/navigation"
-import { cookies } from "next/headers"
+import { usePathname } from "next/navigation"
+import { useEffect, useState } from "react"
 
 const inter = Inter({ subsets: ["latin"] })
 
-export const metadata = {
-  title: "Conecta Saúde - Sistema de Retaguarda Médica",
-  description: "Sistema de retaguarda médica B2B que conecta planos de saúde, profissionais e clínicas",
-    generator: 'v0.dev'
-}
-
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const cookieStore = await cookies()
-  const token = cookieStore.get("token")?.value
+  const [token, setToken] = useState<string | undefined>()
   
+  useEffect(() => {
+    const cookieToken = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('token='))
+      ?.split('=')[1]
+    setToken(cookieToken)
+  }, [])
 
   return (
     <html lang="pt-BR" suppressHydrationWarning>

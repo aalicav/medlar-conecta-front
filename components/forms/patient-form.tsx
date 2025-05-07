@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { toast } from "@/components/ui/use-toast"
 import api from "@/services/api-client"
-import { maskCPF, maskPhone, maskCEP, unmask } from "@/utils/masks"
+import { maskCPF, maskPhone, maskCEP, unmask } from "@/components/utils/masks"
 
 import { 
   Form, 
@@ -26,6 +26,7 @@ import { Loader2, Plus, Trash } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { fetchResource, createResource } from "@/services/resource-service"
 import { DatePicker } from "@/components/ui/date-picker"
+import { useToast } from "@/components/ui/use-toast"
 
 // Estados brasileiros
 const BRAZILIAN_STATES = [
@@ -44,14 +45,14 @@ const PHONE_TYPES = [
 // Schema de validação para o formulário de paciente
 const patientSchema = z.object({
   name: z.string().min(3, "Nome deve ter no mínimo 3 caracteres"),
-  cpf: z.string().min(11, "CPF inválido"),
+  cpf: z.string().min(11, "CPF inválido").max(11, "CPF deve ter 11 dígitos"),
   birth_date: z.union([z.string(), z.instanceof(Date)]).refine(value => value !== "", {
     message: "Data de nascimento é obrigatória"
   }),
   gender: z.enum(["male", "female", "other"], {
     errorMap: () => ({ message: "Selecione um gênero válido" }),
   }),
-  health_plan_id: z.string().optional(),
+  health_plan_id: z.string().min(1, "Plano de saúde é obrigatório").optional(),
   health_card_number: z.string().optional(),
   address: z.string().optional(),
   city: z.string().optional(),
@@ -107,6 +108,7 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
   const [isLoading, setIsLoading] = useState(false)
   const [healthPlans, setHealthPlans] = useState<HealthPlan[]>([])
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
+  const { toast: useToastToast } = useToast()
   
   // Verificar se usuário tem permissão para gerenciar pacientes
   const canManagePatients = hasPermission("manage patients")
@@ -146,11 +148,11 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
       }
 
       try {
-        const response = await fetchResource<HealthPlan>("health-plans", { per_page: 100 })
-        setHealthPlans(response.data)
+        const response = await fetchResource<{ data: HealthPlan[] }>("health-plans", { per_page: 100 })
+        setHealthPlans(response.data?.data || [])
       } catch (error) {
         console.error("Erro ao carregar planos de saúde:", error)
-        toast({
+        useToastToast({
           title: "Erro",
           description: "Não foi possível carregar a lista de planos de saúde",
           variant: "destructive"
@@ -159,7 +161,7 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
     }
     
     loadHealthPlans()
-  }, [isPlanAdmin])
+  }, [isPlanAdmin, useToastToast])
   
   // Carregar dados do paciente para edição
   useEffect(() => {
@@ -190,7 +192,7 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
           
         } catch (error) {
           console.error("Erro ao carregar paciente:", error)
-          toast({
+          useToastToast({
             title: "Erro",
             description: "Não foi possível carregar os dados do paciente",
             variant: "destructive"
@@ -202,7 +204,7 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
       
       loadPatient()
     }
-  }, [patientId, form])
+  }, [patientId, form, useToastToast])
   
   // Handlers para máscaras de input
   const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -235,7 +237,7 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
       const data = await response.json();
       
       if (data.erro) {
-        toast({
+        useToastToast({
           title: "CEP não encontrado",
           description: "Verifique o CEP informado",
           variant: "destructive"
@@ -248,13 +250,13 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
       form.setValue("city", data.localidade);
       form.setValue("state", data.uf);
       
-      toast({
+      useToastToast({
         title: "Endereço preenchido",
         description: "Os dados de endereço foram preenchidos automaticamente",
       });
     } catch (error) {
       console.error("Erro ao buscar CEP:", error);
-      toast({
+      useToastToast({
         title: "Erro ao buscar CEP",
         description: "Não foi possível buscar o endereço pelo CEP",
         variant: "destructive"
@@ -265,7 +267,7 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
   // Função para enviar dados ao backend
   const onSubmit = async (data: PatientFormValues) => {
     if (!canManagePatients) {
-      toast({
+      useToastToast({
         title: "Permissão negada",
         description: "Você não tem permissão para gerenciar pacientes",
         variant: "destructive"
@@ -305,7 +307,7 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
         response = await api.put(`/patients/${patientId}`, formData);
         
         if (response.status === 200 || response.status === 201) {
-          toast({
+          useToastToast({
             title: "Paciente atualizado",
             description: "O paciente foi atualizado com sucesso"
           });
@@ -326,7 +328,7 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
         // Verificar se a resposta foi bem-sucedida
         // createResource já retorna response.data que tem a estrutura ApiResponse
         if (response && response.status === 'success') {
-          toast({
+          useToastToast({
             title: "Paciente criado",
             description: "O paciente foi criado com sucesso"
           });
@@ -366,19 +368,19 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
           })
           .join("\n");
 
-        toast({
+        useToastToast({
           title: "Erro de validação",
           description: errorMessages,
           variant: "destructive"
         });
       } else if (error.response?.data?.message) {
-        toast({
+        useToastToast({
           title: "Erro ao salvar paciente",
           description: error.response.data.message,
           variant: "destructive"
         });
       } else {
-        toast({
+        useToastToast({
           title: "Erro inesperado",
           description: error.message || "Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente.",
           variant: "destructive"
@@ -445,7 +447,7 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
       }
 
       if (errorMessages.length > 0) {
-        toast({
+        useToastToast({
           title: "Erros de validação",
           description: errorMessages.join("\n"),
           variant: "destructive"
@@ -468,7 +470,7 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
   }
   
   return (
-    <Card className="w-full shadow-sm">
+    <Card className="w-full max-w-3xl mx-auto">
       <CardContent className="pt-6">
         <Form {...form}>
           <form onSubmit={handleFormSubmit} className="space-y-6">
@@ -517,7 +519,10 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
                     <FormItem>
                       <FormLabel>Data de Nascimento*</FormLabel>
                       <FormControl>
-                        <DatePicker date={field.value} setDate={field.onChange} />
+                        <DatePicker 
+                          date={field.value ? new Date(field.value) : null} 
+                          setDate={(date) => field.onChange(date)}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

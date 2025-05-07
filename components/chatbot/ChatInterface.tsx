@@ -203,8 +203,8 @@ export default function ChatInterface({ patientId, onScheduleAppointment }: Chat
                     }}
                   />
                 }
-                content={renderMessageContent(message)}
               />
+              {renderMessageContent(message)}
             </List.Item>
           )}
         />

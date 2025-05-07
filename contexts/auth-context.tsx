@@ -191,13 +191,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Save to cookies for server-side auth check
       Cookies.set(TOKEN_KEY, token, { expires: COOKIE_EXPIRES_DAYS, path: '/' })
 
-      // Redirect based on role
-      redirectBasedOnRole(processedUser)
-
       toast({
         title: "Login realizado com sucesso",
         description: `Bem-vindo, ${processedUser.name}!`,
       })
+
+      // Redirect based on role after a short delay to ensure state is updated
+      setTimeout(() => {
+        redirectBasedOnRole(processedUser)
+      }, 100)
     } catch (error: any) {
       // Let the login page component handle the error
       throw error;
@@ -325,28 +327,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Helper function to redirect based on role
   const redirectBasedOnRole = (user: User) => {
     if (!user.roles || user.roles.length === 0) {
+      console.log("No roles found, redirecting to dashboard")
       router.push("/dashboard")
       return
     }
 
     const roleName = user.roles[0].name
+    console.log(`User role: ${roleName}, redirecting...`)
 
+    // Ensure we call router.replace which is more reliable for redirects
     switch (roleName) {
       case "super_admin":
       case "admin":
-        router.push("/dashboard")
+        router.replace("/dashboard")
         break
       case "plan_admin":
-        router.push("/health-plans")
+        router.replace("/dashboard")
         break
       case "clinic_admin":
-        router.push("/clinics")
+        router.replace("/dashboard")
         break
       case "professional":
-        router.push("/professional")
+        router.replace("/dashboard")
         break
       default:
-        router.push("/dashboard")
+        router.replace("/dashboard")
     }
   }
 
