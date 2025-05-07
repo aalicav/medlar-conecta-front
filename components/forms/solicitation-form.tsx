@@ -41,6 +41,8 @@ interface SolicitationFormProps {
   initialData?: Partial<FormValues>
   isEditing?: boolean
   solicitationId?: number
+  isPlanAdmin?: boolean
+  healthPlanId?: number
 }
 
 // TypeScript interface for API response
@@ -79,7 +81,13 @@ interface QueryParams {
   [key: string]: any  // Allow additional properties for flexibility
 }
 
-export function SolicitationForm({ initialData, isEditing = false, solicitationId }: SolicitationFormProps) {
+export function SolicitationForm({ 
+  initialData, 
+  isEditing = false, 
+  solicitationId,
+  isPlanAdmin = false,
+  healthPlanId
+}: SolicitationFormProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -101,7 +109,9 @@ export function SolicitationForm({ initialData, isEditing = false, solicitationI
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      health_plan_id: initialData?.health_plan_id?.toString() || healthPlanIdFromQuery || "",
+      health_plan_id: isPlanAdmin && healthPlanId 
+        ? healthPlanId.toString() 
+        : initialData?.health_plan_id?.toString() || healthPlanIdFromQuery || "",
       patient_id: initialData?.patient_id?.toString() || "",
       tuss_id: initialData?.tuss_id?.toString() || tussIdFromQuery || "",
       priority: initialData?.priority || "normal",
@@ -176,12 +186,15 @@ export function SolicitationForm({ initialData, isEditing = false, solicitationI
       }
     };
 
-    if (selectedHealthPlanId) {
+    // If user is plan_admin, use healthPlanId directly
+    if (isPlanAdmin && healthPlanId) {
+      fetchProceduresForHealthPlan(healthPlanId.toString());
+    } else if (selectedHealthPlanId) {
       fetchProceduresForHealthPlan(selectedHealthPlanId);
     } else {
       setTussProcedures([]);
     }
-  }, [selectedHealthPlanId, form, tussIdFromQuery, isEditing]);
+  }, [selectedHealthPlanId, form, tussIdFromQuery, isEditing, isPlanAdmin, healthPlanId]);
 
   // Handle the price display when a procedure is selected
   const handleProcedureChange = (value: string) => {
@@ -200,6 +213,40 @@ export function SolicitationForm({ initialData, isEditing = false, solicitationI
   // Fetch initial options for select fields
   useEffect(() => {
     const fetchHealthPlans = async () => {
+      // Skip fetching health plans if user is plan admin
+      if (isPlanAdmin) {
+        if (healthPlanId) {
+          setHealthPlans([{
+            value: healthPlanId.toString(),
+            label: "Seu Plano de Saúde" // This will be updated with the actual name
+          }]);
+          
+          // Fetch procedures immediately for plan admin
+          setIsLoadingTuss(true);
+          try {
+            const response = await fetchResource(`health-plans/${healthPlanId}/procedures`);
+            if (response && response.data) {
+              const options = response.data.map((item: any) => ({
+                value: item.procedure.id.toString(),
+                label: `${item.procedure.code} - ${item.procedure.name}`,
+                price: item.price
+              }));
+              setTussProcedures(options);
+            }
+          } catch (error) {
+            console.error("Error fetching procedures for health plan:", error);
+            toast({
+              title: "Erro",
+              description: "Não foi possível carregar os procedimentos do seu plano de saúde.",
+              variant: "destructive",
+            });
+          } finally {
+            setIsLoadingTuss(false);
+          }
+        }
+        return;
+      }
+
       setIsLoadingHealthPlans(true)
       try {
         const response = await fetchResource("health-plans", { per_page: 20, status: 'approved' })
@@ -251,7 +298,7 @@ export function SolicitationForm({ initialData, isEditing = false, solicitationI
     // Load options
     fetchHealthPlans()
     fetchInitialPatients()
-  }, [initialData?.patient_id])
+  }, [isPlanAdmin, healthPlanId, initialData?.patient_id])
 
   // If there's initialData for patient, fetch that specific patient
   useEffect(() => {
@@ -432,29 +479,29 @@ export function SolicitationForm({ initialData, isEditing = false, solicitationI
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardContent className="space-y-4">
-            <FormField
-              control={form.control}
-              name="health_plan_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Plano de Saúde</FormLabel>
-                  <FormControl>
-                    <Combobox
-                      options={healthPlans}
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      placeholder="Selecione ou busque um plano de saúde"
-                      searchPlaceholder="Digite para buscar planos..."
-                      emptyText="Nenhum plano encontrado."
-                      loading={isLoadingHealthPlans}
-                      onSearch={handleHealthPlanSearch}
-                      disabled={!!healthPlanIdFromQuery || isEditing}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Health Plan Selection - Only show if not plan admin */}
+            {!isPlanAdmin && (
+              <FormField
+                control={form.control}
+                name="health_plan_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Plano de Saúde</FormLabel>
+                    <FormControl>
+                      <Combobox
+                        options={healthPlans}
+                        value={field.value}
+                        onChange={field.onChange}
+                        isLoading={isLoadingHealthPlans}
+                        onSearch={handleHealthPlanSearch}
+                        placeholder="Selecione um plano de saúde"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}
@@ -583,53 +630,6 @@ export function SolicitationForm({ initialData, isEditing = false, solicitationI
                 </FormItem>
               )}
             />
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <FormField
-                control={form.control}
-                name="preferred_location_lat"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Latitude</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Latitude" {...field} />
-                    </FormControl>
-                    <FormDescription>Coordenada de latitude do endereço do paciente</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="preferred_location_lng"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Longitude</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Longitude" {...field} />
-                    </FormControl>
-                    <FormDescription>Coordenada de longitude do endereço do paciente</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="max_distance_km"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Distância Máxima (km)</FormLabel>
-                    <FormControl>
-                      <Input type="number" placeholder="10" {...field} />
-                    </FormControl>
-                    <FormDescription>Distância máxima em quilômetros</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
           </CardContent>
           <CardFooter className="flex justify-between">
             <Button variant="outline" type="button" onClick={() => router.back()}>

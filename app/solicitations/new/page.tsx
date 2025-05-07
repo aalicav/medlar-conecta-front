@@ -1,6 +1,14 @@
+"use client"
 import { SolicitationForm } from "@/components/forms/solicitation-form"
+import { useAuth } from "@/contexts/auth-context"
 
 export default function NewSolicitationPage() {
+  
+  const { user, hasRole } = useAuth()
+
+  const isPlanAdmin = hasRole("plan_admin")
+  const healthPlanId = isPlanAdmin ? user?.id : undefined
+
   return (
     <div className="space-y-6">
       <div>
@@ -8,7 +16,10 @@ export default function NewSolicitationPage() {
         <p className="text-muted-foreground">Cadastre uma nova solicitação de procedimento médico</p>
       </div>
       
-      <SolicitationForm />
+      <SolicitationForm 
+        isPlanAdmin={isPlanAdmin}
+        healthPlanId={healthPlanId}
+      />
     </div>
   )
 } 
