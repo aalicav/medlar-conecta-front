@@ -48,11 +48,26 @@ export default function ReportsPage() {
   const [total, setTotal] = useState(0);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [reportToDelete, setReportToDelete] = useState<Report | null>(null);
+  const [user, setUser] = useState<any>({});
 
   // Filter states
   const [reportType, setReportType] = useState('all');
   const [isTemplate, setIsTemplate] = useState('all');
   const [isScheduled, setIsScheduled] = useState('all');
+
+  useEffect(() => {
+    // Safely access localStorage only on client side
+    if (typeof window !== 'undefined') {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        try {
+          setUser(JSON.parse(storedUser));
+        } catch (error) {
+          console.error('Error parsing user data:', error);
+        }
+      }
+    }
+  }, []);
 
   useEffect(() => {
     fetchReports();
@@ -201,9 +216,6 @@ export default function ReportsPage() {
 
   // Calculate total pages for pagination
   const totalPages = Math.ceil(total / rowsPerPage);
-
-
-  const user = JSON.parse(localStorage.get("user")?.value || "{}")
 
   return (
     <div className="container mx-auto py-8 space-y-6">

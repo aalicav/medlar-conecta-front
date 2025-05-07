@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -24,7 +24,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CalendarIcon, ChevronDown, Download, Filter, RefreshCcw, Search, Send } from 'lucide-react';
 import WhatsappService, { WhatsappMessage, WhatsappFilter, PaginatedResponse } from '@/app/services/whatsappService';
 
-export default function MensagensWhatsApp() {
+// Client component that uses useSearchParams
+const WhatsAppMessagesContent = () => {
   const searchParams = useSearchParams();
   const router = useRouter();
   
@@ -225,7 +226,6 @@ export default function MensagensWhatsApp() {
                       mode="single"
                       selected={filters.start_date ? new Date(filters.start_date) : undefined}
                       onSelect={(date) => setFilters({...filters, start_date: date ? format(date, 'yyyy-MM-dd') : ''})}
-                      initialFocus
                     />
                   </PopoverContent>
                 </Popover>
@@ -248,7 +248,6 @@ export default function MensagensWhatsApp() {
                       mode="single"
                       selected={filters.end_date ? new Date(filters.end_date) : undefined}
                       onSelect={(date) => setFilters({...filters, end_date: date ? format(date, 'yyyy-MM-dd') : ''})}
-                      initialFocus
                     />
                   </PopoverContent>
                 </Popover>
@@ -462,5 +461,23 @@ export default function MensagensWhatsApp() {
         </CardContent>
       </Card>
     </div>
+  );
+};
+
+// Main page component with Suspense boundary
+export default function WhatsAppMessagesPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-8 text-center">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded w-3/4 mx-auto mb-4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2 mx-auto"></div>
+          </div>
+        </div>
+      </div>
+    }>
+      <WhatsAppMessagesContent />
+    </Suspense>
   );
 } 

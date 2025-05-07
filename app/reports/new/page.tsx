@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from '@/components/ui/use-toast';
 import { FileText, BarChart3, Receipt, Calendar, Filter, MapPin, Building } from 'lucide-react';
@@ -36,7 +36,8 @@ interface Professional {
   specialty: string;
 }
 
-export default function NewReportPage() {
+// Client component that uses useSearchParams
+const NewReportContent = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const typeParam = searchParams.get('type');
@@ -76,7 +77,7 @@ export default function NewReportPage() {
   const [healthPlans, setHealthPlans] = useState<HealthPlan[]>([]);
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [states, setStates] = useState<string[]>([]);
-  const [cities, setCities] = useState<{[state: string]: string[]}>({});
+  const [cities, setCities] = useState<Record<string, string[]>>({});
   const [loadingOptions, setLoadingOptions] = useState(false);
 
   const getDefaultReportName = () => {
@@ -106,19 +107,19 @@ export default function NewReportPage() {
 
         // Processar dados de clínicas e extrair estados e cidades
         if (clinicsResponse.data && Array.isArray(clinicsResponse.data.data)) {
-          const clinicsData = clinicsResponse.data.data;
+          const clinicsData = clinicsResponse.data.data as Clinic[];
           setClinics(clinicsData);
           
           // Extrair estados únicos
-          const uniqueStates = [...new Set(clinicsData.map((clinic: Clinic) => clinic.state))].sort();
+          const uniqueStates = [...new Set(clinicsData.map(clinic => clinic.state))].sort();
           setStates(uniqueStates);
           
           // Agrupar cidades por estado
-          const citiesByState: {[state: string]: string[]} = {};
+          const citiesByState: Record<string, string[]> = {};
           uniqueStates.forEach(state => {
             const stateCities = [...new Set(clinicsData
-              .filter((clinic: Clinic) => clinic.state === state)
-              .map((clinic: Clinic) => clinic.city))]
+              .filter(clinic => clinic.state === state)
+              .map(clinic => clinic.city))]
               .sort();
             citiesByState[state] = stateCities;
           });
@@ -933,5 +934,23 @@ export default function NewReportPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+};
+
+// Main page component with Suspense boundary
+export default function NewReportPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-8 text-center">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded w-3/4 mx-auto mb-4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2 mx-auto"></div>
+          </div>
+        </div>
+      </div>
+    }>
+      <NewReportContent />
+    </Suspense>
   );
 } 
