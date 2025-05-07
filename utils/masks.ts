@@ -194,4 +194,37 @@ export function applyCurrencyMask(value: string): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   })
+}
+
+/**
+ * Format CPF for use in components
+ * @param value CPF value to mask
+ * @returns Masked CPF (000.000.000-00)
+ */
+export function maskCPF(value: string): string {
+  const digits = value.replace(/\D/g, '')
+  return digits
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+    .substring(0, 14)
+}
+
+/**
+ * Format phone for use in components
+ * @param value Phone value to mask
+ * @returns Masked phone: (00) 00000-0000 or (00) 0000-0000
+ */
+export function maskPhone(value: string): string {
+  const digits = value.replace(/\D/g, '')
+  if (digits.length <= 10) {
+    return digits
+      .replace(/(\d{2})(\d)/, '($1) $2')
+      .replace(/(\d{4})(\d)/, '$1-$2')
+      .substring(0, 14)
+  }
+  return digits
+    .replace(/(\d{2})(\d)/, '($1) $2')
+    .replace(/(\d{5})(\d)/, '$1-$2')
+    .substring(0, 15)
 } 
