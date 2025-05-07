@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -41,8 +41,10 @@ const WhatsAppMessagesContent = () => {
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
   
-  const [filters, setFilters] = useState<WhatsappFilter>({
+  // Initialize filters state using searchParams
+  const initialFilters = {
     status: searchParams.get('status') || '',
     recipient: searchParams.get('recipient') || '',
     start_date: searchParams.get('start_date') || '',
@@ -51,15 +53,11 @@ const WhatsAppMessagesContent = () => {
     sort_order: searchParams.get('sort_order') || 'desc',
     per_page: searchParams.get('per_page') ? parseInt(searchParams.get('per_page') as string) : 10,
     page: searchParams.get('page') ? parseInt(searchParams.get('page') as string) : 1,
-  });
+  };
   
-  const [filterOpen, setFilterOpen] = useState(false);
+  const [filters, setFilters] = useState<WhatsappFilter>(initialFilters);
   
-  useEffect(() => {
-    fetchMessages();
-  }, [filters.page, filters.per_page]);
-  
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
     try {
       setLoading(true);
       const response = await WhatsappService.getMessages(filters);
@@ -75,27 +73,31 @@ const WhatsAppMessagesContent = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
   
-  const applyFilters = () => {
-    setFilters({
+  useEffect(() => {
+    fetchMessages();
+  }, [fetchMessages]);
+  
+  const applyFilters = useCallback(() => {
+    const newFilters = {
       ...filters,
       page: 1, // Reset to first page on filter change
-    });
+    };
+    
+    setFilters(newFilters);
     
     const params = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => {
+    Object.entries(newFilters).forEach(([key, value]) => {
       if (value) {
         params.set(key, value.toString());
       }
     });
     
     router.push(`/dashboard/whatsapp/mensagens?${params.toString()}`);
-    
-    fetchMessages();
-  };
+  }, [filters, router]);
   
-  const resetFilters = () => {
+  const resetFilters = useCallback(() => {
     const defaultFilters = {
       status: '',
       recipient: '',
@@ -109,22 +111,18 @@ const WhatsAppMessagesContent = () => {
     
     setFilters(defaultFilters);
     router.push('/dashboard/whatsapp/mensagens');
-    
-    setTimeout(() => {
-      fetchMessages();
-    }, 0);
-  };
+  }, [router]);
   
-  const handlePageChange = (page: number) => {
-    setFilters({
-      ...filters,
+  const handlePageChange = useCallback((page: number) => {
+    setFilters(prev => ({
+      ...prev,
       page,
-    });
+    }));
     
     const params = new URLSearchParams(searchParams.toString());
     params.set('page', page.toString());
     router.push(`/dashboard/whatsapp/mensagens?${params.toString()}`);
-  };
+  }, [searchParams, router]);
   
   const getStatusBadge = (status: string) => {
     const statusConfig = {
