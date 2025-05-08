@@ -108,6 +108,7 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
   const [isLoading, setIsLoading] = useState(false)
   const [healthPlans, setHealthPlans] = useState<HealthPlan[]>([])
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
+  const [selectedHealthPlanName, setSelectedHealthPlanName] = useState<string>("")
   const { toast: useToastToast } = useToast()
   
   // Verificar se usuário tem permissão para gerenciar pacientes
@@ -205,6 +206,28 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
       loadPatient()
     }
   }, [patientId, form, useToastToast])
+  
+  // Fetch health plan name when ID is provided via props
+  useEffect(() => {
+    const getHealthPlanName = async () => {
+      if (!healthPlanId) return
+      
+      try {
+        const response = await fetchResource(`health-plans/${healthPlanId}`)
+        if (response && response.data) {
+          const planData = response.data as any
+          setSelectedHealthPlanName(planData.name || "Plano selecionado")
+        }
+      } catch (error) {
+        console.error("Erro ao buscar detalhes do plano:", error)
+        setSelectedHealthPlanName("Plano selecionado")
+      }
+    }
+    
+    if (healthPlanId) {
+      getHealthPlanName()
+    }
+  }, [healthPlanId])
   
   // Handlers para máscaras de input
   const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -559,7 +582,7 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
             
             <div>
               <h2 className="text-xl font-semibold mb-4">Plano de Saúde</h2>
-              {!isPlanAdmin && (
+              {!isPlanAdmin && !healthPlanId && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -594,6 +617,31 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
                       </FormItem>
                     )}
                   />
+                  
+                  <FormField
+                    control={form.control}
+                    name="health_card_number"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Número da Carteirinha</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Número da carteirinha do plano" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              {(healthPlanId || isPlanAdmin) && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="col-span-1">
+                    <FormLabel>Plano de Saúde</FormLabel>
+                    <div className="p-2 border rounded-md mt-1 bg-muted">
+                      {selectedHealthPlanName || "Plano pré-selecionado"}
+                    </div>
+                  </div>
                   
                   <FormField
                     control={form.control}

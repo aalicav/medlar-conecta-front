@@ -170,7 +170,7 @@ export default function ProfessionalsPage() {
 
   const handleActivateProfessional = async (id: number) => {
     try {
-      await updateResource(`professionals/${id}/approve`, { status: "approved" })
+      await createResource(`professionals/${id}/approve`, { approved: true })
       toast({
         title: "Profissional aprovado",
         description: "O profissional foi aprovado com sucesso.",

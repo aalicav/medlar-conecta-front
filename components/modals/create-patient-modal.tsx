@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useState, useEffect } from "react"
 import {
   Dialog,
   DialogContent,
@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { PatientForm } from "@/components/forms/patient-form"
+import { fetchResource } from "@/services/resource-service"
 
 interface CreatePatientModalProps {
   open: boolean
@@ -23,6 +24,38 @@ export function CreatePatientModal({
   onSuccess,
   healthPlanId
 }: CreatePatientModalProps) {
+  const [healthPlanName, setHealthPlanName] = useState<string>("")
+  const [isLoadingPlan, setIsLoadingPlan] = useState<boolean>(false)
+  
+  // Buscar o nome do plano de saúde quando o ID mudar
+  useEffect(() => {
+    const getHealthPlanName = async () => {
+      if (!healthPlanId) {
+        setHealthPlanName("")
+        return
+      }
+      
+      setIsLoadingPlan(true)
+      try {
+        const response = await fetchResource(`health-plans/${healthPlanId}`)
+        if (response && response.data) {
+          const planData = response.data as any;
+          const planName = planData.name || "Plano selecionado"
+          setHealthPlanName(planName)
+        }
+      } catch (error) {
+        console.error("Erro ao buscar detalhes do plano:", error)
+        setHealthPlanName("Plano selecionado")
+      } finally {
+        setIsLoadingPlan(false)
+      }
+    }
+    
+    if (open && healthPlanId) {
+      getHealthPlanName()
+    }
+  }, [healthPlanId, open])
+  
   const handleSuccess = (patient: any) => {
     console.log("Paciente criado:", patient);
     
@@ -53,7 +86,14 @@ export function CreatePatientModal({
         <DialogHeader>
           <DialogTitle>Cadastrar Novo Paciente</DialogTitle>
           <DialogDescription>
-            Preencha os dados do paciente para criar um novo registro
+            {healthPlanId ? (
+              <>
+                Preencha os dados do paciente para o plano <strong>{healthPlanName}</strong>
+                {isLoadingPlan && <span className="ml-2 text-xs">(carregando...)</span>}
+              </>
+            ) : (
+              <>Preencha os dados do paciente para criar um novo registro</>
+            )}
           </DialogDescription>
         </DialogHeader>
         <PatientForm 

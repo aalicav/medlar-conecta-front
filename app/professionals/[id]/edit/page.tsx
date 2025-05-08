@@ -174,6 +174,15 @@ export default function EditProfessionalPage({ params }: { params: { id: string 
     name: "phones"
   })
 
+  // Debugging form values
+  useEffect(() => {
+    const subscription = form.watch((value) => {
+      console.log("Form values changed:", value);
+    });
+    
+    return () => subscription.unsubscribe();
+  }, [form]);
+  
   // Buscar clínicas disponíveis
   useEffect(() => {
     const fetchClinics = async () => {
@@ -205,35 +214,72 @@ export default function EditProfessionalPage({ params }: { params: { id: string 
       try {
         setIsFetching(true)
         const response = await api.get(`/professionals/${params.id}`)
-        setProfessional(response.data.data)
+        
+        // Log para debug
+        console.log("API Response:", response.data)
+        
+        if (!response.data || !response.data.data) {
+          throw new Error("Resposta da API inválida")
+        }
+        
+        const professionalData = response.data.data
+        
+        // Fix photo URL if exists
+        if (professionalData.photo && professionalData.photo.includes('/storage/') && !professionalData.photo.includes('/storage/app/public/')) {
+          professionalData.photo = professionalData.photo.replace('/storage/', '/storage/app/public/')
+          console.log("Photo URL fixed:", professionalData.photo)
+        }
+        
+        setProfessional(professionalData)
         
         // Popular formulário com dados do profissional
-        form.reset({
-          name: response.data.data.name,
-          cpf: applyCPFMask(response.data.data.cpf),
-          birth_date: response.data.data.birth_date ? new Date(response.data.data.birth_date).toISOString().slice(0, 10) : "",
-          gender: response.data.data.gender || "",
-          professional_type: response.data.data.professional_type,
-          council_type: response.data.data.council_type,
-          council_number: response.data.data.council_number,
-          council_state: response.data.data.council_state,
-          specialty: response.data.data.specialty || "",
-          clinic_id: response.data.data.clinic_id ? String(response.data.data.clinic_id) : "",
-          address: response.data.data.address,
-          city: response.data.data.city,
-          state: response.data.data.state,
-          postal_code: applyCEPMask(response.data.data.postal_code),
-          phones: response.data.data.phones.map((phone: any) => ({
-            number: applyPhoneMask(phone.number),
-            type: phone.type
-          }))
-        })
+        const formattedPhones = Array.isArray(professionalData.phones) 
+          ? professionalData.phones.map((phone: any) => ({
+              number: applyPhoneMask(phone.number),
+              type: phone.type
+            }))
+          : [{ number: "", type: "mobile" }]
+          
+        const formData = {
+          name: professionalData.name || "",
+          cpf: professionalData.cpf ? applyCPFMask(professionalData.cpf) : "",
+          birth_date: professionalData.birth_date ? new Date(professionalData.birth_date).toISOString().split('T')[0] : "",
+          gender: professionalData.gender || "",
+          professional_type: professionalData.professional_type || "",
+          council_type: professionalData.council_type || "",
+          council_number: professionalData.council_number || "",
+          council_state: professionalData.council_state || "",
+          specialty: professionalData.specialty || "",
+          clinic_id: professionalData.clinic_id ? String(professionalData.clinic_id) : "",
+          address: professionalData.address || "",
+          city: professionalData.city || "",
+          state: professionalData.state || "",
+          postal_code: professionalData.postal_code ? applyCEPMask(professionalData.postal_code) : "",
+          phones: formattedPhones
+        }
+        
+        console.log("Formulário será populado com:", formData)
+        
+        // Reset do formulário com os dados
+        form.reset(formData)
         
         // Configurar preview da foto
-        if (response.data.data.photo) {
-          const photoUrl = response.data.data.photo.startsWith('http')
-            ? response.data.data.photo
-            : `${process.env.NEXT_PUBLIC_API_URL || ''}${response.data.data.photo}`;
+        if (professionalData.photo) {
+          const baseApiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+          let photoUrl = professionalData.photo;
+          
+          if (photoUrl.startsWith('http')) {
+            // URL já é completa
+          } else if (photoUrl.includes('/storage/')) {
+            // Inserir app/public após storage/
+            photoUrl = photoUrl.replace('/storage/', '/storage/app/public/');
+            photoUrl = `${baseApiUrl}${photoUrl}`;
+          } else {
+            // Outro formato de URL
+            photoUrl = `${baseApiUrl}${photoUrl}`;
+          }
+          
+          console.log("Preview da foto:", photoUrl);
           setPhotoPreview(photoUrl);
         }
       } catch (error) {
@@ -249,7 +295,7 @@ export default function EditProfessionalPage({ params }: { params: { id: string 
     }
     
     fetchProfessional()
-  }, [params.id])
+  }, [params.id, form])
   
   // Função para tratar upload da foto
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -348,6 +394,8 @@ export default function EditProfessionalPage({ params }: { params: { id: string 
     setIsLoading(true)
     
     try {
+      console.log("Dados do formulário para envio:", data)
+      
       // Criar FormData para envio dos dados
       const formData = new FormData()
       
@@ -374,6 +422,9 @@ export default function EditProfessionalPage({ params }: { params: { id: string 
       
       if (data.clinic_id) {
         formData.append("clinic_id", data.clinic_id)
+      } else {
+        // Enviar null explicitamente quando não há clínica selecionada
+        formData.append("clinic_id", "")
       }
       
       formData.append("address", data.address)
@@ -394,12 +445,19 @@ export default function EditProfessionalPage({ params }: { params: { id: string 
         })
       }
       
+      // Log para debug
+      for (const pair of formData.entries()) {
+        console.log(`${pair[0]}: ${pair[1]}`)
+      }
+      
       // Enviar requisição para a API
       const response = await api.post(`/professionals/${params.id}`, formData, {
         headers: {
           "Content-Type": "multipart/form-data"
         }
       })
+      
+      console.log("Resposta de atualização:", response.data)
       
       toast({
         title: "Profissional atualizado com sucesso",
@@ -411,9 +469,11 @@ export default function EditProfessionalPage({ params }: { params: { id: string 
     } catch (error: any) {
       console.error("Erro ao atualizar profissional:", error)
       
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || "Ocorreu um erro ao atualizar o profissional"
+      
       toast({
         title: "Erro ao atualizar profissional",
-        description: error.response?.data?.message || "Ocorreu um erro ao atualizar o profissional",
+        description: errorMessage,
         variant: "destructive"
       })
     } finally {
@@ -551,7 +611,7 @@ export default function EditProfessionalPage({ params }: { params: { id: string 
                           <FormLabel>Gênero</FormLabel>
                           <Select
                             onValueChange={field.onChange}
-                            defaultValue={field.value}
+                            value={field.value}
                           >
                             <FormControl>
                               <SelectTrigger>
@@ -578,7 +638,7 @@ export default function EditProfessionalPage({ params }: { params: { id: string 
                           <FormLabel>Tipo de Profissional *</FormLabel>
                           <Select
                             onValueChange={field.onChange}
-                            defaultValue={field.value}
+                            value={field.value}
                           >
                             <FormControl>
                               <SelectTrigger>
@@ -620,7 +680,7 @@ export default function EditProfessionalPage({ params }: { params: { id: string 
                           <FormLabel>Tipo de Conselho *</FormLabel>
                           <Select
                             onValueChange={field.onChange}
-                            defaultValue={field.value}
+                            value={field.value}
                           >
                             <FormControl>
                               <SelectTrigger>
@@ -663,7 +723,7 @@ export default function EditProfessionalPage({ params }: { params: { id: string 
                             <FormLabel>Estado do Conselho *</FormLabel>
                             <Select
                               onValueChange={field.onChange}
-                              defaultValue={field.value}
+                              value={field.value}
                             >
                               <FormControl>
                                 <SelectTrigger>
@@ -692,7 +752,7 @@ export default function EditProfessionalPage({ params }: { params: { id: string 
                           <FormLabel>Clínica (opcional)</FormLabel>
                           <Select
                             onValueChange={field.onChange}
-                            defaultValue={field.value}
+                            value={field.value}
                           >
                             <FormControl>
                               <SelectTrigger>
@@ -700,7 +760,6 @@ export default function EditProfessionalPage({ params }: { params: { id: string 
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="">Nenhuma clínica</SelectItem>
                               {clinics.map(clinic => (
                                 <SelectItem key={clinic.id} value={String(clinic.id)}>
                                   {clinic.name}
@@ -732,6 +791,9 @@ export default function EditProfessionalPage({ params }: { params: { id: string 
                                   // Try with API URL if not already starting with http
                                   if (!img.src.startsWith('http')) {
                                     img.src = `${process.env.NEXT_PUBLIC_API_URL || ''}${photoPreview}`;
+                                  } else if (img.src.includes('/storage/') && !img.src.includes('/storage/app/public/')) {
+                                    // Try inserting app/public after storage/
+                                    img.src = img.src.replace('/storage/', '/storage/app/public/');
                                   } else {
                                     // If that fails too, show a placeholder
                                     img.onerror = null; // Prevent infinite recursion
@@ -862,7 +924,7 @@ export default function EditProfessionalPage({ params }: { params: { id: string 
                             <FormLabel>Estado *</FormLabel>
                             <Select
                               onValueChange={field.onChange}
-                              defaultValue={field.value}
+                              value={field.value}
                             >
                               <FormControl>
                                 <SelectTrigger>
@@ -930,7 +992,7 @@ export default function EditProfessionalPage({ params }: { params: { id: string 
                                 <FormLabel>Tipo *</FormLabel>
                                 <Select
                                   onValueChange={field.onChange}
-                                  defaultValue={field.value}
+                                  value={field.value}
                                 >
                                   <FormControl>
                                     <SelectTrigger>

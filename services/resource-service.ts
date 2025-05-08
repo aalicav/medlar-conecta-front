@@ -8,7 +8,8 @@ export interface QueryParams {
   sort_by?: string
   sort_order?: SortOrder
   filters?: Record<string, string>
-  search?: string
+  search?: string;
+  status?: string;
 }
 
 export interface ApiResponse<T> {

@@ -178,6 +178,12 @@ export function Sidebar({ className }: SidebarProps) {
       roles: ["super_admin", "admin", "plan_admin"],
     },
     {
+      title: "Logs",
+      href: "/audit-logs",
+      icon: FileText,
+      roles: ["super_admin", "admin"],
+    },
+    {
       title: "Configurações",
       href: "/settings",
       icon: Settings,
