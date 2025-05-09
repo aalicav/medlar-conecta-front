@@ -29,8 +29,11 @@ import {
   MessageSquare,
   Shield,
   GanttChart,
-  LockKeyhole
+  LockKeyhole,
+  AlertCircle,
+  Building
 } from "lucide-react"
+import { NavigationMenuItem, NavigationMenuLink } from "@/components/ui/navigation-menu"
 
 interface SidebarProps {
   className?: string
@@ -90,104 +93,127 @@ export function Sidebar({ className }: SidebarProps) {
       title: "Dashboard",
       href: "/dashboard",
       icon: LayoutDashboard,
-      roles: ["super_admin", "admin", "plan_admin", "clinic_admin", "professional"],
+      roles: ["super_admin", "admin", "director", "commercial", "legal", "operational", "financial", "plan_admin", "clinic_admin", "professional", "clinic"],
     },
     {
       title: "Planos de Saúde",
       href: "/health-plans",
       icon: Building2,
-      roles: ["super_admin", "admin", "plan_admin"],
+      roles: ["super_admin", "admin", "director", "commercial", "plan_admin"],
     },
     {
       title: "Profissionais",
       href: "/professionals",
       icon: UserRound,
-      roles: ["super_admin", "admin", "clinic_admin"],
+      roles: ["super_admin", "admin", "director", "commercial", "operational", "clinic_admin", "clinic"],
     },
     {
       title: "Clínicas",
       href: "/clinics",
       icon: Building2,
-      roles: ["super_admin", "admin", "clinic_admin"],
+      roles: ["super_admin", "admin", "director", "commercial", "operational", "clinic_admin"],
     },
     {
       title: "Pacientes",
       href: "/patients",
       icon: Users,
-      roles: ["super_admin", "admin", "plan_admin"],
+      roles: ["super_admin", "admin", "director", "plan_admin", "operational", "professional", "clinic"],
     },
     {
       title: "Solicitações",
       href: "/solicitations",
       icon: ClipboardList,
-      roles: ["super_admin", "admin", "plan_admin", "clinic_admin"],
+      roles: ["super_admin", "admin", "director", "plan_admin", "clinic_admin", "operational", "professional", "clinic"],
     },
     {
       title: "Agendamentos",
       href: "/appointments",
       icon: Calendar,
-      roles: ["super_admin", "admin", "plan_admin", "clinic_admin", "professional"],
+      roles: ["super_admin", "admin", "director", "plan_admin", "clinic_admin", "operational", "professional", "clinic"],
     },
     {
       title: "Negociações",
       href: "/negotiations",
       icon: GanttChart,
-      roles: ["super_admin", "admin", "plan_admin", "clinic_admin", "professional"],
+      roles: ["super_admin", "admin", "director", "commercial", "plan_admin", "clinic_admin", "professional"],
+    },
+    {
+      title: "Negociações Extemporâneas",
+      href: "/extemporaneous-negotiations",
+      icon: AlertCircle,
+      roles: ["super_admin", "admin", "director", "commercial", "legal"],
+    },
+    {
+      title: "Verificações de Valores",
+      href: "/value-verifications",
+      icon: FileText,
+      roles: ["super_admin", "admin", "director", "commercial", "financial"],
     },
     {
       title: "Financeiro",
       href: "/financials",
       icon: CreditCard,
-      roles: ["super_admin", "admin", "plan_admin", "clinic_admin"],
-      permission: "manage financials",
+      roles: ["super_admin", "admin", "director", "financial", "plan_admin", "clinic_admin"],
     },
     {
       title: "Regras de Faturamento",
       href: "/billing/rules",
       icon: CreditCard,
-      roles: ["super_admin", "admin",],
+      roles: ["super_admin", "admin", "director", "financial", "commercial"],
     },
     {
       title: "Contratos",
       href: "/contracts",
       icon: FileText,
-      roles: ["super_admin", "admin", "plan_admin", "clinic_admin", "professional"],
+      roles: ["super_admin", "admin", "director", "commercial", "legal", "plan_admin", "clinic_admin", "professional"],
+    },
+    {
+      title: "Aditivos",
+      href: "/addendums",
+      icon: FileText,
+      roles: ["super_admin", "admin", "director", "commercial", "legal"],
     },
     {
       title: "Privacidade (LGPD)",
       href: "/settings/privacy",
       icon: Shield,
-      roles: ["super_admin", "admin"],
+      roles: ["super_admin", "admin", "director"],
     },
     {
       title: "Assistente SURI",
       href: "/chatbot",
       icon: MessageSquare,
-      roles: ["super_admin", "admin",],
+      roles: ["super_admin", "admin", "director", "commercial", "legal", "operational", "financial", "professional", "clinic"],
     },
     {
       title: "Notificações",
       href: "/notifications",
       icon: Bell,
-      roles: ["super_admin", "admin"],
+      roles: ["super_admin", "admin", "director", "commercial", "legal", "operational", "financial", "professional", "clinic"],
     },
     {
       title: "Relatórios",
       href: "/reports",
       icon: BarChart3,
-      roles: ["super_admin", "admin", "plan_admin"],
+      roles: ["super_admin", "admin", "director", "commercial", "financial", "plan_admin"],
+    },
+    {
+      title: "Gestão de Instalações",
+      href: "/facility-management",
+      icon: Building,
+      roles: ["super_admin", "admin", "clinic_admin", "clinic"],
     },
     {
       title: "Logs",
       href: "/audit-logs",
       icon: FileText,
-      roles: ["super_admin", "admin"],
+      roles: ["super_admin", "admin", "director"],
     },
     {
       title: "Configurações",
       href: "/settings",
       icon: Settings,
-      roles: ["super_admin", "admin"],
+      roles: ["super_admin", "admin", "director"],
       permission: "edit settings",
     },
   ]
@@ -319,6 +345,21 @@ export function Sidebar({ className }: SidebarProps) {
                 );
               })}
             </nav>
+
+            <NavigationMenuItem className="my-1">
+              <NavigationMenuLink
+                href="/scheduling-exceptions"
+                className={cn(
+                  "block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
+                  pathname === "/scheduling-exceptions" ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4" />
+                  <span>Exceções de Agendamento</span>
+                </div>
+              </NavigationMenuLink>
+            </NavigationMenuItem>
           </div>
         </ScrollArea>
 

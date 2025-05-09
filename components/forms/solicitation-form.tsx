@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import * as z from "zod"
+import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
@@ -65,7 +65,8 @@ type FormValues = z.infer<typeof formSchema>
 
 interface SolicitationFormProps {
   initialData?: Partial<FormValues>
-  onSubmit: (data: FormValues) => Promise<void>
+  isEditing?: boolean
+  solicitationId?: number
   isPlanAdmin?: boolean
   healthPlanId?: string
 }
@@ -129,10 +130,11 @@ interface ProcedureWithPrice {
   price: number;
 }
 
-export function SolicitationForm({
-  initialData,
-  onSubmit,
-  isPlanAdmin,
+export function SolicitationForm({ 
+  initialData, 
+  isEditing = false, 
+  solicitationId,
+  isPlanAdmin = false,
   healthPlanId
 }: SolicitationFormProps) {
   const router = useRouter()
@@ -170,34 +172,38 @@ export function SolicitationForm({
   })
 
   // Watch health plan ID to fetch procedures
-  const selectedHealthPlanId = form.watch("health_plan_id")
+  const selectedHealthPlanId = form.watch("health_plan_id");
 
   // Set price from query params if available
   useEffect(() => {
     if (priceFromQuery) {
-      form.setValue('tuss_id', priceFromQuery)
+      setProcedurePrice(priceFromQuery);
     }
-  }, [priceFromQuery, form])
+  }, [priceFromQuery]);
 
   // Pre-select values from query params
   useEffect(() => {
     if (healthPlanIdFromQuery) {
-      form.setValue('health_plan_id', healthPlanIdFromQuery)
+      form.setValue('health_plan_id', healthPlanIdFromQuery);
     }
-  }, [healthPlanIdFromQuery, form])
+    
+    if (tussIdFromQuery) {
+      form.setValue('tuss_id', tussIdFromQuery);
+    }
+  }, [healthPlanIdFromQuery, tussIdFromQuery, form]);
 
   // Fetch procedures when health plan changes
   useEffect(() => {
     const fetchProceduresForHealthPlan = async (healthPlanId: string) => {
       if (!healthPlanId) {
-        setProcedures([])
-        return
+        setTussProcedures([]);
+        return;
       }
 
-      setLoadingProcedures(true)
+      setIsLoadingTuss(true);
       try {
         // Fetch procedures for the selected health plan
-        const response = await fetchResource(`health-plans/${healthPlanId}/procedures`)
+        const response = await fetchResource(`health-plans/${healthPlanId}/procedures`);
         
         if (response && response.data) {
           // @ts-ignore
@@ -206,9 +212,9 @@ export function SolicitationForm({
             label: `${item.procedure.code} - ${item.procedure.name}`,
             // Store price as an extra property to display later
             price: item.price
-          }))
+          }));
           
-          setProcedures(options)
+          setTussProcedures(options);
           
           // Clear the current selection unless it's from a query param
           if (!tussIdFromQuery && !isPlanAdmin) {
@@ -217,21 +223,21 @@ export function SolicitationForm({
           }
         }
       } catch (error) {
-        console.error("Error fetching procedures for health plan:", error)
-        useToastToast({
+        console.error("Error fetching procedures for health plan:", error);
+        toast({
           title: "Erro",
           description: "Não foi possível carregar os procedimentos para este plano de saúde.",
           variant: "destructive",
-        })
-        setProcedures([])
+        });
+        setTussProcedures([]);
       } finally {
-        setLoadingProcedures(false)
+        setIsLoadingTuss(false);
       }
-    }
+    };
 
     // If user is plan_admin, use healthPlanId directly
     if (isPlanAdmin && healthPlanId) {
-      fetchProceduresForHealthPlan(healthPlanId.toString())
+      fetchProceduresForHealthPlan(healthPlanId.toString());
     } else if (selectedHealthPlanId) {
       fetchProceduresForHealthPlan(selectedHealthPlanId)
       
@@ -242,7 +248,7 @@ export function SolicitationForm({
         fetchPatientsForHealthPlan(selectedHealthPlanId)
       }
     } else {
-      setProcedures([])
+      setTussProcedures([]);
     }
   }, [selectedHealthPlanId, form, tussIdFromQuery, isPlanAdmin, healthPlanId, useToastToast, initialData?.patient_id])
 
@@ -289,6 +295,7 @@ export function SolicitationForm({
   // Fetch initial options for select fields
   useEffect(() => {
     const fetchHealthPlans = async () => {
+      // Skip fetching health plans if user is plan admin
       if (isPlanAdmin) {
         // Se for admin do plano, não precisa buscar planos
         setHealthPlans([{
@@ -315,13 +322,13 @@ export function SolicitationForm({
         }
       } catch (error) {
         console.error("Error fetching health plans:", error)
-        useToastToast({
+        toast({
           title: "Erro",
           description: "Não foi possível carregar os planos de saúde.",
           variant: "destructive",
         })
       } finally {
-        setLoadingHealthPlans(false)
+        setIsLoadingHealthPlans(false)
       }
     }
 
@@ -345,7 +352,7 @@ export function SolicitationForm({
   useEffect(() => {
     const fetchPatient = async () => {
       if (initialData?.patient_id) {
-        setLoadingPatients(true)
+        setIsLoadingPatients(true)
         try {
           const response = await fetchResource(`patients/${initialData.patient_id}`) as ResourceResponse<Patient>
           
@@ -360,19 +367,19 @@ export function SolicitationForm({
           }
         } catch (error) {
           console.error("Error fetching patient:", error)
-          useToastToast({
+          toast({
             title: "Erro",
             description: "Não foi possível carregar os dados do paciente.",
             variant: "destructive",
           })
         } finally {
-          setLoadingPatients(false)
+          setIsLoadingPatients(false)
         }
       }
     }
 
     fetchPatient()
-  }, [initialData?.patient_id, useToastToast])
+  }, [initialData?.patient_id])
 
   // Search patients
   const searchPatients = debounce((query: string) => {
@@ -396,7 +403,7 @@ export function SolicitationForm({
     if (!query || query.length < 3) return
     setSearchHealthPlanTerm(query)
 
-    setLoadingHealthPlans(true)
+    setIsLoadingHealthPlans(true)
     try {
       const params: QueryParams = {
         per_page: 20,
@@ -417,7 +424,7 @@ export function SolicitationForm({
     } catch (error) {
       console.error("Error searching health plans:", error)
     } finally {
-      setLoadingHealthPlans(false)
+      setIsLoadingHealthPlans(false)
     }
   }, 300)
 
@@ -434,7 +441,7 @@ export function SolicitationForm({
     // Set the patient_id in the form
     form.setValue("patient_id", newPatient.value)
     
-    useToastToast({
+    toast({
       title: "Paciente criado",
       description: "O paciente foi criado e selecionado na solicitação.",
     })
@@ -455,6 +462,7 @@ export function SolicitationForm({
         description: "Não foi possível criar a solicitação",
         variant: "destructive",
       })
+      setProcedures([])
     } finally {
       setLoading(false)
     }
@@ -541,9 +549,14 @@ export function SolicitationForm({
   }
 
   return (
-    <Card className="w-full max-w-3xl mx-auto">
+    <Card>
       <CardHeader>
-        <CardTitle>Nova Solicitação</CardTitle>
+        <CardTitle>{isEditing ? "Editar Solicitação" : "Nova Solicitação"}</CardTitle>
+        <CardDescription>
+          {isEditing
+            ? "Atualize as informações da solicitação"
+            : "Preencha as informações para criar uma nova solicitação"}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[calc(100vh-16rem)]">
@@ -613,9 +626,10 @@ export function SolicitationForm({
                 )}
               />
 
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField
                 control={form.control}
-                name="procedure_id"
+                name="preferred_date_start"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Procedimento</FormLabel>
@@ -644,17 +658,11 @@ export function SolicitationForm({
 
               <FormField
                 control={form.control}
-                name="description"
+                name="preferred_date_end"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Descrição</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Digite a descrição da solicitação"
-                        className="resize-none"
-                        {...field}
-                      />
-                    </FormControl>
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Data Preferencial (Fim)</FormLabel>
+                    <DatePicker date={field.value} setDate={field.onChange} />
                     <FormMessage />
                   </FormItem>
                 )}

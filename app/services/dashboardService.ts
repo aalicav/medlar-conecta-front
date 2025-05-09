@@ -1,15 +1,59 @@
-import { apiClient } from './apiClient';
+import api  from './api';
 
-const API_BASE_PATH = '/dashboard';
+export interface DashboardStats {
+  appointments?: {
+    total: number;
+    pending: number;
+    completed: number;
+    today?: number;
+  };
+  solicitations?: {
+    total: number;
+    pending: number;
+    accepted: number;
+  };
+  patients?: {
+    total: number;
+    active: number;
+  };
+  revenue?: {
+    total: number;
+    pending: number;
+    month_to_date?: number;
+    last_30_days?: number;
+  };
+  contracts?: {
+    total: number;
+    active: number;
+    pending_approval?: number;
+    expired?: number;
+    expiring_soon?: number;
+    pending_review?: number;
+    template_count?: number;
+  };
+  negotiations?: {
+    total: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+    pending_addendum?: number;
+    pending_addendum_details?: any[];
+  };
+  professionals?: {
+    total: number;
+    pending_payment?: number;
+  };
+  pending_approvals?: {
+    contracts: number;
+    negotiations: number;
+    value_verifications: number;
+  };
+  addendums?: {
+    pending: number;
+  };
+}
 
-export type DashboardStats = {
-  appointments: { total: number; pending: number; completed: number };
-  solicitations: { total: number; pending: number; accepted: number };
-  patients: { total: number; active: number };
-  revenue: { total: number; pending: number };
-};
-
-export type Appointment = {
+export interface Appointment {
   id: number;
   patient: string;
   patient_id: number;
@@ -17,33 +61,32 @@ export type Appointment = {
   date: string;
   type: string;
   status: string;
-};
+}
 
-export type Notification = {
+export interface PendingItem {
   id: number;
-  sender: string;
-  content: string;
-  time: string;
-  unread: boolean;
-};
+  type: string;
+  title: string;
+  description: string;
+  link: string;
+  created_at: string;
+  priority: 'low' | 'medium' | 'high';
+}
 
-export const dashboardService = {
+const dashboardService = {
   /**
    * Get dashboard statistics
    */
   getStats: async () => {
-    const response = await apiClient.get<{ success: boolean; data: DashboardStats }>(`${API_BASE_PATH}/stats`);
+    const response = await api.get('/dashboard/stats');
     return response.data;
   },
 
   /**
    * Get upcoming appointments
    */
-  getUpcomingAppointments: async (limit: number = 5) => {
-    const response = await apiClient.get<{ success: boolean; data: Appointment[] }>(
-      `${API_BASE_PATH}/appointments/upcoming`, 
-      { params: { limit } }
-    );
+  getUpcomingAppointments: async (limit = 5) => {
+    const response = await api.get(`/dashboard/upcoming-appointments?limit=${limit}`);
     return response.data;
   },
 
@@ -51,38 +94,25 @@ export const dashboardService = {
    * Get today's appointments
    */
   getTodayAppointments: async () => {
-    const response = await apiClient.get<{ success: boolean; data: Appointment[] }>(`${API_BASE_PATH}/appointments/today`);
+    const response = await api.get('/dashboard/today-appointments');
     return response.data;
   },
 
   /**
-   * Get recent notifications
-   */
-  getRecentNotifications: async (limit: number = 5) => {
-    const response = await apiClient.get<{ success: boolean; data: Notification[] }>(
-      `${API_BASE_PATH}/notifications`, 
-      { params: { limit } }
-    );
-    return response.data;
-  },
-
-  /**
-   * Mark notification as read
-   */
-  markNotificationAsRead: async (notificationId: number) => {
-    const response = await apiClient.put<{ success: boolean }>(
-      `${API_BASE_PATH}/notifications/${notificationId}/mark-read`
-    );
-    return response.data;
-  },
-
-  /**
-   * Get SURI stats
+   * Get SURI chatbot statistics
    */
   getSuriStats: async () => {
-    const response = await apiClient.get<{ success: boolean; data: { message_count: number } }>(
-      `${API_BASE_PATH}/suri/stats`
-    );
+    const response = await api.get('/dashboard/suri-stats');
+    return response.data;
+  },
+  
+  /**
+   * Get pending items that require attention based on user role
+   */
+  getPendingItems: async () => {
+    const response = await api.get('/dashboard/pending-items');
     return response.data;
   }
-}; 
+};
+
+export { dashboardService }; 

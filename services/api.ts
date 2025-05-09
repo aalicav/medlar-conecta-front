@@ -46,4 +46,30 @@ api.interceptors.response.use(
   }
 );
 
+// Scheduling Exceptions endpoints
+export const getSchedulingExceptions = async (params: Record<string, any> = {}) => {
+  return await api.get('/scheduling-exceptions', { params });
+};
+
+export const getSchedulingException = async (id: number | string) => {
+  return await api.get(`/scheduling-exceptions/${id}`);
+};
+
+export const createSchedulingException = async (data: {
+  solicitation_id: number;
+  provider_type_class: string;
+  provider_id: number;
+  justification: string;
+}) => {
+  return await api.post('/scheduling-exceptions', data);
+};
+
+export const approveSchedulingException = async (id: number | string) => {
+  return await api.post(`/scheduling-exceptions/${id}/approve`);
+};
+
+export const rejectSchedulingException = async (id: number | string, data: { rejection_reason: string }) => {
+  return await api.post(`/scheduling-exceptions/${id}/reject`, data);
+};
+
 export { api }; 

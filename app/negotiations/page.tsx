@@ -72,8 +72,8 @@ import {
 } from '@/components/ui/pagination';
 import { toast } from '@/components/ui/use-toast';
 
-// Helper function to map status to color variants
-const getStatusVariant = (status: NegotiationStatus) => {
+// Função auxiliar para mapear status para variantes de cores
+const obterVarianteStatus = (status: NegotiationStatus) => {
   switch (status) {
     case 'draft': return 'outline';
     case 'submitted': return 'secondary';
@@ -87,203 +87,203 @@ const getStatusVariant = (status: NegotiationStatus) => {
   }
 };
 
-export default function NegotiationsPage() {
+export default function PaginaNegociacoes() {
   const router = useRouter();
-  const [negotiations, setNegotiations] = useState<Negotiation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchText, setSearchText] = useState('');
-  const [statusFilter, setStatusFilter] = useState<NegotiationStatus | ''>('');
-  const [pagination, setPagination] = useState({
-    current: 1,
-    pageSize: 10,
+  const [negociacoes, setNegociacoes] = useState<Negotiation[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [textoBusca, setTextoBusca] = useState('');
+  const [filtroStatus, setFiltroStatus] = useState<NegotiationStatus | ''>('');
+  const [paginacao, setPaginacao] = useState({
+    atual: 1,
+    tamanhoPagina: 10,
     total: 0
   });
-  const [sortField, setSortField] = useState('created_at');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [confirmDialog, setConfirmDialog] = useState<{
-    open: boolean;
-    action: 'submit' | 'cancel' | null;
+  const [campoOrdenacao, setCampoOrdenacao] = useState('created_at');
+  const [direcaoOrdenacao, setDirecaoOrdenacao] = useState<'asc' | 'desc'>('desc');
+  const [dialogoConfirmacao, setDialogoConfirmacao] = useState<{
+    aberto: boolean;
+    acao: 'submit' | 'cancel' | null;
     id: number | null;
-    title: string;
-    description: string;
+    titulo: string;
+    descricao: string;
   }>({
-    open: false,
-    action: null,
+    aberto: false,
+    acao: null,
     id: null,
-    title: '',
-    description: ''
+    titulo: '',
+    descricao: ''
   });
 
-  const fetchNegotiations = async (page = 1, pageSize = 10) => {
-    setLoading(true);
+  const buscarNegociacoes = async (pagina = 1, tamanhoPagina = 10) => {
+    setCarregando(true);
     try {
       const response = await negotiationService.getNegotiations({
-        search: searchText || undefined,
-        status: statusFilter as NegotiationStatus || undefined,
-        sort_field: sortField,
-        sort_order: sortOrder,
-        page,
-        per_page: pageSize
+        search: textoBusca || undefined,
+        status: filtroStatus as NegotiationStatus || undefined,
+        sort_field: campoOrdenacao,
+        sort_order: direcaoOrdenacao,
+        page: pagina,
+        per_page: tamanhoPagina
       });
       
-      setNegotiations(response.data);
-      setPagination({
-        current: response.meta.current_page,
-        pageSize: response.meta.per_page,
+      setNegociacoes(response.data);
+      setPaginacao({
+        atual: response.meta.current_page,
+        tamanhoPagina: response.meta.per_page,
         total: response.meta.total
       });
     } catch (error) {
-      console.error('Error fetching negotiations:', error);
+      console.error('Erro ao buscar negociações:', error);
       toast({
-        title: "Error",
-        description: "Failed to load negotiations",
+        title: "Erro",
+        description: "Falha ao carregar negociações",
         variant: "destructive"
       });
     } finally {
-      setLoading(false);
+      setCarregando(false);
     }
   };
 
   useEffect(() => {
-    fetchNegotiations(pagination.current, pagination.pageSize);
-  }, [searchText, statusFilter, sortField, sortOrder]);
+    buscarNegociacoes(paginacao.atual, paginacao.tamanhoPagina);
+  }, [textoBusca, filtroStatus, campoOrdenacao, direcaoOrdenacao]);
 
-  const handleSearch = (value: string) => {
-    setSearchText(value);
-    setPagination({ ...pagination, current: 1 });
+  const handleBusca = (valor: string) => {
+    setTextoBusca(valor);
+    setPaginacao({ ...paginacao, atual: 1 });
   };
 
-  const handleStatusFilter = (value: string) => {
-    setStatusFilter(value as NegotiationStatus | '');
-    setPagination({ ...pagination, current: 1 });
+  const handleFiltroStatus = (valor: string) => {
+    setFiltroStatus(valor as NegotiationStatus | '');
+    setPaginacao({ ...paginacao, atual: 1 });
   };
 
-  const handlePageChange = (page: number) => {
-    setPagination({ ...pagination, current: page });
-    fetchNegotiations(page, pagination.pageSize);
+  const handleMudancaPagina = (pagina: number) => {
+    setPaginacao({ ...paginacao, atual: pagina });
+    buscarNegociacoes(pagina, paginacao.tamanhoPagina);
   };
 
-  const handleSortChange = (field: string) => {
-    const newOrder = field === sortField && sortOrder === 'asc' ? 'desc' : 'asc';
-    setSortField(field);
-    setSortOrder(newOrder);
+  const handleMudancaOrdenacao = (campo: string) => {
+    const novaDirecao = campo === campoOrdenacao && direcaoOrdenacao === 'asc' ? 'desc' : 'asc';
+    setCampoOrdenacao(campo);
+    setDirecaoOrdenacao(novaDirecao);
   };
 
-  const confirmAction = (action: 'submit' | 'cancel', id: number) => {
-    const titles = {
-      submit: 'Submit Negotiation',
-      cancel: 'Cancel Negotiation'
+  const confirmarAcao = (acao: 'submit' | 'cancel', id: number) => {
+    const titulos = {
+      submit: 'Enviar Negociação',
+      cancel: 'Cancelar Negociação'
     };
     
-    const descriptions = {
-      submit: 'Are you sure you want to submit this negotiation for approval?',
-      cancel: 'Are you sure you want to cancel this negotiation?'
+    const descricoes = {
+      submit: 'Tem certeza que deseja enviar esta negociação para aprovação?',
+      cancel: 'Tem certeza que deseja cancelar esta negociação?'
     };
     
-    setConfirmDialog({
-      open: true,
-      action,
+    setDialogoConfirmacao({
+      aberto: true,
+      acao,
       id,
-      title: titles[action],
-      description: descriptions[action]
+      titulo: titulos[acao],
+      descricao: descricoes[acao]
     });
   };
 
-  const handleActionConfirm = async () => {
-    if (!confirmDialog.action || !confirmDialog.id) return;
+  const handleConfirmarAcao = async () => {
+    if (!dialogoConfirmacao.acao || !dialogoConfirmacao.id) return;
     
     try {
-      if (confirmDialog.action === 'submit') {
-        await negotiationService.submitNegotiation(confirmDialog.id);
+      if (dialogoConfirmacao.acao === 'submit') {
+        await negotiationService.submitNegotiation(dialogoConfirmacao.id);
         toast({
-          title: "Success",
-          description: "Negotiation submitted successfully",
+          title: "Sucesso",
+          description: "Negociação enviada com sucesso",
         });
-      } else if (confirmDialog.action === 'cancel') {
-        await negotiationService.cancelNegotiation(confirmDialog.id);
+      } else if (dialogoConfirmacao.acao === 'cancel') {
+        await negotiationService.cancelNegotiation(dialogoConfirmacao.id);
         toast({
-          title: "Success",
-          description: "Negotiation cancelled successfully",
+          title: "Sucesso",
+          description: "Negociação cancelada com sucesso",
         });
       }
       
-      fetchNegotiations(pagination.current, pagination.pageSize);
+      buscarNegociacoes(paginacao.atual, paginacao.tamanhoPagina);
     } catch (error) {
-      console.error(`Error ${confirmDialog.action}ing negotiation:`, error);
+      console.error(`Erro ao ${dialogoConfirmacao.acao === 'submit' ? 'enviar' : 'cancelar'} negociação:`, error);
       toast({
-        title: "Error",
-        description: `Failed to ${confirmDialog.action} negotiation`,
+        title: "Erro",
+        description: `Falha ao ${dialogoConfirmacao.acao === 'submit' ? 'enviar' : 'cancelar'} negociação`,
         variant: "destructive"
       });
     } finally {
-      setConfirmDialog({ ...confirmDialog, open: false });
+      setDialogoConfirmacao({ ...dialogoConfirmacao, aberto: false });
     }
   };
 
-  const handleGenerateContract = async (id: number) => {
+  const handleGerarContrato = async (id: number) => {
     try {
       const response = await negotiationService.generateContract(id);
       toast({
-        title: "Success",
-        description: "Contract generated successfully",
+        title: "Sucesso",
+        description: "Contrato gerado com sucesso",
       });
       router.push(`/contracts/${response.data.contract_id}`);
     } catch (error) {
-      console.error('Error generating contract:', error);
+      console.error('Erro ao gerar contrato:', error);
       toast({
-        title: "Error",
-        description: "Failed to generate contract",
+        title: "Erro",
+        description: "Falha ao gerar contrato",
         variant: "destructive"
       });
     }
   };
 
-  const renderPagination = () => {
-    const { current, total, pageSize } = pagination;
-    const totalPages = Math.ceil(total / pageSize);
+  const renderizarPaginacao = () => {
+    const { atual, total, tamanhoPagina } = paginacao;
+    const totalPaginas = Math.ceil(total / tamanhoPagina);
     
-    if (totalPages <= 1) return null;
+    if (totalPaginas <= 1) return null;
     
     return (
       <Pagination className="mt-4">
         <PaginationContent>
           <PaginationItem>
             <PaginationPrevious 
-              onClick={() => handlePageChange(Math.max(1, current - 1))}
-              className={current === 1 ? 'pointer-events-none opacity-50' : ''}
+              onClick={() => handleMudancaPagina(Math.max(1, atual - 1))}
+              className={atual === 1 ? 'pointer-events-none opacity-50' : ''}
             />
           </PaginationItem>
           
-          {Array.from({ length: Math.min(5, totalPages) }).map((_, i) => {
-            let pageNum = current <= 3 
+          {Array.from({ length: Math.min(5, totalPaginas) }).map((_, i) => {
+            let numPagina = atual <= 3 
               ? i + 1 
-              : current >= totalPages - 2 
-                ? totalPages - 4 + i 
-                : current - 2 + i;
+              : atual >= totalPaginas - 2 
+                ? totalPaginas - 4 + i 
+                : atual - 2 + i;
                 
-            if (pageNum > totalPages) return null;
-            if (pageNum < 1) pageNum = 1;
+            if (numPagina > totalPaginas) return null;
+            if (numPagina < 1) numPagina = 1;
             
             return (
-              <PaginationItem key={pageNum}>
+              <PaginationItem key={numPagina}>
                 <PaginationLink 
-                  isActive={pageNum === current}
-                  onClick={() => handlePageChange(pageNum)}
+                  isActive={numPagina === atual}
+                  onClick={() => handleMudancaPagina(numPagina)}
                 >
-                  {pageNum}
+                  {numPagina}
                 </PaginationLink>
               </PaginationItem>
             );
           })}
           
-          {totalPages > 5 && current < totalPages - 2 && (
+          {totalPaginas > 5 && atual < totalPaginas - 2 && (
             <>
               <PaginationItem>
                 <PaginationEllipsis />
               </PaginationItem>
               <PaginationItem>
-                <PaginationLink onClick={() => handlePageChange(totalPages)}>
-                  {totalPages}
+                <PaginationLink onClick={() => handleMudancaPagina(totalPaginas)}>
+                  {totalPaginas}
                 </PaginationLink>
               </PaginationItem>
             </>
@@ -291,8 +291,8 @@ export default function NegotiationsPage() {
           
           <PaginationItem>
             <PaginationNext 
-              onClick={() => handlePageChange(Math.min(totalPages, current + 1))}
-              className={current === totalPages ? 'pointer-events-none opacity-50' : ''}
+              onClick={() => handleMudancaPagina(Math.min(totalPaginas, atual + 1))}
+              className={atual === totalPaginas ? 'pointer-events-none opacity-50' : ''}
             />
           </PaginationItem>
         </PaginationContent>
@@ -304,13 +304,13 @@ export default function NegotiationsPage() {
     <div className="container py-6 space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Negotiations</h1>
-          <p className="text-muted-foreground">Manage your negotiations with health plans, professionals, and clinics</p>
+          <h1 className="text-3xl font-bold tracking-tight">Negociações</h1>
+          <p className="text-muted-foreground">Gerencie suas negociações com planos de saúde, profissionais e clínicas</p>
         </div>
         
         <Button onClick={() => router.push('/negotiations/new')}>
           <Plus className="mr-2 h-4 w-4" />
-          New Negotiation
+          Nova Negociação
         </Button>
       </div>
       
@@ -321,9 +321,9 @@ export default function NegotiationsPage() {
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search negotiations..."
-                  value={searchText}
-                  onChange={(e) => handleSearch(e.target.value)}
+                  placeholder="Buscar negociações..."
+                  value={textoBusca}
+                  onChange={(e) => handleBusca(e.target.value)}
                   className="pl-8"
                 />
               </div>
@@ -331,13 +331,14 @@ export default function NegotiationsPage() {
             
             <div className="flex flex-wrap gap-2">
               <Select
-                value={statusFilter || ''}
-                onValueChange={handleStatusFilter}
+                value={filtroStatus || ''}
+                onValueChange={handleFiltroStatus}
               >
                 <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Filter by status" />
+                  <SelectValue placeholder="Filtrar por status" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="">Todos</SelectItem>
                   {Object.entries(negotiationStatusLabels).map(([value, label]) => (
                     <SelectItem key={value} value={value}>{label}</SelectItem>
                   ))}
@@ -354,109 +355,109 @@ export default function NegotiationsPage() {
                 <TableRow>
                   <TableHead 
                     className="cursor-pointer"
-                    onClick={() => handleSortChange('title')}
+                    onClick={() => handleMudancaOrdenacao('title')}
                   >
-                    Title {sortField === 'title' && (sortOrder === 'asc' ? '↑' : '↓')}
+                    Título {campoOrdenacao === 'title' && (direcaoOrdenacao === 'asc' ? '↑' : '↓')}
                   </TableHead>
-                  <TableHead>Entity</TableHead>
+                  <TableHead>Entidade</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Period</TableHead>
+                  <TableHead>Período</TableHead>
                   <TableHead 
                     className="cursor-pointer"
-                    onClick={() => handleSortChange('created_at')}
+                    onClick={() => handleMudancaOrdenacao('created_at')}
                   >
-                    Created {sortField === 'created_at' && (sortOrder === 'asc' ? '↑' : '↓')}
+                    Criada em {campoOrdenacao === 'created_at' && (direcaoOrdenacao === 'asc' ? '↑' : '↓')}
                   </TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               
               <TableBody>
-                {loading ? (
+                {carregando ? (
                   <TableRow>
                     <TableCell colSpan={6} className="h-24 text-center">
-                      Loading...
+                      Carregando...
                     </TableCell>
                   </TableRow>
-                ) : negotiations.length === 0 ? (
+                ) : negociacoes.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="h-24 text-center">
-                      No negotiations found
+                      Nenhuma negociação encontrada
                     </TableCell>
                   </TableRow>
                 ) : (
-                  negotiations.map((negotiation) => (
-                    <TableRow key={negotiation.id}>
+                  negociacoes.map((negociacao) => (
+                    <TableRow key={negociacao.id}>
                       <TableCell>
                         <Link 
-                          href={`/negotiations/${negotiation.id}`}
+                          href={`/negotiations/${negociacao.id}`}
                           className="font-medium hover:underline"
                         >
-                          {negotiation.title}
+                          {negociacao.title}
                         </Link>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
-                          <span>{negotiation.negotiable?.name || '-'}</span>
+                          <span>{negociacao.negotiable?.name || '-'}</span>
                           <span className="text-xs text-muted-foreground">
-                            {negotiation.negotiable_type.split('\\').pop() === 'HealthPlan' 
-                              ? 'Health Plan' 
-                              : negotiation.negotiable_type.split('\\').pop() === 'Professional'
-                                ? 'Professional'
-                                : 'Clinic'}
+                            {negociacao.negotiable_type.split('\\').pop() === 'HealthPlan' 
+                              ? 'Plano de Saúde' 
+                              : negociacao.negotiable_type.split('\\').pop() === 'Professional'
+                                ? 'Profissional'
+                                : 'Clínica'}
                           </span>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={getStatusVariant(negotiation.status)}>
-                          {negotiationStatusLabels[negotiation.status]}
+                        <Badge variant={obterVarianteStatus(negociacao.status)}>
+                          {negotiationStatusLabels[negociacao.status]}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {new Date(negotiation.start_date).toLocaleDateString()} - {new Date(negotiation.end_date).toLocaleDateString()}
+                        {new Date(negociacao.start_date).toLocaleDateString()} - {new Date(negociacao.end_date).toLocaleDateString()}
                       </TableCell>
                       <TableCell>
-                        {new Date(negotiation.created_at).toLocaleDateString()}
+                        {new Date(negociacao.created_at).toLocaleDateString()}
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon">
                               <MoreVertical className="h-4 w-4" />
-                              <span className="sr-only">Actions</span>
+                              <span className="sr-only">Ações</span>
                             </Button>
                           </DropdownMenuTrigger>
                           
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => router.push(`/negotiations/${negotiation.id}`)}>
+                            <DropdownMenuItem onClick={() => router.push(`/negotiations/${negociacao.id}`)}>
                               <FileText className="mr-2 h-4 w-4" />
-                              View
+                              Visualizar
                             </DropdownMenuItem>
                             
-                            {negotiation.status === 'draft' && (
+                            {negociacao.status === 'draft' && (
                               <>
-                                <DropdownMenuItem onClick={() => router.push(`/negotiations/${negotiation.id}/edit`)}>
+                                <DropdownMenuItem onClick={() => router.push(`/negotiations/${negociacao.id}/edit`)}>
                                   <FileText className="mr-2 h-4 w-4" />
-                                  Edit
+                                  Editar
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => confirmAction('submit', negotiation.id)}>
+                                <DropdownMenuItem onClick={() => confirmarAcao('submit', negociacao.id)}>
                                   <CheckCircle className="mr-2 h-4 w-4" />
-                                  Submit for approval
+                                  Enviar para aprovação
                                 </DropdownMenuItem>
                               </>
                             )}
                             
-                            {['draft', 'submitted', 'pending'].includes(negotiation.status) && (
-                              <DropdownMenuItem onClick={() => confirmAction('cancel', negotiation.id)}>
+                            {['draft', 'submitted', 'pending'].includes(negociacao.status) && (
+                              <DropdownMenuItem onClick={() => confirmarAcao('cancel', negociacao.id)}>
                                 <XCircle className="mr-2 h-4 w-4" />
-                                Cancel
+                                Cancelar
                               </DropdownMenuItem>
                             )}
                             
-                            {negotiation.status === 'approved' && (
-                              <DropdownMenuItem onClick={() => handleGenerateContract(negotiation.id)}>
+                            {negociacao.status === 'approved' && (
+                              <DropdownMenuItem onClick={() => handleGerarContrato(negociacao.id)}>
                                 <FileDown className="mr-2 h-4 w-4" />
-                                Generate Contract
+                                Gerar Contrato
                               </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
@@ -469,24 +470,24 @@ export default function NegotiationsPage() {
             </Table>
           </div>
           
-          {renderPagination()}
+          {renderizarPaginacao()}
         </CardContent>
       </Card>
       
       <AlertDialog 
-        open={confirmDialog.open} 
-        onOpenChange={(open) => setConfirmDialog({ ...confirmDialog, open })}
+        open={dialogoConfirmacao.aberto} 
+        onOpenChange={(aberto) => setDialogoConfirmacao({ ...dialogoConfirmacao, aberto })}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{confirmDialog.title}</AlertDialogTitle>
+            <AlertDialogTitle>{dialogoConfirmacao.titulo}</AlertDialogTitle>
             <AlertDialogDescription>
-              {confirmDialog.description}
+              {dialogoConfirmacao.descricao}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleActionConfirm}>Confirm</AlertDialogAction>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmarAcao}>Confirmar</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

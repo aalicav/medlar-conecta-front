@@ -1,5 +1,3 @@
-"use client"
-
 import type { ReactNode } from "react"
 import { Sidebar } from "./sidebar"
 import { Header } from "./header"

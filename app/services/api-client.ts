@@ -1,42 +1,62 @@
 import axios from 'axios';
 
-// Create a base API client with defaults
-const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || '/api',
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+
+/**
+ * Axios instance configured for API requests
+ */
+const apiClient = axios.create({
+  baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
+  withCredentials: true, // Needed for cookies/session
 });
 
-// Add request interceptor for authentication
-api.interceptors.request.use((config) => {
-  // Get token from localStorage
-  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-  
-  // If token exists, add to headers
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  
-  return config;
-});
+// Add request interceptor to include auth token
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
-// Add response interceptor for handling common errors
-api.interceptors.response.use(
+// Add response interceptor to handle common errors
+apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Handle 401 Unauthorized errors
+    // Handle 401 Unauthorized errors (token expired, etc.)
     if (error.response && error.response.status === 401) {
-      // Clear auth data and redirect to login
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
-      }
+      // Clear token and redirect to login
+      localStorage.removeItem('auth_token');
+      window.location.href = '/login';
     }
     return Promise.reject(error);
   }
 );
 
-export default api; 
+export { apiClient };
+
+/**
+ * Extract error message from API error
+ */
+export const getErrorMessage = (error: any): string => {
+  if (error.response?.data?.message) {
+    return error.response.data.message;
+  }
+  
+  if (error.response?.data?.error) {
+    return error.response.data.error;
+  }
+  
+  if (error.message) {
+    return error.message;
+  }
+  
+  return 'An unknown error occurred';
+}; 

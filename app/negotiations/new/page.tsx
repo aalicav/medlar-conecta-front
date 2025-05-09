@@ -42,19 +42,19 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from '@/components/ui/use-toast';
 import { useForm } from 'react-hook-form';
 
-interface EntityOption {
+interface OpcaoEntidade {
   id: number;
   name: string;
   type: string;
 }
 
-interface TussOption {
+interface OpcaoTuss {
   id: number;
   code: string;
   name: string;
 }
 
-interface FormValues {
+interface ValoresFormulario {
   title: string;
   entity_type: string;
   entity_id: number;
@@ -69,14 +69,14 @@ interface FormValues {
   }[];
 }
 
-export default function CreateNegotiationPage() {
+export default function PaginaCriarNegociacao() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [entityOptions, setEntityOptions] = useState<EntityOption[]>([]);
-  const [selectedEntityType, setSelectedEntityType] = useState<string>('');
-  const [tussOptions, setTussOptions] = useState<TussOption[]>([]);
+  const [carregando, setCarregando] = useState(false);
+  const [opcoesEntidades, setOpcoesEntidades] = useState<OpcaoEntidade[]>([]);
+  const [tipoEntidadeSelecionada, setTipoEntidadeSelecionada] = useState<string>('');
+  const [opcoesTuss, setOpcoesTuss] = useState<OpcaoTuss[]>([]);
   
-  const form = useForm<FormValues>({
+  const form = useForm<ValoresFormulario>({
     defaultValues: {
       title: '',
       entity_type: '',
@@ -87,24 +87,24 @@ export default function CreateNegotiationPage() {
     }
   });
 
-  // Load entity and TUSS options
+  // Carregar opções de entidades e TUSS
   useEffect(() => {
-    // For demonstration purposes, we'll use simulated data
-    setEntityOptions([
-      // Health Plans
+    // Para fins de demonstração, usaremos dados simulados
+    setOpcoesEntidades([
+      // Planos de Saúde
       { id: 1, name: 'Unimed', type: 'App\\Models\\HealthPlan' },
       { id: 2, name: 'Amil', type: 'App\\Models\\HealthPlan' },
       { id: 3, name: 'SulAmérica', type: 'App\\Models\\HealthPlan' },
-      // Professionals
+      // Profissionais
       { id: 1, name: 'Dra. Ana Silva', type: 'App\\Models\\Professional' },
       { id: 2, name: 'Dr. Carlos Oliveira', type: 'App\\Models\\Professional' },
-      // Clinics
+      // Clínicas
       { id: 1, name: 'Clínica São Lucas', type: 'App\\Models\\Clinic' },
       { id: 2, name: 'Centro Médico Santa Maria', type: 'App\\Models\\Clinic' },
     ]);
     
-    // Simulate TUSS procedures search
-    setTussOptions([
+    // Simular busca de procedimentos TUSS
+    setOpcoesTuss([
       { id: 1, code: '10101012', name: 'Consulta em consultório' },
       { id: 2, code: '10101020', name: 'Consulta em pronto socorro' },
       { id: 3, code: '20101236', name: 'Raio-X de tórax' },
@@ -113,54 +113,56 @@ export default function CreateNegotiationPage() {
     ]);
   }, []);
 
-  const handleEntityTypeChange = (value: string) => {
-    setSelectedEntityType(value);
+  const handleMudancaTipoEntidade = (valor: string) => {
+    setTipoEntidadeSelecionada(valor);
     form.setValue('entity_id', 0);
   };
 
-  const onSubmit = async (values: FormValues) => {
-    const formattedValues = {
-      title: values.title,
-      description: values.description,
-      notes: values.notes,
-      start_date: format(values.start_date, 'yyyy-MM-dd'),
-      end_date: format(values.end_date, 'yyyy-MM-dd'),
-      entity_type: values.entity_type,
-      entity_id: values.entity_id,
+  const onSubmit = async (valores: ValoresFormulario) => {
+    const valoresFormatados = {
+      title: valores.title,
+      description: valores.description,
+      notes: valores.notes,
+      start_date: format(valores.start_date, 'yyyy-MM-dd'),
+      end_date: format(valores.end_date, 'yyyy-MM-dd'),
+      entity_type: valores.entity_type,
+      entity_id: valores.entity_id,
       status: 'draft',
-      items: values.items.map((item) => ({
+      negotiable_type: valores.entity_type,
+      negotiable_id: valores.entity_id,
+      items: valores.items.map((item) => ({
         tuss_id: item.tuss_id,
         proposed_value: item.proposed_value,
         notes: item.notes
       }))
     };
     
-    setLoading(true);
+    setCarregando(true);
     try {
-      const response = await negotiationService.createNegotiation(formattedValues as CreateNegotiationDto);
+      const response = await negotiationService.createNegotiation(valoresFormatados as unknown as CreateNegotiationDto);
       toast({
-        title: "Success",
-        description: "Negotiation created successfully",
+        title: "Sucesso",
+        description: "Negociação criada com sucesso",
       });
       router.push(`/negotiations/${response.data.id}`);
     } catch (error) {
-      console.error('Error creating negotiation:', error);
+      console.error('Erro ao criar negociação:', error);
       toast({
-        title: "Error",
-        description: "Failed to create negotiation",
+        title: "Erro",
+        description: "Falha ao criar negociação",
         variant: "destructive"
       });
     } finally {
-      setLoading(false);
+      setCarregando(false);
     }
   };
 
-  const addItem = () => {
+  const adicionarItem = () => {
     const items = form.getValues('items');
     form.setValue('items', [...items, { tuss_id: 0, proposed_value: 0 }]);
   };
 
-  const removeItem = (index: number) => {
+  const removerItem = (index: number) => {
     const items = form.getValues('items');
     if (items.length > 1) {
       form.setValue('items', items.filter((_, i) => i !== index));
@@ -169,22 +171,22 @@ export default function CreateNegotiationPage() {
 
   return (
     <div className="container py-6 space-y-6">
-      {/* Breadcrumb */}
+      {/* Navegação */}
       <div className="flex items-center space-x-2 text-muted-foreground">
-        <Link href="/dashboard" className="hover:underline">Dashboard</Link>
+        <Link href="/dashboard" className="hover:underline">Painel</Link>
         <span>/</span>
-        <Link href="/negotiations" className="hover:underline">Negotiations</Link>
+        <Link href="/negotiations" className="hover:underline">Negociações</Link>
         <span>/</span>
-        <span>New Negotiation</span>
+        <span>Nova Negociação</span>
       </div>
       
-      {/* Header */}
+      {/* Cabeçalho */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" onClick={() => router.push('/negotiations')}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <h1 className="text-3xl font-bold tracking-tight">New Negotiation</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Nova Negociação</h1>
         </div>
       </div>
       
@@ -193,16 +195,16 @@ export default function CreateNegotiationPage() {
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <div className="space-y-4">
-                <h3 className="text-lg font-medium">General Information</h3>
+                <h3 className="text-lg font-medium">Informações Gerais</h3>
                 
                 <FormField
                   control={form.control}
                   name="title"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Negotiation Title</FormLabel>
+                      <FormLabel>Título da Negociação</FormLabel>
                       <FormControl>
-                        <Input placeholder="E.g., Price Table 2024 - Unimed" {...field} />
+                        <Input placeholder="Ex.: Tabela de Preços 2024 - Unimed" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -215,23 +217,23 @@ export default function CreateNegotiationPage() {
                     name="entity_type"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Entity Type</FormLabel>
+                        <FormLabel>Tipo de Entidade</FormLabel>
                         <Select
                           onValueChange={(value) => {
                             field.onChange(value);
-                            handleEntityTypeChange(value);
+                            handleMudancaTipoEntidade(value);
                           }}
                           defaultValue={field.value}
                         >
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder="Select entity type" />
+                              <SelectValue placeholder="Selecione o tipo de entidade" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="App\Models\HealthPlan">Health Plan</SelectItem>
-                            <SelectItem value="App\Models\Professional">Professional</SelectItem>
-                            <SelectItem value="App\Models\Clinic">Clinic</SelectItem>
+                            <SelectItem value="App\Models\HealthPlan">Plano de Saúde</SelectItem>
+                            <SelectItem value="App\Models\Professional">Profissional</SelectItem>
+                            <SelectItem value="App\Models\Clinic">Clínica</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -244,20 +246,20 @@ export default function CreateNegotiationPage() {
                     name="entity_id"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Entity</FormLabel>
+                        <FormLabel>Entidade</FormLabel>
                         <Select
                           onValueChange={(value) => field.onChange(parseInt(value))}
                           value={field.value?.toString()}
-                          disabled={!selectedEntityType}
+                          disabled={!tipoEntidadeSelecionada}
                         >
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder="Select entity" />
+                              <SelectValue placeholder="Selecione a entidade" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {entityOptions
-                              .filter(entity => entity.type === selectedEntityType)
+                            {opcoesEntidades
+                              .filter(entity => entity.type === tipoEntidadeSelecionada)
                               .map(entity => (
                                 <SelectItem key={entity.id} value={entity.id.toString()}>
                                   {entity.name}
@@ -277,7 +279,7 @@ export default function CreateNegotiationPage() {
                     name="start_date"
                     render={({ field }) => (
                       <FormItem className="flex flex-col">
-                        <FormLabel>Start Date</FormLabel>
+                        <FormLabel>Data Inicial</FormLabel>
                         <DatePicker
                           date={field.value}
                           setDate={field.onChange}
@@ -292,7 +294,7 @@ export default function CreateNegotiationPage() {
                     name="end_date"
                     render={({ field }) => (
                       <FormItem className="flex flex-col">
-                        <FormLabel>End Date</FormLabel>
+                        <FormLabel>Data Final</FormLabel>
                         <DatePicker
                           date={field.value}
                           setDate={field.onChange}
@@ -308,10 +310,10 @@ export default function CreateNegotiationPage() {
                   name="description"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Description</FormLabel>
+                      <FormLabel>Descrição</FormLabel>
                       <FormControl>
                         <Textarea
-                          placeholder="Brief description of this negotiation"
+                          placeholder="Descrição breve desta negociação"
                           className="resize-none"
                           {...field}
                           value={field.value || ''}
@@ -327,10 +329,10 @@ export default function CreateNegotiationPage() {
                   name="notes"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Notes</FormLabel>
+                      <FormLabel>Observações</FormLabel>
                       <FormControl>
                         <Textarea
-                          placeholder="Additional notes or observations"
+                          placeholder="Observações adicionais"
                           className="resize-none"
                           {...field}
                           value={field.value || ''}
@@ -346,10 +348,10 @@ export default function CreateNegotiationPage() {
               
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium">Negotiation Items</h3>
-                  <Button type="button" variant="outline" size="sm" onClick={addItem}>
+                  <h3 className="text-lg font-medium">Itens da Negociação</h3>
+                  <Button type="button" variant="outline" size="sm" onClick={adicionarItem}>
                     <Plus className="mr-2 h-4 w-4" />
-                    Add Item
+                    Adicionar Item
                   </Button>
                 </div>
                 
@@ -362,7 +364,7 @@ export default function CreateNegotiationPage() {
                           type="button" 
                           variant="ghost" 
                           size="sm"
-                          onClick={() => removeItem(index)}
+                          onClick={() => removerItem(index)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -375,18 +377,18 @@ export default function CreateNegotiationPage() {
                         name={`items.${index}.tuss_id`}
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Procedure (TUSS)</FormLabel>
+                            <FormLabel>Procedimento (TUSS)</FormLabel>
                             <Select
                               onValueChange={(value) => field.onChange(parseInt(value))}
                               value={field.value?.toString()}
                             >
                               <FormControl>
                                 <SelectTrigger>
-                                  <SelectValue placeholder="Select procedure" />
+                                  <SelectValue placeholder="Selecione o procedimento" />
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                {tussOptions.map(tuss => (
+                                {opcoesTuss.map(tuss => (
                                   <SelectItem key={tuss.id} value={tuss.id.toString()}>
                                     {tuss.code} - {tuss.name}
                                   </SelectItem>
@@ -403,7 +405,7 @@ export default function CreateNegotiationPage() {
                         name={`items.${index}.proposed_value`}
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Proposed Value (R$)</FormLabel>
+                            <FormLabel>Valor Proposto (R$)</FormLabel>
                             <FormControl>
                               <Input
                                 type="number"
@@ -425,10 +427,10 @@ export default function CreateNegotiationPage() {
                       name={`items.${index}.notes`}
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Notes</FormLabel>
+                          <FormLabel>Observações</FormLabel>
                           <FormControl>
                             <Textarea
-                              placeholder="Additional notes for this item"
+                              placeholder="Observações adicionais para este item"
                               className="resize-none"
                               {...field}
                               value={field.value || ''}
@@ -449,10 +451,10 @@ export default function CreateNegotiationPage() {
                   className="mr-2"
                   onClick={() => router.push('/negotiations')}
                 >
-                  Cancel
+                  Cancelar
                 </Button>
-                <Button type="submit" disabled={loading}>
-                  {loading ? 'Creating...' : 'Create Negotiation'}
+                <Button type="submit" disabled={carregando}>
+                  {carregando ? 'Criando...' : 'Criar Negociação'}
                 </Button>
               </div>
             </form>
