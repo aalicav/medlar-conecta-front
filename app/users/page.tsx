@@ -44,7 +44,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from '@/components/ui/use-toast';
-import api from '@/app/services/api-client';
+import api from '@/services/api-client';
 
 // Tipos para os dados do usuário
 interface UserRole {

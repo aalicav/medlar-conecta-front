@@ -58,6 +58,8 @@ const formSchema = z.object({
   procedure_id: z.string().min(1, "Selecione um procedimento"),
   description: z.string().min(1, "Digite uma descrição"),
   tuss_id: z.string().min(1, "Selecione um procedimento"),
+  preferred_date_start: z.date().nullable().optional(),
+  preferred_date_end: z.date().nullable().optional(),
 })
 
 // Infer the type from the schema
@@ -153,6 +155,8 @@ export function SolicitationForm({
   const [searchPatientTerm, setSearchPatientTerm] = useState("")
   const [searchProcedureTerm, setSearchProcedureTerm] = useState("")
   const [selectedProcedurePrice, setSelectedProcedurePrice] = useState<number | null>(null)
+  const [tussProcedures, setTussProcedures] = useState<{ value: string; label: string; price?: number }[]>([])
+  const [isLoadingTuss, setIsLoadingTuss] = useState(false)
 
   // Read query params
   const healthPlanIdFromQuery = searchParams.get('health_plan_id')
@@ -168,6 +172,8 @@ export function SolicitationForm({
       tuss_id: initialData?.tuss_id || "",
       procedure_id: initialData?.procedure_id || "",
       description: initialData?.description || "",
+      preferred_date_start: initialData?.preferred_date_start || null,
+      preferred_date_end: initialData?.preferred_date_end || null,
     },
   })
 
@@ -177,7 +183,7 @@ export function SolicitationForm({
   // Set price from query params if available
   useEffect(() => {
     if (priceFromQuery) {
-      setProcedurePrice(priceFromQuery);
+      setSelectedProcedurePrice(Number(priceFromQuery));
     }
   }, [priceFromQuery]);
 
@@ -328,7 +334,7 @@ export function SolicitationForm({
           variant: "destructive",
         })
       } finally {
-        setIsLoadingHealthPlans(false)
+        setLoadingHealthPlans(false)
       }
     }
 
@@ -352,7 +358,7 @@ export function SolicitationForm({
   useEffect(() => {
     const fetchPatient = async () => {
       if (initialData?.patient_id) {
-        setIsLoadingPatients(true)
+        setLoadingPatients(true)
         try {
           const response = await fetchResource(`patients/${initialData.patient_id}`) as ResourceResponse<Patient>
           
@@ -373,7 +379,7 @@ export function SolicitationForm({
             variant: "destructive",
           })
         } finally {
-          setIsLoadingPatients(false)
+          setLoadingPatients(false)
         }
       }
     }
@@ -403,7 +409,7 @@ export function SolicitationForm({
     if (!query || query.length < 3) return
     setSearchHealthPlanTerm(query)
 
-    setIsLoadingHealthPlans(true)
+    setLoadingHealthPlans(true)
     try {
       const params: QueryParams = {
         per_page: 20,
@@ -424,7 +430,7 @@ export function SolicitationForm({
     } catch (error) {
       console.error("Error searching health plans:", error)
     } finally {
-      setIsLoadingHealthPlans(false)
+      setLoadingHealthPlans(false)
     }
   }, 300)
 
@@ -451,15 +457,25 @@ export function SolicitationForm({
   const handleSubmit = async (data: FormValues) => {
     setLoading(true)
     try {
-      await onSubmit(data)
-      useToastToast({
-        title: "Sucesso",
-        description: "Solicitação criada com sucesso",
-      })
+      if (isEditing && solicitationId) {
+        await updateResource(`solicitations/${solicitationId}`, data)
+        useToastToast({
+          title: "Sucesso",
+          description: "Solicitação atualizada com sucesso",
+        })
+      } else {
+        await createResource('solicitations', data)
+        useToastToast({
+          title: "Sucesso",
+          description: "Solicitação criada com sucesso",
+        })
+      }
+      
+      router.push('/solicitations')
     } catch (error) {
       useToastToast({
         title: "Erro",
-        description: "Não foi possível criar a solicitação",
+        description: "Não foi possível processar a solicitação",
         variant: "destructive",
       })
       setProcedures([])
@@ -626,10 +642,9 @@ export function SolicitationForm({
                 )}
               />
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField
                 control={form.control}
-                name="preferred_date_start"
+                name="procedure_id"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Procedimento</FormLabel>
@@ -658,11 +673,35 @@ export function SolicitationForm({
 
               <FormField
                 control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Descrição</FormLabel>
+                    <Textarea {...field} />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="preferred_date_start"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Data Preferencial (Início)</FormLabel>
+                    <DatePicker date={field.value as Date | null} setDate={field.onChange} />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
                 name="preferred_date_end"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Data Preferencial (Fim)</FormLabel>
-                    <DatePicker date={field.value} setDate={field.onChange} />
+                    <DatePicker date={field.value as Date | null} setDate={field.onChange} />
                     <FormMessage />
                   </FormItem>
                 )}
