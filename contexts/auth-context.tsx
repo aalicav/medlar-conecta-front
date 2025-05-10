@@ -98,7 +98,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Set avatar URL for UI components
     return {
       ...userData,
-      avatar_url: userData.profile_photo || undefined
+      avatar_url: userData?.profile_photo || undefined
     };
   };
 
@@ -129,22 +129,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setToken(storedToken)
           
           if (storedUser) {
-            // Parse e processar dados do usuário
-            const userData = processUserData(JSON.parse(storedUser));
-            // Configurar estado do usuário
-            setUser(userData)
+            try {
+              // Parse e processar dados do usuário
+              const userData = processUserData(JSON.parse(storedUser));
+              // Configurar estado do usuário
+              setUser(userData)
+            } catch (error) {
+              console.error("Error parsing stored user data:", error);
+              // Try to fetch user data again if parsing fails
+              fetchUserData();
+            }
           } else {
             // Se temos token mas não temos dados do usuário, buscar
-            try {
-              const { data } = await api.get("/user")
-              const processedUser = processUserData(data.user);
-              setUser(processedUser)
-              localStorage.setItem(USER_KEY, JSON.stringify(data.user))
-            } catch (error) {
-              console.error("Erro ao buscar informações do usuário:", error)
-              // Se não conseguimos obter usuário, limpar sessão
-              clearSession()
-            }
+            fetchUserData();
           }
         } else {
           // Nem token nem dados do usuário - usuário não autenticado
@@ -155,6 +152,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         clearSession()
       } finally {
         setIsLoading(false)
+      }
+    }
+
+    // Helper function to fetch user data from API
+    const fetchUserData = async () => {
+      try {
+        const { data } = await api.get("/user")
+        if (data && data.user) {
+          const processedUser = processUserData(data.user);
+          setUser(processedUser)
+          localStorage.setItem(USER_KEY, JSON.stringify(data.user))
+        } else {
+          throw new Error("Invalid user data received from API");
+        }
+      } catch (error) {
+        console.error("Erro ao buscar informações do usuário:", error)
+        // Se não conseguimos obter usuário, limpar sessão
+        clearSession()
       }
     }
 

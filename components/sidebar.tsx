@@ -33,7 +33,7 @@ import {
   AlertCircle,
   Building
 } from "lucide-react"
-import { NavigationMenuItem, NavigationMenuLink } from "@/components/ui/navigation-menu"
+import { NavigationMenuItem, NavigationMenuLink, NavigationMenu, NavigationMenuList } from "@/components/ui/navigation-menu"
 
 interface SidebarProps {
   className?: string
@@ -346,20 +346,24 @@ export function Sidebar({ className }: SidebarProps) {
               })}
             </nav>
 
-            <NavigationMenuItem className="my-1">
-              <NavigationMenuLink
-                href="/scheduling-exceptions"
-                className={cn(
-                  "block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
-                  pathname === "/scheduling-exceptions" ? "bg-accent text-accent-foreground" : "text-muted-foreground"
-                )}
-              >
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4" />
-                  <span>Exceções de Agendamento</span>
-                </div>
-              </NavigationMenuLink>
-            </NavigationMenuItem>
+            <NavigationMenu>
+              <NavigationMenuList>
+                <NavigationMenuItem className="my-1">
+                  <NavigationMenuLink
+                    href="/scheduling-exceptions"
+                    className={cn(
+                      "block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
+                      pathname === "/scheduling-exceptions" ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>Exceções de Agendamento</span>
+                    </div>
+                  </NavigationMenuLink>
+                </NavigationMenuItem>
+              </NavigationMenuList>
+            </NavigationMenu>
           </div>
         </ScrollArea>
 
