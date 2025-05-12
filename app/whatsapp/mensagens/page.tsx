@@ -188,7 +188,7 @@ const WhatsAppMessagesContent = () => {
                     <SelectValue placeholder="Todos os status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos</SelectItem>
+                    
                     <SelectItem value="pending">Pendente</SelectItem>
                     <SelectItem value="sent">Enviado</SelectItem>
                     <SelectItem value="delivered">Entregue</SelectItem>

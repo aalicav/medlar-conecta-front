@@ -1,4 +1,4 @@
-import api  from './api';
+import {apiClient}  from './api-client';
 
 export interface DashboardStats {
   appointments?: {
@@ -78,7 +78,7 @@ const dashboardService = {
    * Get dashboard statistics
    */
   getStats: async () => {
-    const response = await api.get('/dashboard/stats');
+    const response = await apiClient.get('/dashboard/stats');
     return response.data;
   },
 
@@ -86,7 +86,7 @@ const dashboardService = {
    * Get upcoming appointments
    */
   getUpcomingAppointments: async (limit = 5) => {
-    const response = await api.get(`/dashboard/upcoming-appointments?limit=${limit}`);
+    const response = await apiClient.get(`/dashboard/appointments/upcoming?limit=${limit}`);
     return response.data;
   },
 
@@ -94,7 +94,7 @@ const dashboardService = {
    * Get today's appointments
    */
   getTodayAppointments: async () => {
-    const response = await api.get('/dashboard/today-appointments');
+    const response = await apiClient.get('/dashboard/appointments/today');
     return response.data;
   },
 
@@ -102,7 +102,7 @@ const dashboardService = {
    * Get SURI chatbot statistics
    */
   getSuriStats: async () => {
-    const response = await api.get('/dashboard/suri-stats');
+    const response = await apiClient.get('/dashboard/suri/stats');
     return response.data;
   },
   
@@ -110,7 +110,7 @@ const dashboardService = {
    * Get pending items that require attention based on user role
    */
   getPendingItems: async () => {
-    const response = await api.get('/dashboard/pending-items');
+    const response = await apiClient.get('/dashboard/pending/items');
     return response.data;
   }
 };

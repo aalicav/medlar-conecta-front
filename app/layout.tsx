@@ -18,6 +18,11 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   const [token, setToken] = useState<string | undefined>()
+  const pathname = usePathname() || ""
+  
+  // Array de rotas onde o layout não deve ser aplicado
+  const noLayoutRoutes = ['/login', '/login/forgot-password', '/reset-password']
+  const isNoLayoutPage = noLayoutRoutes.includes(pathname)
   
   useEffect(() => {
     const cookieToken = document.cookie
@@ -32,9 +37,13 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light">
           <AuthProvider>
-            {token ? <MainLayout>
-              {children}
-            </MainLayout> : <>{children}</>}
+            {!isNoLayoutPage && token ? (
+              <MainLayout>
+                {children}
+              </MainLayout>
+            ) : (
+              <>{children}</>
+            )}
             <Toaster />
           </AuthProvider>
         </ThemeProvider>

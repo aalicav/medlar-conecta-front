@@ -27,14 +27,14 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     // Handle 401 Unauthorized errors
-    if (error.response && error.response.status === 401) {
-      // Clear auth data and redirect to login
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
-      }
-    }
+    // if (error.response && error.response.status === 401) {
+    //   // Clear auth data and redirect to login
+    //   if (typeof window !== 'undefined') {
+    //     localStorage.removeItem('auth_token');
+    //     localStorage.removeItem('user');
+    //     window.location.href = '/login';
+    //   }
+    // }
     return Promise.reject(error);
   }
 );

@@ -207,7 +207,7 @@ export default function ContractApprovalsPage() {
                   <SelectValue placeholder="Filtrar por status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
+                  
                   {getStatusFilterOptions().map(option => (
                     <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
                   ))}
@@ -224,7 +224,7 @@ export default function ContractApprovalsPage() {
                   <SelectValue placeholder="Filtrar por tipo" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
+                  
                   <SelectItem value="health_plan">Operadora</SelectItem>
                   <SelectItem value="clinic">Clínica</SelectItem>
                   <SelectItem value="professional">Profissional</SelectItem>

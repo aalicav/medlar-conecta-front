@@ -96,3 +96,131 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Dark Theme Styles */
+.dark-card {
+  background-color: hsl(var(--card)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+
+.dark-card .ant-card-head {
+  border-bottom-color: hsl(var(--border)) !important;
+}
+
+.dark-card .ant-card-head-title {
+  color: hsl(var(--card-foreground)) !important;
+}
+
+.dark-card .ant-statistic-title {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+.dark-card .ant-statistic-content {
+  color: hsl(var(--card-foreground)) !important;
+}
+
+.dark-card .ant-list-item {
+  border-bottom-color: hsl(var(--border)) !important;
+}
+
+.dark-card .ant-empty-description {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+.dark-card .ant-tabs-tab {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+.dark-card .ant-tabs-tab-active {
+  color: hsl(var(--primary)) !important;
+}
+
+.dark-card .ant-tabs-ink-bar {
+  background-color: hsl(var(--primary)) !important;
+}
+
+.dark-card .ant-tabs-nav::before {
+  border-bottom-color: hsl(var(--border)) !important;
+}
+
+/* Dark theme for alerts */
+.ant-alert {
+  background-color: hsl(var(--card)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+
+.ant-alert-message {
+  color: hsl(var(--card-foreground)) !important;
+}
+
+.ant-alert-description {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+/* Dark theme for buttons */
+.ant-btn-default {
+  background-color: hsl(var(--card)) !important;
+  border-color: hsl(var(--border)) !important;
+  color: hsl(var(--card-foreground)) !important;
+}
+
+.ant-btn-default:hover {
+  border-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary)) !important;
+}
+
+/* Dark theme for links */
+.ant-btn-link {
+  color: hsl(var(--primary)) !important;
+}
+
+.ant-btn-link:hover {
+  color: hsl(var(--primary-light)) !important;
+}
+
+/* Dark theme for tags */
+.ant-tag {
+  border-color: transparent !important;
+}
+
+/* Dark theme for empty states */
+.ant-empty {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+/* Dark theme for list items */
+.ant-list-item-meta-title {
+  color: hsl(var(--card-foreground)) !important;
+}
+
+.ant-list-item-meta-description {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+/* Dark theme for tabs */
+.ant-tabs-nav {
+  margin-bottom: 16px !important;
+}
+
+.ant-tabs-tab-btn {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+.ant-tabs-tab-btn:hover {
+  color: hsl(var(--primary)) !important;
+}
+
+.ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: hsl(var(--primary)) !important;
+}
+
+/* Dark theme for icons */
+.anticon {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+/* Dark theme for hover states */
+.dark-card:hover {
+  border-color: hsl(var(--primary)) !important;
+  box-shadow: 0 0 8px hsl(var(--primary) / 0.2) !important;
+}

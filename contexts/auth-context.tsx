@@ -159,10 +159,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const fetchUserData = async () => {
       try {
         const { data } = await api.get("/user")
-        if (data && data.user) {
-          const processedUser = processUserData(data.user);
-          setUser(processedUser)
-          localStorage.setItem(USER_KEY, JSON.stringify(data.user))
+        if (data) {
+          // Handle different API response formats
+          const userData = data.user || data;
+          if (userData && userData.id) {
+            const processedUser = processUserData(userData);
+            setUser(processedUser)
+            localStorage.setItem(USER_KEY, JSON.stringify(userData))
+          } else {
+            throw new Error("Invalid user data received from API");
+          }
         } else {
           throw new Error("Invalid user data received from API");
         }

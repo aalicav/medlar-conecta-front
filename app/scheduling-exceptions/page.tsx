@@ -174,7 +174,7 @@ export default function SchedulingExceptionsPage() {
                   <SelectItem value="pending">Pendentes</SelectItem>
                   <SelectItem value="approved">Aprovadas</SelectItem>
                   <SelectItem value="rejected">Rejeitadas</SelectItem>
-                  <SelectItem value="">Todos</SelectItem>
+                  
                 </SelectContent>
               </Select>
             </div>

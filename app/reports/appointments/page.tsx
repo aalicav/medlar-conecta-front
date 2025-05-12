@@ -289,7 +289,7 @@ export default function AppointmentsReportsPage() {
                   <SelectValue placeholder="Selecione o profissional" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
+                  
                   {professionals.map((professional) => (
                     <SelectItem key={professional.id} value={professional.id.toString()}>
                       {professional.name}

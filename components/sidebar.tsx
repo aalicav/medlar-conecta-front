@@ -41,7 +41,7 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const { user, hasRole, hasPermission, logout } = useAuth()
-  const pathname = usePathname()
+  const pathname = usePathname() || ""
   const [isOpen, setIsOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
@@ -138,6 +138,12 @@ export function Sidebar({ className }: SidebarProps) {
       roles: ["super_admin", "admin", "director", "commercial", "plan_admin", "clinic_admin", "professional"],
     },
     {
+      title: "Negociações por Especialidade",
+      href: "/specialty-negotiations",
+      icon: GanttChart,
+      roles: ["super_admin", "admin", "director", "commercial", "legal"],
+    },
+    {
       title: "Negociações Extemporâneas",
       href: "/extemporaneous-negotiations",
       icon: AlertCircle,
@@ -150,14 +156,14 @@ export function Sidebar({ className }: SidebarProps) {
       roles: ["super_admin", "admin", "director", "commercial", "financial"],
     },
     {
-      title: "Financeiro",
-      href: "/financials",
+      title: "Faturamento",
+      href: "/billing",
       icon: CreditCard,
       roles: ["super_admin", "admin", "director", "financial", "plan_admin", "clinic_admin"],
     },
     {
       title: "Regras de Faturamento",
-      href: "/billing/rules",
+      href: "/billing-rules",
       icon: CreditCard,
       roles: ["super_admin", "admin", "director", "financial", "commercial"],
     },
@@ -168,14 +174,20 @@ export function Sidebar({ className }: SidebarProps) {
       roles: ["super_admin", "admin", "director", "commercial", "legal", "plan_admin", "clinic_admin", "professional"],
     },
     {
-      title: "Aditivos",
-      href: "/addendums",
+      title: "Aprovações de Contratos",
+      href: "/contract-approvals",
+      icon: FileText,
+      roles: ["super_admin", "admin", "director", "commercial", "legal"],
+    },
+    {
+      title: "Modelos de Contratos",
+      href: "/contract-templates",
       icon: FileText,
       roles: ["super_admin", "admin", "director", "commercial", "legal"],
     },
     {
       title: "Privacidade (LGPD)",
-      href: "/settings/privacy",
+      href: "/privacy",
       icon: Shield,
       roles: ["super_admin", "admin", "director"],
     },
@@ -198,12 +210,6 @@ export function Sidebar({ className }: SidebarProps) {
       roles: ["super_admin", "admin", "director", "commercial", "financial", "plan_admin"],
     },
     {
-      title: "Gestão de Instalações",
-      href: "/facility-management",
-      icon: Building,
-      roles: ["super_admin", "admin", "clinic_admin", "clinic"],
-    },
-    {
       title: "Logs",
       href: "/audit-logs",
       icon: FileText,
@@ -215,6 +221,18 @@ export function Sidebar({ className }: SidebarProps) {
       icon: Settings,
       roles: ["super_admin", "admin", "director"],
       permission: "edit settings",
+    },
+    {
+      title: "WhatsApp",
+      href: "/whatsapp",
+      icon: MessageSquare,
+      roles: ["super_admin", "admin", "director", "operational"],
+    },
+    {
+      title: "Exceções de Agendamento",
+      href: "/scheduling-exceptions",
+      icon: AlertCircle,
+      roles: ["super_admin", "admin", "professional", "clinic"],
     },
   ]
 
@@ -345,25 +363,6 @@ export function Sidebar({ className }: SidebarProps) {
                 );
               })}
             </nav>
-
-            <NavigationMenu>
-              <NavigationMenuList>
-                <NavigationMenuItem className="my-1">
-                  <NavigationMenuLink
-                    href="/scheduling-exceptions"
-                    className={cn(
-                      "block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
-                      pathname === "/scheduling-exceptions" ? "bg-accent text-accent-foreground" : "text-muted-foreground"
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      <AlertCircle className="h-4 w-4" />
-                      <span>Exceções de Agendamento</span>
-                    </div>
-                  </NavigationMenuLink>
-                </NavigationMenuItem>
-              </NavigationMenuList>
-            </NavigationMenu>
           </div>
         </ScrollArea>
 

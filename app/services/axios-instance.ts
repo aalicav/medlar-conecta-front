@@ -34,14 +34,14 @@ axiosInstance.interceptors.response.use(
     return response;
   },
   (error) => {
-    // Handle 401 Unauthorized errors by redirecting to login
-    if (error.response && error.response.status === 401) {
-      // Only redirect if we're in the browser
-      if (typeof window !== 'undefined') {
-        Cookies.remove('token');
-        window.location.href = '/login';
-      }
-    }
+    // // Handle 401 Unauthorized errors by redirecting to login
+    // if (error.response && error.response.status === 401) {
+    //   // Only redirect if we're in the browser
+    //   if (typeof window !== 'undefined') {
+    //     Cookies.remove('token');
+    //     window.location.href = '/login';
+    //   }
+    // }
     
     return Promise.reject(error);
   }

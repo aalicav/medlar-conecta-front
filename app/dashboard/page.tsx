@@ -55,6 +55,8 @@ export default function DashboardHomepage() {
   const [pendingItems, setPendingItems] = useState<Record<string, PendingItem[]>>({})
   const [error, setError] = useState("")
   const [userRole, setUserRole] = useState<string | null>(null)
+  const [shouldRedirect, setShouldRedirect] = useState(false)
+  const [redirectPath, setRedirectPath] = useState("")
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -91,60 +93,65 @@ export default function DashboardHomepage() {
     
     // Recuperar o papel do usuário
     const user = JSON.parse(localStorage.getItem("user") || "{}")
-    if (user && user.roles && user.roles.length > 0) {
-      // Identificar o papel principal do usuário para o dashboard
-      if (user.roles.some((role: any) => role.name === "super_admin" || role.name === "admin")) {
-        setUserRole("admin")
-      } else if (user.roles.some((role: any) => role.name === "director")) {
-        setUserRole("director")
-      } else if (user.roles.some((role: any) => role.name === "commercial")) {
-        setUserRole("commercial")
-      } else if (user.roles.some((role: any) => role.name === "legal")) {
-        setUserRole("legal")
-      } else if (user.roles.some((role: any) => role.name === "operational")) {
-        setUserRole("operational")
-      } else if (user.roles.some((role: any) => role.name === "financial")) {
-        setUserRole("financial")
-      } else if (user.roles.some((role: any) => role.name === "professional")) {
-        setUserRole("professional")
-      } else if (user.roles.some((role: any) => role.name === "clinic")) {
-        setUserRole("clinic")
-      } else if (user.roles.some((role: any) => role.name === "plan_admin")) {
-        redirect("/dashboard/health-plans")
-      }
+    if (!user || !user.roles || user.roles.length === 0) {
+      setShouldRedirect(true)
+      setRedirectPath("/login")
+      return
+    }
+
+    if (user.roles.some((role: any) => role.name === "plan_admin")) {
+      setShouldRedirect(true)
+      setRedirectPath("/dashboard/health-plans")
+      return
+    }
+
+    // Identificar o papel principal do usuário para o dashboard
+    if (user.roles.some((role: any) => role.name === "super_admin" || role.name === "admin")) {
+      setUserRole("admin")
+    } else if (user.roles.some((role: any) => role.name === "director")) {
+      setUserRole("director")
+    } else if (user.roles.some((role: any) => role.name === "commercial")) {
+      setUserRole("commercial")
+    } else if (user.roles.some((role: any) => role.name === "legal")) {
+      setUserRole("legal")
+    } else if (user.roles.some((role: any) => role.name === "operational")) {
+      setUserRole("operational")
+    } else if (user.roles.some((role: any) => role.name === "financial")) {
+      setUserRole("financial")
+    } else if (user.roles.some((role: any) => role.name === "professional")) {
+      setUserRole("professional")
+    } else if (user.roles.some((role: any) => role.name === "clinic")) {
+      setUserRole("clinic")
     }
   }, [])
+
+  // Redirecionar se necessário
+  useEffect(() => {
+    if (shouldRedirect && redirectPath) {
+      redirect(redirectPath)
+    }
+  }, [shouldRedirect, redirectPath])
   
   // Feature cards data - componentes comuns para todos os dashboards
   const featureCards = [
     { 
       title: 'Assistente SURI', 
-      icon: <MessageOutlined style={{ fontSize: 24, color: '#1890ff' }} />,
+      icon: <MessageOutlined style={{ fontSize: 24, color: 'hsl(var(--primary))' }} />,
       description: 'Interaja com nosso assistente virtual para agendamentos e atendimento ao paciente',
       link: '/chatbot',
-      color: '#e6f7ff',
+      color: 'hsl(var(--primary) / 0.1)',
       isNew: true
     },
     { 
       title: 'Privacidade (LGPD)', 
-      icon: <UserOutlined style={{ fontSize: 24, color: '#722ed1' }} />,
+      icon: <UserOutlined style={{ fontSize: 24, color: 'hsl(var(--accent))' }} />,
       description: 'Gerencie consentimentos e solicitações de dados conforme a Lei Geral de Proteção de Dados',
       link: '/settings/privacy',
-      color: '#f9f0ff',
+      color: 'hsl(var(--accent) / 0.1)',
       isNew: true
     }
   ];
 
-  const user = JSON.parse(localStorage.getItem("user") || "{}")
-
-  if(!user){
-    redirect("/login")
-  }
-
-  if(user.roles?.some((role: any) => role.name === "plan_admin")){
-    redirect("/dashboard/health-plans")
-  }
-  
   // Renderizar dashboard específico baseado no papel do usuário
   const renderRoleDashboard = () => {
     if (!stats) return <Alert type="info" message="Carregando estatísticas..." />;
@@ -202,7 +209,7 @@ export default function DashboardHomepage() {
             <Row gutter={[24, 24]}>
               {/* Statistics */}
               <Col xs={24} sm={12} md={6}>
-                <Card loading={loading}>
+                <Card loading={loading} className="dark-card">
                   <Statistic 
                     title="Consultas Hoje" 
                     value={todayAppointmentCount} 
@@ -211,7 +218,7 @@ export default function DashboardHomepage() {
                 </Card>
               </Col>
               <Col xs={24} sm={12} md={6}>
-                <Card loading={loading}>
+                <Card loading={loading} className="dark-card">
                   <Statistic 
                     title="Novos Pacientes (Mês)" 
                     value={stats.patients?.active} 
@@ -220,7 +227,7 @@ export default function DashboardHomepage() {
                 </Card>
               </Col>
               <Col xs={24} sm={12} md={6}>
-                <Card loading={loading}>
+                <Card loading={loading} className="dark-card">
                   <Statistic 
                     title="Mensagens SURI" 
                     value={suriMessageCount} 
@@ -229,7 +236,7 @@ export default function DashboardHomepage() {
                 </Card>
               </Col>
               <Col xs={24} sm={12} md={6}>
-                <Card loading={loading}>
+                <Card loading={loading} className="dark-card">
                   <Statistic 
                     title="Faturamento (Mês)" 
                     value={stats.revenue?.total} 
@@ -242,32 +249,35 @@ export default function DashboardHomepage() {
               
               {/* Feature Cards */}
               <Col xs={24}>
-                <Title level={4}>Recursos do Sistema</Title>
+                <Title level={4} style={{ color: 'rgba(255, 255, 255, 0.85)' }}>Recursos do Sistema</Title>
                 <Row gutter={[16, 16]}>
                   {featureCards.map((feature, index) => (
                     <Col xs={24} sm={12} md={8} key={index}>
                       <Card 
                         hoverable 
                         style={{ backgroundColor: feature.color }}
-                        bodyStyle={{ 
-                          padding: '16px', 
-                          height: '100%', 
-                          display: 'flex', 
-                          flexDirection: 'column' 
+                        styles={{
+                          body: { 
+                            padding: '16px', 
+                            height: '100%', 
+                            display: 'flex', 
+                            flexDirection: 'column' 
+                          }
                         }}
+                        className="dark-card"
                       >
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                           <div style={{ display: 'flex', alignItems: 'center' }}>
                             {feature.icon}
-                            <Text strong style={{ marginLeft: 12 }}>{feature.title}</Text>
+                            <Text strong style={{ marginLeft: 12, color: 'rgba(255, 255, 255, 0.85)' }}>{feature.title}</Text>
                           </div>
                           {feature.isNew && <Tag color="red">Novo</Tag>}
                         </div>
-                        <Paragraph style={{ flex: 1, marginBottom: 12 }}>
+                        <Paragraph style={{ flex: 1, marginBottom: 12, color: 'rgba(255, 255, 255, 0.65)' }}>
                           {feature.description}
                         </Paragraph>
                         <Link href={feature.link} passHref>
-                          <Button type="link" style={{ padding: 0 }}>
+                          <Button type="link" style={{ padding: 0, color: '#1890ff' }}>
                             Acessar <ArrowRightOutlined />
                           </Button>
                         </Link>
@@ -278,25 +288,28 @@ export default function DashboardHomepage() {
                   <Col xs={24} sm={12} md={8}>
                     <Card 
                       hoverable 
-                      style={{ backgroundColor: '#fff7e6' }}
-                      bodyStyle={{ 
-                        padding: '16px', 
-                        height: '100%', 
-                        display: 'flex', 
-                        flexDirection: 'column' 
+                      style={{ backgroundColor: 'hsl(var(--warning) / 0.1)' }}
+                      styles={{
+                        body: { 
+                          padding: '16px', 
+                          height: '100%', 
+                          display: 'flex', 
+                          flexDirection: 'column' 
+                        }
                       }}
+                      className="dark-card"
                     >
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
                           <MedicineBoxOutlined style={{ fontSize: 24, color: '#fa8c16' }} />
-                          <Text strong style={{ marginLeft: 12 }}>Profissionais</Text>
+                          <Text strong style={{ marginLeft: 12, color: 'rgba(255, 255, 255, 0.85)' }}>Profissionais</Text>
                         </div>
                       </div>
-                      <Paragraph style={{ flex: 1, marginBottom: 12 }}>
+                      <Paragraph style={{ flex: 1, marginBottom: 12, color: 'rgba(255, 255, 255, 0.65)' }}>
                         Gerencie médicos, especialidades e contratos
                       </Paragraph>
                       <Link href="/professionals" passHref>
-                        <Button type="link" style={{ padding: 0 }}>
+                        <Button type="link" style={{ padding: 0, color: '#1890ff' }}>
                           Acessar <ArrowRightOutlined />
                         </Button>
                       </Link>
@@ -306,25 +319,28 @@ export default function DashboardHomepage() {
                   <Col xs={24} sm={12} md={8}>
                     <Card 
                       hoverable 
-                      style={{ backgroundColor: '#e6fffb' }}
-                      bodyStyle={{ 
-                        padding: '16px', 
-                        height: '100%', 
-                        display: 'flex', 
-                        flexDirection: 'column' 
+                      style={{ backgroundColor: 'hsl(var(--info) / 0.1)' }}
+                      styles={{
+                        body: { 
+                          padding: '16px', 
+                          height: '100%', 
+                          display: 'flex', 
+                          flexDirection: 'column' 
+                        }
                       }}
+                      className="dark-card"
                     >
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
                           <BankOutlined style={{ fontSize: 24, color: '#13c2c2' }} />
-                          <Text strong style={{ marginLeft: 12 }}>Clínicas</Text>
+                          <Text strong style={{ marginLeft: 12, color: 'rgba(255, 255, 255, 0.85)' }}>Clínicas</Text>
                         </div>
                       </div>
-                      <Paragraph style={{ flex: 1, marginBottom: 12 }}>
+                      <Paragraph style={{ flex: 1, marginBottom: 12, color: 'rgba(255, 255, 255, 0.65)' }}>
                         Administre unidades, horários e serviços
                       </Paragraph>
                       <Link href="/clinics" passHref>
-                        <Button type="link" style={{ padding: 0 }}>
+                        <Button type="link" style={{ padding: 0, color: '#1890ff' }}>
                           Acessar <ArrowRightOutlined />
                         </Button>
                       </Link>
@@ -334,25 +350,28 @@ export default function DashboardHomepage() {
                   <Col xs={24} sm={12} md={8}>
                     <Card 
                       hoverable 
-                      style={{ backgroundColor: '#fff0f6' }}
-                      bodyStyle={{ 
-                        padding: '16px', 
-                        height: '100%', 
-                        display: 'flex', 
-                        flexDirection: 'column' 
+                      style={{ backgroundColor: 'hsl(var(--accent) / 0.1)' }}
+                      styles={{
+                        body: { 
+                          padding: '16px', 
+                          height: '100%', 
+                          display: 'flex', 
+                          flexDirection: 'column' 
+                        }
                       }}
+                      className="dark-card"
                     >
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
                           <TeamOutlined style={{ fontSize: 24, color: '#eb2f96' }} />
-                          <Text strong style={{ marginLeft: 12 }}>Pacientes</Text>
+                          <Text strong style={{ marginLeft: 12, color: 'rgba(255, 255, 255, 0.85)' }}>Pacientes</Text>
                         </div>
                       </div>
-                      <Paragraph style={{ flex: 1, marginBottom: 12 }}>
+                      <Paragraph style={{ flex: 1, marginBottom: 12, color: 'rgba(255, 255, 255, 0.65)' }}>
                         Cadastro e histórico de pacientes
                       </Paragraph>
                       <Link href="/patients" passHref>
-                        <Button type="link" style={{ padding: 0 }}>
+                        <Button type="link" style={{ padding: 0, color: '#1890ff' }}>
                           Acessar <ArrowRightOutlined />
                         </Button>
                       </Link>
@@ -366,13 +385,14 @@ export default function DashboardHomepage() {
                 <Card
                   title={
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span>Próximas Consultas</span>
+                      <span style={{ color: 'rgba(255, 255, 255, 0.85)' }}>Próximas Consultas</span>
                       <Link href="/appointments" passHref>
-                        <Button type="link" size="small">Ver todas</Button>
+                        <Button type="link" size="small" style={{ color: '#1890ff' }}>Ver todas</Button>
                       </Link>
                     </div>
                   }
                   loading={loading}
+                  className="dark-card"
                 >
                   {upcomingAppointments.length > 0 ? (
                     <List
@@ -390,7 +410,7 @@ export default function DashboardHomepage() {
                             avatar={<CalendarOutlined style={{ fontSize: 24, color: '#1890ff' }} />}
                             title={
                               <div>
-                                <Text strong>{appointment.patient}</Text>
+                                <Text strong style={{ color: 'rgba(255, 255, 255, 0.85)' }}>{appointment.patient}</Text>
                                 <Tag color={appointment.status === 'confirmed' ? 'success' : 'warning'} style={{ marginLeft: 8 }}>
                                   {appointment.status === 'confirmed' ? 'Confirmado' : 'Pendente'}
                                 </Tag>
@@ -398,10 +418,10 @@ export default function DashboardHomepage() {
                             }
                             description={
                               <>
-                                <Text>{new Date(appointment.date).toLocaleDateString('pt-BR')}</Text>
-                                <Text style={{ marginLeft: 8 }}>{appointment.time}</Text>
-                                <Text style={{ marginLeft: 8 }}>•</Text>
-                                <Text style={{ marginLeft: 8 }}>{appointment.type}</Text>
+                                <Text style={{ color: 'rgba(255, 255, 255, 0.65)' }}>{new Date(appointment.date).toLocaleDateString('pt-BR')}</Text>
+                                <Text style={{ marginLeft: 8, color: 'rgba(255, 255, 255, 0.65)' }}>{appointment.time}</Text>
+                                <Text style={{ marginLeft: 8, color: 'rgba(255, 255, 255, 0.65)' }}>•</Text>
+                                <Text style={{ marginLeft: 8, color: 'rgba(255, 255, 255, 0.65)' }}>{appointment.type}</Text>
                               </>
                             }
                           />
@@ -416,55 +436,63 @@ export default function DashboardHomepage() {
               
               <Col xs={24} md={8}>
                 <Card
-                  title="Itens Pendentes"
+                  title={<span style={{ color: 'rgba(255, 255, 255, 0.85)' }}>Itens Pendentes</span>}
                   loading={loading}
+                  className="dark-card"
                 >
-                  <Tabs defaultActiveKey="1">
-                    <TabPane tab="Contratos" key="1">
-                      {pendingItems.contracts && pendingItems.contracts.length > 0 ? (
-                        <List
-                          size="small"
-                          dataSource={pendingItems.contracts}
-                          renderItem={item => (
-                            <List.Item>
-                              <List.Item.Meta
-                                avatar={<FileTextOutlined style={{ color: '#1890ff' }} />}
-                                title={<Link href={item.link}>{item.title}</Link>}
-                                description={item.description}
-                              />
-                              <Tag color={item.priority === 'high' ? 'red' : 'blue'}>
-                                {item.priority === 'high' ? 'Urgente' : 'Normal'}
-                              </Tag>
-                            </List.Item>
-                          )}
-                        />
-                      ) : (
-                        <Empty description="Nenhum contrato pendente" />
-                      )}
-                    </TabPane>
-                    <TabPane tab="Negociações" key="2">
-                      {pendingItems.negotiations && pendingItems.negotiations.length > 0 ? (
-                        <List
-                          size="small"
-                          dataSource={pendingItems.negotiations}
-                          renderItem={item => (
-                            <List.Item>
-                              <List.Item.Meta
-                                avatar={<AlertOutlined style={{ color: '#faad14' }} />}
-                                title={<Link href={item.link}>{item.title}</Link>}
-                                description={item.description}
-                              />
-                              <Tag color={item.priority === 'high' ? 'red' : 'blue'}>
-                                {item.priority === 'high' ? 'Urgente' : 'Normal'}
-                              </Tag>
-                            </List.Item>
-                          )}
-                        />
-                      ) : (
-                        <Empty description="Nenhuma negociação pendente" />
-                      )}
-                    </TabPane>
-                  </Tabs>
+                  <Tabs 
+                    defaultActiveKey="1"
+                    items={[
+                      {
+                        key: '1',
+                        label: 'Contratos',
+                        children: pendingItems.contracts && pendingItems.contracts.length > 0 ? (
+                          <List
+                            size="small"
+                            dataSource={pendingItems.contracts}
+                            renderItem={item => (
+                              <List.Item>
+                                <List.Item.Meta
+                                  avatar={<FileTextOutlined style={{ color: '#1890ff' }} />}
+                                  title={<Link href={item.link} style={{ color: 'rgba(255, 255, 255, 0.85)' }}>{item.title}</Link>}
+                                  description={<span style={{ color: 'rgba(255, 255, 255, 0.65)' }}>{item.description}</span>}
+                                />
+                                <Tag color={item.priority === 'high' ? 'red' : 'blue'}>
+                                  {item.priority === 'high' ? 'Urgente' : 'Normal'}
+                                </Tag>
+                              </List.Item>
+                            )}
+                          />
+                        ) : (
+                          <Empty description="Nenhum contrato pendente" />
+                        )
+                      },
+                      {
+                        key: '2',
+                        label: 'Negociações',
+                        children: pendingItems.negotiations && pendingItems.negotiations.length > 0 ? (
+                          <List
+                            size="small"
+                            dataSource={pendingItems.negotiations}
+                            renderItem={item => (
+                              <List.Item>
+                                <List.Item.Meta
+                                  avatar={<AlertOutlined style={{ color: '#faad14' }} />}
+                                  title={<Link href={item.link} style={{ color: 'rgba(255, 255, 255, 0.85)' }}>{item.title}</Link>}
+                                  description={<span style={{ color: 'rgba(255, 255, 255, 0.65)' }}>{item.description}</span>}
+                                />
+                                <Tag color={item.priority === 'high' ? 'red' : 'blue'}>
+                                  {item.priority === 'high' ? 'Urgente' : 'Normal'}
+                                </Tag>
+                              </List.Item>
+                            )}
+                          />
+                        ) : (
+                          <Empty description="Nenhuma negociação pendente" />
+                        )
+                      }
+                    ]}
+                  />
                 </Card>
               </Col>
             </Row>

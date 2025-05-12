@@ -29,11 +29,11 @@ apiClient.interceptors.response.use(
     return response;
   },
   async (error) => {
-    if (error.response?.status === 401) {
-      // Handle unauthorized access (redirect to login)
-      localStorage.removeItem('token');
-      window.location.href = '/login';
-    }
+    // if (error.response?.status === 401) {
+    //   // Handle unauthorized access (redirect to login)
+    //   localStorage.removeItem('token');
+    //   window.location.href = '/login';
+    // }
     return Promise.reject(error);
   }
 );
