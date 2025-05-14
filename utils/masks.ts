@@ -8,6 +8,7 @@
  * Output: formatted CNPJ (XX.XXX.XXX/XXXX-XX)
  */
 export function formatCNPJ(cnpj: string): string {
+  if (!cnpj) return ''
   cnpj = cnpj.replace(/\D/g, '') // Remove all non-digits
   return cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')
 }
@@ -18,6 +19,7 @@ export function formatCNPJ(cnpj: string): string {
  * Output: formatted CPF (XXX.XXX.XXX-XX)
  */
 export function formatCPF(cpf: string): string {
+  if (!cpf) return ''
   cpf = cpf.replace(/\D/g, '') // Remove all non-digits
   return cpf.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4')
 }
@@ -30,6 +32,7 @@ export function formatCPF(cpf: string): string {
  * - 11 digits (mobile): (XX) XXXXX-XXXX
  */
 export function formatPhone(phone: string): string {
+  if (!phone) return ''
   phone = phone.replace(/\D/g, '') // Remove all non-digits
   
   if (phone.length === 10) {
@@ -50,6 +53,7 @@ export function formatPhone(phone: string): string {
  * Output: formatted CEP (XXXXX-XXX)
  */
 export function formatCEP(cep: string): string {
+  if (!cep) return ''
   cep = cep.replace(/\D/g, '') // Remove all non-digits
   return cep.replace(/^(\d{5})(\d{3})$/, '$1-$2')
 }
@@ -60,6 +64,7 @@ export function formatCEP(cep: string): string {
  * @returns Masked CEP string (XXXXX-XXX)
  */
 export function maskCEP(value: string): string {
+  if (!value) return ''
   const digits = value.replace(/\D/g, '')
   return digits
     .replace(/(\d{5})(\d)/, '$1-$2')
@@ -72,7 +77,8 @@ export function maskCEP(value: string): string {
  * @returns Masked CNPJ value
  */
 export function applyCNPJMask(value: string): string {
-  value = value.replace(/\D/g, '')
+  if (!value) return ''
+  value = value.replace(/\D/g, '').substring(0, 14)
   value = value.replace(/^(\d{2})(\d)/, '$1.$2')
   value = value.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
   value = value.replace(/\.(\d{3})(\d)/, '.$1/$2')
@@ -86,6 +92,7 @@ export function applyCNPJMask(value: string): string {
  * @returns Masked municipal registration value
  */
 export function applyMunicipalRegistrationMask(value: string): string {
+  if (!value) return ''
   value = unmask(value)
   
   // Format depends on the city, using a generic format: XXX.XXX.XXX-XX
@@ -107,7 +114,8 @@ export function applyMunicipalRegistrationMask(value: string): string {
  * @returns Masked CPF value
  */
 export function applyCPFMask(value: string): string {
-  value = value.replace(/\D/g, '')
+  if (!value) return ''
+  value = value.replace(/\D/g, '').substring(0, 11)
   value = value.replace(/^(\d{3})(\d)/, '$1.$2')
   value = value.replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
   value = value.replace(/\.(\d{3})(\d)/, '.$1-$2')
@@ -120,7 +128,8 @@ export function applyCPFMask(value: string): string {
  * @returns Masked phone value
  */
 export function applyPhoneMask(value: string): string {
-  value = value.replace(/\D/g, '')
+  if (!value) return ''
+  value = value.replace(/\D/g, '').substring(0, 11)
     
   if (value.length <= 10) {
     // Landline format
@@ -141,7 +150,8 @@ export function applyPhoneMask(value: string): string {
  * @returns Masked CEP value
  */
 export function applyCEPMask(value: string): string {
-  value = value.replace(/\D/g, '')
+  if (!value) return ''
+  value = value.replace(/\D/g, '').substring(0, 8)
   value = value.replace(/^(\d{5})(\d)/, '$1-$2')
   return value
 }
@@ -152,6 +162,7 @@ export function applyCEPMask(value: string): string {
  * @returns Formatted value (e.g., R$ 1.234,56)
  */
 export function formatCurrency(value: number): string {
+  if (value === undefined || value === null) return 'R$ 0,00'
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL'
@@ -164,6 +175,7 @@ export function formatCurrency(value: number): string {
  * @returns Formatted date string
  */
 export function formatDate(date: Date): string {
+  if (!date) return ''
   return new Intl.DateTimeFormat('pt-BR').format(date)
 }
 
@@ -173,6 +185,7 @@ export function formatDate(date: Date): string {
  * @returns String containing only digits
  */
 export function unmask(value: string): string {
+  if (!value) return ''
   return value.replace(/\D/g, '')
 }
 
@@ -182,6 +195,7 @@ export function unmask(value: string): string {
  * @returns Formatted currency string
  */
 export function applyCurrencyMask(value: string): string {
+  if (!value) return ''
   value = unmask(value)
   
   if (value === '') return ''
@@ -202,6 +216,7 @@ export function applyCurrencyMask(value: string): string {
  * @returns Masked CPF (000.000.000-00)
  */
 export function maskCPF(value: string): string {
+  if (!value) return ''
   const digits = value.replace(/\D/g, '')
   return digits
     .replace(/(\d{3})(\d)/, '$1.$2')
@@ -216,6 +231,7 @@ export function maskCPF(value: string): string {
  * @returns Masked phone: (00) 00000-0000 or (00) 0000-0000
  */
 export function maskPhone(value: string): string {
+  if (!value) return ''
   const digits = value.replace(/\D/g, '')
   if (digits.length <= 10) {
     return digits

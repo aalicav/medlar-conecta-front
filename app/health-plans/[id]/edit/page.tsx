@@ -1,11 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { HealthPlanForm } from "@/components/forms/health-plan-form"
-import { fetchResourceById } from "@/services/resource-service"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "@/components/ui/use-toast"
+import { Button } from "@/components/ui/button"
+import { ArrowLeft } from "lucide-react"
 import api from "@/services/api-client"
 
 interface HealthPlan {
@@ -19,11 +20,27 @@ interface HealthPlan {
   legal_representative_name: string
   legal_representative_cpf: string
   legal_representative_position: string
+  legal_representative_id: number
+  legal_representative?: {
+    id: number
+    name: string
+    email: string
+  }
+  operational_representative_name: string
+  operational_representative_cpf: string
+  operational_representative_position: string
+  operational_representative_id: number
+  operational_representative?: {
+    id: number
+    name: string
+    email: string
+  }
   address: string
   city: string
   state: string
   postal_code: string
   logo: string | null
+  logo_url?: string
   phones: Array<{
     id: number
     number: string
@@ -35,8 +52,10 @@ interface HealthPlan {
     description: string
     file_path: string
     file_name: string
+    file_size?: number
     reference_date: string | null
     expiration_date: string | null
+    entity_document_type_id?: number
   }>
   status: string
   user: {
@@ -47,7 +66,8 @@ interface HealthPlan {
 
 export default function EditHealthPlanPage() {
   const params = useParams()
-  const healthPlanId = Number(params.id)
+  const router = useRouter()
+  const healthPlanId = params?.id ? Number(params.id) : undefined
   const [healthPlan, setHealthPlan] = useState<HealthPlan | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -129,6 +149,10 @@ export default function EditHealthPlanPage() {
             Não foi possível carregar os dados do plano de saúde. Por favor, tente novamente.
           </p>
         </div>
+        <Button variant="outline" onClick={() => router.back()}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Voltar
+        </Button>
       </div>
     )
   }
@@ -145,9 +169,8 @@ export default function EditHealthPlanPage() {
       </div>
 
       <HealthPlanForm 
-        initialData={healthPlan} 
-        isEditing={true} 
         healthPlanId={healthPlanId} 
+        initialData={healthPlan}
       />
     </div>
   )

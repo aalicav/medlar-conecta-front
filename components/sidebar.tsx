@@ -223,6 +223,12 @@ export function Sidebar({ className }: SidebarProps) {
       permission: "edit settings",
     },
     {
+      title: "Tipos de Documentos",
+      href: "/admin/document-types",
+      icon: FileText,
+      roles: ["super_admin", "admin", "director"],
+    },
+    {
       title: "WhatsApp",
       href: "/whatsapp",
       icon: MessageSquare,

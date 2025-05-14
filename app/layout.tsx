@@ -9,6 +9,7 @@ import { MainLayout } from "@/components/layout"
 import "./globals.css"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -24,6 +25,9 @@ export default function RootLayout({
   const noLayoutRoutes = ['/login', '/login/forgot-password', '/reset-password']
   const isNoLayoutPage = noLayoutRoutes.includes(pathname)
   
+  // Criar uma nova instância do QueryClient para cada sessão
+  const [queryClient] = useState(() => new QueryClient())
+
   useEffect(() => {
     const cookieToken = document.cookie
       .split('; ')
@@ -35,18 +39,20 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="light">
-          <AuthProvider>
-            {!isNoLayoutPage && token ? (
-              <MainLayout>
-                {children}
-              </MainLayout>
-            ) : (
-              <>{children}</>
-            )}
-            <Toaster />
-          </AuthProvider>
-        </ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider attribute="class" defaultTheme="light">
+            <AuthProvider>
+              {!isNoLayoutPage && token ? (
+                <MainLayout>
+                  {children}
+                </MainLayout>
+              ) : (
+                <>{children}</>
+              )}
+              <Toaster />
+            </AuthProvider>
+          </ThemeProvider>
+        </QueryClientProvider>
       </body>
     </html>
   )

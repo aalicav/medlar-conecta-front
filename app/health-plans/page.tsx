@@ -7,7 +7,7 @@ import { DataTable } from "@/components/data-table/data-table"
 import { Badge } from "@/components/ui/badge"
 import { createResource, deleteResource, fetchResource, updateResource, type QueryParams } from "@/services/resource-service"
 import { Plus, FileText, Edit, Trash2, List, MoreHorizontal, CheckCircle2, Search, X, Link, Link2Off, Users } from "lucide-react"
-import type { ColumnDef } from "@tanstack/react-table"
+import type { ColumnDef, SortingState } from "@tanstack/react-table"
 import { toast } from "@/components/ui/use-toast"
 import {
   DropdownMenu,
@@ -50,17 +50,59 @@ interface HealthPlan {
   id: number
   name: string
   cnpj: string
+  municipal_registration?: string
   ans_code: string
-  description: string
+  description?: string
+  email: string
   status: string
   has_signed_contract: boolean
+  address: string
+  city: string
+  state: string
+  postal_code: string
+  logo?: string
+  logo_url?: string
   created_at: string
   updated_at: string
+  legal_representative_name: string
+  legal_representative_cpf: string
+  legal_representative_position: string
+  legal_representative_email: string
+  operational_representative_name: string
+  operational_representative_cpf: string
+  operational_representative_position: string
+  operational_representative_email: string
+  phones: Array<{
+    id: number
+    number: string
+    type: 'mobile' | 'landline' | 'whatsapp' | 'fax'
+  }>
+  documents?: Array<{
+    id: number
+    type: 'contract' | 'ans_certificate' | 'authorization' | 'financial' | 'legal' | 'identification' | 'agreement' | 'technical' | 'other'
+    description: string
+    file_path: string
+    file_name: string
+    file_type: string
+    file_size: number
+    reference_date?: string
+    expiration_date?: string
+  }>
   parent?: {
     id: number
     name: string
   }
-  parent_relation_type?: string
+  parent_relation_type?: 'subsidiary' | 'franchise' | 'branch' | 'partner' | 'other'
+  children?: HealthPlan[]
+  approver?: {
+    id: number
+    name: string
+  }
+  user?: {
+    id: number
+    name: string
+    email: string
+  }
 }
 
 export default function HealthPlansPage() {
@@ -281,8 +323,13 @@ export default function HealthPlansPage() {
     })
   }
 
-  const handleSortingChange = (column: string, direction: "asc" | "desc") => {
-    setSorting({ column, direction })
+  const handleSortingChange = (sorting: SortingState) => {
+    if (sorting.length > 0) {
+      setSorting({
+        column: sorting[0].id,
+        direction: sorting[0].desc ? "desc" : "asc"
+      })
+    }
   }
 
   // Limpar todos os filtros
@@ -318,32 +365,80 @@ export default function HealthPlansPage() {
     }
   }
 
+  const handleDeleteHealthPlan = async (id: number) => {
+    try {
+      await deleteResource(`health-plans/${id}`)
+      toast({
+        title: "Plano excluído",
+        description: "O plano de saúde foi excluído com sucesso.",
+      })
+      fetchData()
+    } catch (error) {
+      console.error("Error deleting health plan:", error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível excluir o plano de saúde.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleApproveHealthPlan = async (id: number) => {
+    try {
+      await updateResource(`health-plans/${id}/approve`, {
+        status: 'approved'
+      })
+      toast({
+        title: "Plano aprovado",
+        description: "O plano de saúde foi aprovado com sucesso.",
+      })
+      fetchData()
+    } catch (error) {
+      console.error("Error approving health plan:", error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível aprovar o plano de saúde.",
+        variant: "destructive",
+      })
+    }
+  }
+
   const columns: ColumnDef<HealthPlan>[] = [
     {
       accessorKey: "name",
       header: "Nome",
-      cell: ({ row }) => (
-        <div>
-          <div className="font-medium">{row.getValue("name")}</div>
-          {row.original.parent && (
-            <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-              <Link className="h-3 w-3" />
-              <span>
-                {row.original.parent_relation_type === "subsidiary" 
-                  ? "Subsidiária de" 
-                  : row.original.parent_relation_type === "franchise" 
-                  ? "Franquia de" 
-                  : row.original.parent_relation_type === "branch" 
-                  ? "Filial de" 
-                  : row.original.parent_relation_type === "partner"
-                  ? "Parceira de"
-                  : "Vinculada a"} {row.original.parent.name}
-              </span>
+      cell: ({ row }) => {
+        const plan = row.original
+        return (
+          <div className="flex items-center gap-2">
+            {plan.logo_url && (
+              <img 
+                src={plan.logo_url} 
+                alt={plan.name} 
+                className="w-8 h-8 rounded-full object-cover"
+              />
+            )}
+            <div>
+              <div className="font-medium">{plan.name}</div>
+              <div className="text-sm text-muted-foreground">
+                {plan.cnpj}
+              </div>
             </div>
-          )}
-        </div>
-      ),
-      enableSorting: true,
+          </div>
+        )
+      }
+    },
+    {
+      accessorKey: "ans_code",
+      header: "Código ANS",
+    },
+    {
+      accessorKey: "city",
+      header: "Cidade/UF",
+      cell: ({ row }) => {
+        const plan = row.original
+        return `${plan.city}/${plan.state}`
+      }
     },
     {
       accessorKey: "status",
@@ -351,219 +446,228 @@ export default function HealthPlansPage() {
       cell: ({ row }) => {
         const status = row.getValue("status") as string
         return (
-          <Badge variant={status === "approved" ? "outline" : status === "pending" ? "secondary" : "default"}>
-            {status === "approved" ? "Aprovado" : status === "pending" ? "Pendente" : status}
+          <Badge variant={
+            status === "approved" ? "success" :
+            status === "pending" ? "warning" :
+            "destructive"
+          }>
+            {status === "approved" ? "Aprovado" :
+             status === "pending" ? "Pendente" :
+             "Rejeitado"}
           </Badge>
         )
-      },
-      enableSorting: true,
+      }
     },
     {
-      accessorKey: "cnpj",
-      header: "CNPJ",
-      enableSorting: true,
+      accessorKey: "has_signed_contract",
+      header: "Contrato",
+      cell: ({ row }) => {
+        const hasContract = row.getValue("has_signed_contract") as boolean
+        return (
+          <Badge variant={hasContract ? "success" : "secondary"}>
+            {hasContract ? "Assinado" : "Pendente"}
+          </Badge>
+        )
+      }
     },
     {
-      accessorKey: "ans_code",
-      header: "Código ANS",
-      enableSorting: true,
-    },
-    {
-      accessorKey: "description",
-      header: "Descrição",
-      cell: ({ row }) => (
-        <div className="max-w-xs truncate" title={row.getValue("description")}>
-          {row.getValue("description") || "-"}
-        </div>
-      ),
+      accessorKey: "parent",
+      header: "Vinculação",
+      cell: ({ row }) => {
+        const plan = row.original
+        if (plan.parent) {
+          return (
+            <div className="flex items-center gap-1">
+              <Link className="h-4 w-4" />
+              <span className="text-sm">{plan.parent.name}</span>
+              <Badge variant="outline" className="ml-1">
+                {plan.parent_relation_type === 'subsidiary' ? 'Subsidiária' :
+                 plan.parent_relation_type === 'franchise' ? 'Franquia' :
+                 plan.parent_relation_type === 'branch' ? 'Filial' :
+                 plan.parent_relation_type === 'partner' ? 'Parceiro' :
+                 'Outro'}
+              </Badge>
+            </div>
+          )
+        }
+        return <span className="text-muted-foreground">Independente</span>
+      }
     },
     {
       id: "actions",
-      header: "Ações",
       cell: ({ row }) => {
-        const healthPlan = row.original
-        const isActive = healthPlan.status === "approved" && healthPlan.has_signed_contract
-
+        const plan = row.original
+        
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <MoreHorizontal className="h-5 w-5" />
-                <span className="sr-only">Abrir menu</span>
+              <Button variant="ghost" className="h-8 w-8 p-0">
+                <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Ações</DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => router.push(`/health-plans/${healthPlan.id}`)}>
+              
+              <DropdownMenuItem onClick={() => router.push(`/health-plans/${plan.id}`)}>
                 <FileText className="mr-2 h-4 w-4" />
-                Ver detalhes
+                Detalhes
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push(`/health-plans/${healthPlan.id}/procedures`)}>
-                <List className="mr-2 h-4 w-4" />
-                Gerenciar procedimentos
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push(`/health-plans/${healthPlan.id}/edit`)}>
+              
+              <DropdownMenuItem onClick={() => router.push(`/health-plans/${plan.id}/edit`)}>
                 <Edit className="mr-2 h-4 w-4" />
                 Editar
               </DropdownMenuItem>
-              {!isActive && healthPlan.status !== 'approved' && (
-                <DropdownMenuItem onClick={() => handleActivateHealthPlan(healthPlan.id)}>
+
+              {plan.status === "pending" && (
+                <DropdownMenuItem onClick={() => handleActivateHealthPlan(plan.id)}>
                   <CheckCircle2 className="mr-2 h-4 w-4" />
-                  Aprovar plano
+                  Aprovar
+                </DropdownMenuItem>
+              )}
+
+              {!plan.parent && (
+                <DropdownMenuItem onClick={() => openParentModal(plan)}>
+                  <Link className="mr-2 h-4 w-4" />
+                  Vincular a Plano
+                </DropdownMenuItem>
+              )}
+
+              {plan.parent && (
+                <DropdownMenuItem onClick={() => openRemoveParentDialog(plan)}>
+                  <Link2Off className="mr-2 h-4 w-4" />
+                  Desvincular
+                </DropdownMenuItem>
+              )}
+
+              {plan.children && plan.children.length > 0 && (
+                <DropdownMenuItem onClick={() => router.push(`/health-plans/${plan.id}/children`)}>
+                  <Users className="mr-2 h-4 w-4" />
+                  Ver Vinculados ({plan.children.length})
                 </DropdownMenuItem>
               )}
 
               <DropdownMenuSeparator />
               
-              {/* Opções de vinculação de plano pai */}
-              {healthPlan.parent ? (
-                <DropdownMenuItem onClick={() => openRemoveParentDialog(healthPlan)}>
-                  <Link2Off className="mr-2 h-4 w-4" />
-                  Desvincular do plano pai
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem onClick={() => openParentModal(healthPlan)}>
-                  <Link className="mr-2 h-4 w-4" />
-                  Associar a plano pai
-                </DropdownMenuItem>
-              )}
-              
-              <DropdownMenuItem onClick={() => router.push(`/health-plans/${healthPlan.id}/children`)}>
-                <Users className="mr-2 h-4 w-4" />
-                Gerenciar planos filhos
-              </DropdownMenuItem>
-              
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => console.log("Delete health plan:", healthPlan.id)}>
-                <Trash2 className="mr-2 h-4 w-4 text-destructive" />
-                <span className="text-destructive">Excluir</span>
+              <DropdownMenuItem 
+                onClick={() => handleDeleteHealthPlan(plan.id)}
+                className="text-red-600"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Excluir
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )
-      },
-    },
+      }
+    }
   ]
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Planos de Saúde</h1>
-          <p className="text-muted-foreground">Gerencie os planos de saúde cadastrados no sistema</p>
-        </div>
+    <div className="container mx-auto py-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Planos de Saúde</h1>
         <Button onClick={() => router.push("/health-plans/new")}>
           <Plus className="mr-2 h-4 w-4" />
           Novo Plano
         </Button>
       </div>
 
-      {/* Filtros */}
-      <Card>
+      <Card className="mb-6">
         <CardContent className="pt-6">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="search">Busca Geral (Nome ou CNPJ)</Label>
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="search"
-                  placeholder="Buscar..."
-                  className="pl-8"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-                {searchTerm && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-0 top-0 h-full"
-                    onClick={() => setSearchTerm("")}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="name">Nome</Label>
+              <Label>Busca Geral</Label>
               <Input
-                id="name"
-                placeholder="Nome do plano"
-                value={nameFilter}
-                onChange={(e) => setNameFilter(e.target.value)}
-                disabled={!!searchTerm}
+                placeholder="Buscar por nome, CNPJ, etc..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="cnpj">CNPJ</Label>
-              <Input
-                id="cnpj"
-                placeholder="CNPJ"
-                value={cnpjFilter}
-                onChange={(e) => setCnpjFilter(e.target.value)}
-                disabled={!!searchTerm}
-              />
-            </div>
+            {!searchTerm && (
+              <>
+                <div className="space-y-2">
+                  <Label>Nome</Label>
+                  <Input
+                    placeholder="Nome do plano"
+                    value={nameFilter}
+                    onChange={(e) => setNameFilter(e.target.value)}
+                  />
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="ans_code">Código ANS</Label>
-              <Input
-                id="ans_code"
-                placeholder="Código ANS"
-                value={ansCodeFilter}
-                onChange={(e) => setAnsCodeFilter(e.target.value)}
-              />
-            </div>
+                <div className="space-y-2">
+                  <Label>CNPJ</Label>
+                  <Input
+                    placeholder="CNPJ"
+                    value={cnpjFilter}
+                    onChange={(e) => setCnpjFilter(e.target.value)}
+                  />
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger id="status">
-                  <SelectValue placeholder="Selecione um status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="approved">Aprovado</SelectItem>
-                  <SelectItem value="pending">Pendente</SelectItem>
-                  <SelectItem value="rejected">Rejeitado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="space-y-2">
+                  <Label>Código ANS</Label>
+                  <Input
+                    placeholder="Código ANS"
+                    value={ansCodeFilter}
+                    onChange={(e) => setAnsCodeFilter(e.target.value)}
+                  />
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="has_contract">Contrato Assinado</Label>
-              <Select value={hasContractFilter} onValueChange={setHasContractFilter}>
-                <SelectTrigger id="has_contract">
-                  <SelectValue placeholder="Status do contrato" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="true">Assinado</SelectItem>
-                  <SelectItem value="false">Não assinado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="parent_status">Hierarquia</Label>
-              <Select value={parentFilter} onValueChange={setParentFilter}>
-                <SelectTrigger id="parent_status">
-                  <SelectValue placeholder="Filtrar por hierarquia" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="true">Planos Principais</SelectItem>
-                  <SelectItem value="false">Planos Filhos</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      
+                      <SelectItem value="approved">Aprovado</SelectItem>
+                      <SelectItem value="pending">Pendente</SelectItem>
+                      <SelectItem value="rejected">Rejeitado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="flex items-end">
-              <Button variant="outline" onClick={clearFilters}>
-                <X className="mr-2 h-4 w-4" />
-                Limpar filtros
-              </Button>
-            </div>
+                <div className="space-y-2">
+                  <Label>Contrato</Label>
+                  <Select value={hasContractFilter} onValueChange={setHasContractFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Status do contrato" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      
+                      <SelectItem value="true">Assinado</SelectItem>
+                      <SelectItem value="false">Pendente</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Tipo de Plano</Label>
+                  <Select value={parentFilter} onValueChange={setParentFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Tipo de plano" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      
+                      <SelectItem value="true">Principal</SelectItem>
+                      <SelectItem value="false">Vinculado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="flex justify-end mt-4">
+            <Button variant="outline" onClick={clearFilters} className="mr-2">
+              <X className="mr-2 h-4 w-4" />
+              Limpar Filtros
+            </Button>
+            <Button onClick={() => fetchData()}>
+              <Search className="mr-2 h-4 w-4" />
+              Buscar
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -571,125 +675,100 @@ export default function HealthPlansPage() {
       <DataTable
         columns={columns}
         data={data}
-        onPaginationChange={handlePaginationChange}
-        onSortingChange={(sorting) => {
-          if (sorting.length > 0) {
-            handleSortingChange(sorting[0].id, sorting[0].desc ? "desc" : "asc")
-          }
-        }}
+        isLoading={isLoading}
         pageCount={pagination.pageCount}
         currentPage={pagination.pageIndex + 1}
         pageSize={pagination.pageSize}
         totalItems={pagination.total}
-        isLoading={isLoading}
+        onPaginationChange={handlePaginationChange}
+        onSortingChange={handleSortingChange}
       />
-      
-      {/* Modal para associar plano a um plano pai */}
+
+      {/* Modal para adicionar plano pai */}
       <Dialog open={isParentModalOpen} onOpenChange={setIsParentModalOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>Associar a Plano Pai</DialogTitle>
+            <DialogTitle>Vincular a Plano</DialogTitle>
             <DialogDescription>
-              Vincule este plano a um plano de saúde principal. Essa relação permite administrar planos em hierarquia.
+              Selecione o plano ao qual deseja vincular {selectedHealthPlan?.name}
             </DialogDescription>
           </DialogHeader>
-          
-          <div className="space-y-4 py-4">
+
+          <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="search-parent">Buscar Plano Pai</Label>
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="search-parent"
-                  placeholder="Digite o nome ou CNPJ..."
-                  className="pl-8"
-                  value={parentSearchTerm}
-                  onChange={(e) => setParentSearchTerm(e.target.value)}
-                />
-                {parentSearchLoading && (
-                  <div className="absolute right-3 top-2.5">
-                    <svg className="animate-spin h-4 w-4 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  </div>
-                )}
-              </div>
-              
-              {/* Resultados da busca */}
-              {parentOptions.length > 0 && (
-                <div className="border rounded-md mt-2 max-h-[200px] overflow-y-auto">
-                  {parentOptions.map((plan) => (
-                    <div 
-                      key={plan.id}
-                      className={`p-2 border-b last:border-0 cursor-pointer hover:bg-accent transition-colors ${selectedParent?.id === plan.id ? 'bg-accent' : ''}`}
-                      onClick={() => setSelectedParent(plan)}
-                    >
-                      <div className="font-medium">{plan.name}</div>
-                      <div className="text-xs text-muted-foreground">CNPJ: {plan.cnpj}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              
-              {parentSearchTerm && parentOptions.length === 0 && !parentSearchLoading && (
-                <div className="text-sm text-muted-foreground mt-2">
-                  Nenhum plano encontrado com este termo.
-                </div>
-              )}
+              <Label>Buscar Plano</Label>
+              <Input
+                placeholder="Digite o nome ou CNPJ do plano..."
+                value={parentSearchTerm}
+                onChange={(e) => {
+                  setParentSearchTerm(e.target.value)
+                  searchParentPlans(e.target.value)
+                }}
+              />
             </div>
-            
-            {selectedParent && (
-              <>
-                <div className="bg-accent/30 p-3 rounded-md">
-                  <p className="font-medium">{selectedParent.name}</p>
-                  <p className="text-sm text-muted-foreground">CNPJ: {selectedParent.cnpj}</p>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="relation-type">Tipo de Relação</Label>
-                  <Select value={parentRelationType} onValueChange={setParentRelationType}>
-                    <SelectTrigger id="relation-type">
-                      <SelectValue placeholder="Selecione o tipo de relação" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="subsidiary">Subsidiária</SelectItem>
-                      <SelectItem value="franchise">Franquia</SelectItem>
-                      <SelectItem value="branch">Filial</SelectItem>
-                      <SelectItem value="partner">Parceira</SelectItem>
-                      <SelectItem value="other">Outra</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
-            )}
+
+            {parentSearchLoading ? (
+              <div className="text-center py-2">Buscando planos...</div>
+            ) : parentOptions.length > 0 ? (
+              <div className="space-y-2">
+                {parentOptions.map((option) => (
+                  <div
+                    key={option.id}
+                    className={`p-2 rounded cursor-pointer hover:bg-accent ${
+                      selectedParent?.id === option.id ? 'bg-accent' : ''
+                    }`}
+                    onClick={() => setSelectedParent(option)}
+                  >
+                    <div className="font-medium">{option.name}</div>
+                    <div className="text-sm text-muted-foreground">{option.cnpj}</div>
+                  </div>
+                ))}
+              </div>
+            ) : parentSearchTerm.length > 0 ? (
+              <div className="text-center py-2 text-muted-foreground">
+                Nenhum plano encontrado
+              </div>
+            ) : null}
+
+            <div className="space-y-2">
+              <Label>Tipo de Vinculação</Label>
+              <Select value={parentRelationType} onValueChange={setParentRelationType}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="subsidiary">Subsidiária</SelectItem>
+                  <SelectItem value="franchise">Franquia</SelectItem>
+                  <SelectItem value="branch">Filial</SelectItem>
+                  <SelectItem value="partner">Parceiro</SelectItem>
+                  <SelectItem value="other">Outro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          
+
           <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setIsParentModalOpen(false)}
-            >
+            <Button variant="outline" onClick={() => setIsParentModalOpen(false)}>
               Cancelar
             </Button>
-            <Button 
+            <Button
               onClick={associatePlanToParent}
-              disabled={!selectedParent}
+              disabled={!selectedParent || !parentRelationType}
             >
-              Associar Plano
+              Vincular
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
-      {/* Diálogo para confirmar remoção de vinculação */}
+
+      {/* Diálogo de confirmação para remover vinculação */}
       <AlertDialog open={isRemoveParentDialogOpen} onOpenChange={setIsRemoveParentDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Desvincular Plano</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja desvincular este plano do seu plano pai? 
-              Isso tornará o plano independente.
+              Tem certeza que deseja desvincular {selectedHealthPlan?.name} do plano {selectedHealthPlan?.parent?.name}?
+              Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -39,7 +39,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import api from '@/app/services/api-client';
+import { apiClient } from '@/app/services/apiClient';
 
 // Tipos para os dados do usuário
 interface UserRole {
@@ -117,7 +117,7 @@ export default function ProfilePage() {
     const fetchUserProfile = async () => {
       setIsLoading(true);
       try {
-        const response = await api.get('/user/profile');
+        const response = await apiClient.get('/user/profile');
         if (response.data.success) {
           const userData = response.data.data as User;
           setUser(userData);
@@ -188,7 +188,7 @@ export default function ProfilePage() {
       }
 
       // Enviar requisição
-      const response = await api.post('/api/user/profile', formData, {
+      const response = await apiClient.post('/api/user/profile', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -200,7 +200,7 @@ export default function ProfilePage() {
           description: 'Perfil atualizado com sucesso',
         });
         // Recarregar os dados do perfil
-        const profileResponse = await api.get('/api/user/profile');
+        const profileResponse = await apiClient.get('/api/user/profile');
         if (profileResponse.data.success) {
           setUser(profileResponse.data.data);
           if (profileResponse.data.data.profile_photo_url) {
@@ -232,7 +232,7 @@ export default function ProfilePage() {
     setIsSubmitting(true);
     
     try {
-      const response = await api.post('/api/user/change-password', {
+      const response = await apiClient.post('/api/user/change-password', {
         current_password: data.current_password,
         password: data.password,
         password_confirmation: data.password_confirmation,

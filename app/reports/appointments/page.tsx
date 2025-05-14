@@ -266,7 +266,6 @@ export default function AppointmentsReportsPage() {
                   <SelectValue placeholder="Selecione a clínica" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todas</SelectItem>
                   {clinics.map((clinic) => (
                     <SelectItem key={clinic.id} value={clinic.id.toString()}>
                       {clinic.name}

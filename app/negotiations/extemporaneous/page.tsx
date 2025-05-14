@@ -313,7 +313,6 @@ export default function PaginaNegociacoesExtemporaneas() {
                   <SelectValue placeholder="Filtrar por especialidade" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todas Especialidades</SelectItem>
                   {especialidades.map((especialidade) => (
                     <SelectItem key={especialidade} value={especialidade}>{especialidade}</SelectItem>
                   ))}

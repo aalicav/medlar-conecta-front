@@ -379,7 +379,7 @@ export default function EditUserPage({ params }: PageProps) {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="">Nenhum</SelectItem>
+                          
                           <SelectItem value="clinic">Clínica</SelectItem>
                           <SelectItem value="professional">Profissional</SelectItem>
                           <SelectItem value="health_plan">Plano de Saúde</SelectItem>

@@ -75,11 +75,8 @@ const getStatusVariant = (status: string) => {
   switch (status) {
     case 'draft': return 'outline';
     case 'submitted': return 'secondary';
-    case 'pending': return 'default';
-    case 'complete': return 'default';
     case 'approved': return 'default';
     case 'partially_approved': return 'secondary';
-    case 'rejected': return 'destructive';
     case 'cancelled': return 'outline';
     default: return 'outline';
   }
@@ -95,9 +92,20 @@ const getItemStatusVariant = (status: string) => {
   }
 };
 
+// Helper function to format currency for Brazilian format
+const formatCurrency = (value: number | string | null | undefined): string => {
+  if (value === null || value === undefined) return 'R$ 0,00';
+  
+  // Convert to number if it's a string
+  const numValue = typeof value === 'string' ? parseFloat(value) : value;
+  
+  // Format with Brazilian style (comma as decimal separator)
+  return `R$ ${numValue.toFixed(2).replace('.', ',')}`;
+};
+
 export default function NegotiationDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const negotiationId = params.id; // Simply access params directly
+  const negotiationId = params.id;
   const [negotiation, setNegotiation] = useState<Negotiation | null>(null);
   const [loading, setLoading] = useState(true);
   const [respondLoading, setRespondLoading] = useState(false);
@@ -128,8 +136,8 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     } catch (error) {
       console.error('Error fetching negotiation:', error);
       toast({
-        title: "Error",
-        description: "Failed to fetch negotiation details",
+        title: "Erro",
+        description: "Falha ao obter detalhes da negociação",
         variant: "destructive"
       });
     } finally {
@@ -143,13 +151,13 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
   
   const confirmAction = (action: 'submit' | 'cancel') => {
     const titles = {
-      submit: 'Submit Negotiation',
-      cancel: 'Cancel Negotiation'
+      submit: 'Submeter Negociação',
+      cancel: 'Cancelar Negociação'
     };
     
     const descriptions = {
-      submit: 'Are you sure you want to submit this negotiation for approval?',
-      cancel: 'Are you sure you want to cancel this negotiation?'
+      submit: 'Tem certeza que deseja submeter esta negociação para aprovação?',
+      cancel: 'Tem certeza que deseja cancelar esta negociação?'
     };
     
     setConfirmDialog({
@@ -167,14 +175,14 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
       if (confirmDialog.action === 'submit') {
         await negotiationService.submitNegotiation(negotiation.id);
         toast({
-          title: "Success",
-          description: "Negotiation submitted successfully",
+          title: "Sucesso",
+          description: "Negociação submetida com sucesso",
         });
       } else if (confirmDialog.action === 'cancel') {
         await negotiationService.cancelNegotiation(negotiation.id);
         toast({
-          title: "Success",
-          description: "Negotiation cancelled successfully",
+          title: "Sucesso",
+          description: "Negociação cancelada com sucesso",
         });
       }
       
@@ -182,8 +190,8 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     } catch (error) {
       console.error(`Error ${confirmDialog.action}ing negotiation:`, error);
       toast({
-        title: "Error",
-        description: `Failed to ${confirmDialog.action} negotiation`,
+        title: "Erro",
+        description: `Falha ao ${confirmDialog.action === 'submit' ? 'submeter' : 'cancelar'} a negociação`,
         variant: "destructive"
       });
     } finally {
@@ -197,15 +205,15 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     try {
       const response = await negotiationService.generateContract(negotiation.id);
       toast({
-        title: "Success",
-        description: "Contract generated successfully",
+        title: "Sucesso",
+        description: "Contrato gerado com sucesso",
       });
       router.push(`/contracts/${response.data.contract_id}`);
     } catch (error) {
       console.error('Error generating contract:', error);
       toast({
-        title: "Error",
-        description: "Failed to generate contract",
+        title: "Erro",
+        description: "Falha ao gerar contrato",
         variant: "destructive"
       });
     }
@@ -226,23 +234,32 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     
     setRespondLoading(true);
     try {
-      await negotiationService.respondToItem(selectedItem.id!, {
-        status: responseForm.status as any,
-        approved_value: responseForm.status === 'approved' ? responseForm.approved_value : undefined,
-        notes: responseForm.notes
-      });
+      if (responseForm.status === 'counter_offered') {
+        // Usando a rota de contra-oferta específica
+        await negotiationService.counterOffer(selectedItem.id!, {
+          approved_value: responseForm.approved_value,
+          notes: responseForm.notes
+        });
+      } else {
+        // Usando a rota de resposta normal
+        await negotiationService.respondToItem(selectedItem.id!, {
+          status: responseForm.status as any,
+          approved_value: responseForm.status === 'approved' ? responseForm.approved_value : undefined,
+          notes: responseForm.notes
+        });
+      }
       
       toast({
-        title: "Success",
-        description: "Response submitted successfully",
+        title: "Sucesso",
+        description: "Resposta enviada com sucesso",
       });
       setResponseDialogOpen(false);
       fetchNegotiation();
     } catch (error) {
       console.error('Error responding to item:', error);
       toast({
-        title: "Error",
-        description: "Failed to submit response",
+        title: "Erro",
+        description: "Falha ao enviar resposta",
         variant: "destructive"
       });
     } finally {
@@ -264,13 +281,13 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
         <div className="flex items-center space-x-2 text-muted-foreground">
           <Link href="/dashboard" className="hover:underline">Dashboard</Link>
           <span>/</span>
-          <Link href="/negotiations" className="hover:underline">Negotiations</Link>
+          <Link href="/negotiations" className="hover:underline">Negociações</Link>
           <span>/</span>
-          <span>Detail</span>
+          <span>Detalhes</span>
         </div>
         <Card>
           <CardContent className="pt-6">
-            <p>Negotiation not found</p>
+            <p>Negociação não encontrada</p>
           </CardContent>
         </Card>
       </div>
@@ -285,12 +302,14 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
   
   // Make sure we're working with numeric values and provide defaults
   const totalProposedValue = negotiation.items.reduce((sum, item) => 
-    sum + (typeof item.proposed_value === 'number' ? item.proposed_value : 0), 0);
+    sum + (typeof item.proposed_value === 'number' ? item.proposed_value : 
+          typeof item.proposed_value === 'string' ? parseFloat(item.proposed_value) : 0), 0);
     
   const totalApprovedValue = negotiation.items
     .filter(item => item.status === 'approved')
     .reduce((sum, item) => 
-      sum + (typeof item.approved_value === 'number' ? item.approved_value : 0), 0);
+      sum + (typeof item.approved_value === 'number' ? item.approved_value : 
+            typeof item.approved_value === 'string' ? parseFloat(item.approved_value) : 0), 0);
 
   return (
     <div className="container py-6 space-y-6">
@@ -298,7 +317,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
       <div className="flex items-center space-x-2 text-muted-foreground">
         <Link href="/dashboard" className="hover:underline">Dashboard</Link>
         <span>/</span>
-        <Link href="/negotiations" className="hover:underline">Negotiations</Link>
+        <Link href="/negotiations" className="hover:underline">Negociações</Link>
         <span>/</span>
         <span>{negotiation.title}</span>
       </div>
@@ -327,26 +346,26 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
             <>
               <Button variant="outline" onClick={() => router.push(`/negotiations/${negotiation.id}/edit`)}>
                 <Edit className="mr-2 h-4 w-4" />
-                Edit
+                Editar
               </Button>
               <Button onClick={() => confirmAction('submit')}>
                 <CheckCircle className="mr-2 h-4 w-4" />
-                Submit
+                Submeter
               </Button>
             </>
           )}
           
-          {['draft', 'submitted', 'pending'].includes(negotiation.status) && (
+          {['draft', 'submitted'].includes(negotiation.status) && (
             <Button variant="destructive" onClick={() => confirmAction('cancel')}>
               <XCircle className="mr-2 h-4 w-4" />
-              Cancel
+              Cancelar
             </Button>
           )}
           
           {negotiation.status === 'approved' && (
             <Button onClick={handleGenerateContract}>
               <FileText className="mr-2 h-4 w-4" />
-              Generate Contract
+              Gerar Contrato
             </Button>
           )}
         </div>
@@ -356,30 +375,30 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Details</CardTitle>
+            <CardTitle className="text-lg">Detalhes</CardTitle>
           </CardHeader>
           <CardContent>
             <dl className="grid grid-cols-1 gap-2 text-sm">
               <div className="flex justify-between py-1">
                 <dt className="text-muted-foreground flex items-center">
                   <User className="mr-2 h-4 w-4" />
-                  Entity
+                  Entidade
                 </dt>
                 <dd className="font-medium">
                   {negotiation.negotiable?.name || '-'}
                   <span className="block text-xs text-muted-foreground">
                     {negotiation.negotiable_type.split('\\').pop() === 'HealthPlan' 
-                      ? 'Health Plan' 
+                      ? 'Plano de Saúde' 
                       : negotiation.negotiable_type.split('\\').pop() === 'Professional'
-                        ? 'Professional'
-                        : 'Clinic'}
+                        ? 'Profissional'
+                        : 'Clínica'}
                   </span>
                 </dd>
               </div>
               <div className="flex justify-between py-1">
                 <dt className="text-muted-foreground flex items-center">
                   <Calendar className="mr-2 h-4 w-4" />
-                  Period
+                  Período
                 </dt>
                 <dd className="font-medium">
                   {new Date(negotiation.start_date).toLocaleDateString()} - {new Date(negotiation.end_date).toLocaleDateString()}
@@ -388,7 +407,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
               <div className="flex justify-between py-1">
                 <dt className="text-muted-foreground flex items-center">
                   <Clock className="mr-2 h-4 w-4" />
-                  Created
+                  Criado em
                 </dt>
                 <dd className="font-medium">
                   {new Date(negotiation.created_at).toLocaleDateString()}
@@ -397,7 +416,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
               <div className="flex justify-between py-1">
                 <dt className="text-muted-foreground flex items-center">
                   <User className="mr-2 h-4 w-4" />
-                  Created by
+                  Criado por
                 </dt>
                 <dd className="font-medium">
                   {negotiation.creator?.name || '-'}
@@ -407,7 +426,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                 <div className="py-1">
                   <dt className="text-muted-foreground flex items-center mb-1">
                     <Clipboard className="mr-2 h-4 w-4" />
-                    Notes
+                    Observações
                   </dt>
                   <dd className="font-medium border-l-2 pl-3 border-muted italic">
                     {negotiation.notes}
@@ -420,12 +439,12 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
         
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Progress</CardTitle>
+            <CardTitle className="text-lg">Progresso</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Total Items</span>
+                <span className="text-muted-foreground">Total de Itens</span>
                 <span className="font-medium">{totalItems}</span>
               </div>
               
@@ -435,7 +454,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                     <Badge variant="default" className="mr-2">
                       {approvedItems}
                     </Badge>
-                    Approved
+                    Aprovados
                   </span>
                   <span className="text-sm">{totalItems > 0 ? Math.round((approvedItems / totalItems) * 100) : 0}%</span>
                 </div>
@@ -453,7 +472,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                     <Badge variant="destructive" className="mr-2">
                       {rejectedItems}
                     </Badge>
-                    Rejected
+                    Rejeitados
                   </span>
                   <span className="text-sm">{totalItems > 0 ? Math.round((rejectedItems / totalItems) * 100) : 0}%</span>
                 </div>
@@ -471,7 +490,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                     <Badge variant="outline" className="mr-2">
                       {pendingItems}
                     </Badge>
-                    Pending
+                    Pendentes
                   </span>
                   <span className="text-sm">{totalItems > 0 ? Math.round((pendingItems / totalItems) * 100) : 0}%</span>
                 </div>
@@ -488,31 +507,31 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
         
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Financial Summary</CardTitle>
+            <CardTitle className="text-lg">Resumo Financeiro</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-muted/40 p-4 rounded-lg">
-                  <div className="text-muted-foreground text-sm mb-1">Proposed Value</div>
-                  <div className="text-2xl font-bold">R$ {totalProposedValue.toFixed(2)}</div>
+                  <div className="text-muted-foreground text-sm mb-1">Valor Proposto</div>
+                  <div className="text-2xl font-bold">{formatCurrency(totalProposedValue)}</div>
                 </div>
                 <div className="bg-muted/40 p-4 rounded-lg">
-                  <div className="text-muted-foreground text-sm mb-1">Approved Value</div>
-                  <div className="text-2xl font-bold">R$ {totalApprovedValue.toFixed(2)}</div>
+                  <div className="text-muted-foreground text-sm mb-1">Valor Aprovado</div>
+                  <div className="text-2xl font-bold">{formatCurrency(totalApprovedValue)}</div>
                 </div>
               </div>
               
               {approvedItems > 0 && (
                 <div className="pt-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Difference</span>
+                    <span className="text-muted-foreground">Diferença</span>
                     <span className={totalApprovedValue !== totalProposedValue ? 
                       (totalApprovedValue > totalProposedValue ? "text-green-600" : "text-red-600") : ""}>
                       {totalApprovedValue > totalProposedValue ? '+' : ''}
-                      {(totalApprovedValue - totalProposedValue).toFixed(2)} 
+                      {formatCurrency(totalApprovedValue - totalProposedValue).substring(3)} 
                       ({totalProposedValue > 0 
-                        ? (((totalApprovedValue - totalProposedValue) / totalProposedValue) * 100).toFixed(1) 
+                        ? (((totalApprovedValue - totalProposedValue) / totalProposedValue) * 100).toFixed(1).replace('.', ',') 
                         : 0}%)
                     </span>
                   </div>
@@ -526,24 +545,24 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
       {/* Items Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Negotiation Items</CardTitle>
+          <CardTitle>Itens da Negociação</CardTitle>
           <CardDescription>
             {negotiation.status === 'draft' ? 
-              'These items will be included in the negotiation once submitted.' :
-              'Review the status of each procedure in this negotiation.'}
+              'Estes itens serão incluídos na negociação após a submissão.' :
+              'Revise o status de cada procedimento nesta negociação.'}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Procedure</TableHead>
-                <TableHead>Proposed Value</TableHead>
-                <TableHead>Approved Value</TableHead>
+                <TableHead>Procedimento</TableHead>
+                <TableHead>Valor Proposto</TableHead>
+                <TableHead>Valor Aprovado</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Notes</TableHead>
-                {['submitted', 'pending'].includes(negotiation.status) && (
-                  <TableHead className="text-right">Actions</TableHead>
+                <TableHead>Observações</TableHead>
+                {['submitted'].includes(negotiation.status) && (
+                  <TableHead className="text-right">Ações</TableHead>
                 )}
               </TableRow>
             </TableHeader>
@@ -551,7 +570,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
               {negotiation.items.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="h-24 text-center">
-                    No items found
+                    Nenhum item encontrado
                   </TableCell>
                 </TableRow>
               ) : (
@@ -561,25 +580,25 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                       <div>
                         <div className="font-medium">{item.tuss?.name}</div>
                         <div className="text-xs text-muted-foreground">
-                          Code: {item.tuss?.code}
+                          Código: {item.tuss?.code}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      R$ {typeof item.proposed_value === 'number' ? item.proposed_value.toFixed(2) : '0.00'}
+                      {formatCurrency(item.proposed_value)}
                     </TableCell>
                     <TableCell>
-                      {item.status === 'approved' && typeof item.approved_value === 'number' ? (
+                      {item.status === 'approved' && item.approved_value ? (
                         <span className={
-                          item.approved_value < item.proposed_value 
+                          parseFloat(String(item.approved_value)) < parseFloat(String(item.proposed_value))
                             ? "text-red-600" 
-                            : item.approved_value > item.proposed_value 
+                            : parseFloat(String(item.approved_value)) > parseFloat(String(item.proposed_value))
                               ? "text-green-600" 
                               : ""
                         }>
-                          R$ {item.approved_value.toFixed(2)}
-                          {item.approved_value < item.proposed_value && ' ↓'}
-                          {item.approved_value > item.proposed_value && ' ↑'}
+                          {formatCurrency(item.approved_value)}
+                          {parseFloat(String(item.approved_value)) < parseFloat(String(item.proposed_value)) && ' ↓'}
+                          {parseFloat(String(item.approved_value)) > parseFloat(String(item.proposed_value)) && ' ↑'}
                         </span>
                       ) : (
                         <span className="text-muted-foreground">-</span>
@@ -595,7 +614,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                         {item.notes || '-'}
                       </div>
                     </TableCell>
-                    {['submitted', 'pending'].includes(negotiation.status) && (
+                    {['submitted'].includes(negotiation.status) && (
                       <TableCell className="text-right">
                         {item.status === 'pending' && (
                           <Button 
@@ -603,7 +622,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                             variant="outline"
                             onClick={() => showResponseDialog(item)}
                           >
-                            Respond
+                            Responder
                           </Button>
                         )}
                       </TableCell>
@@ -620,38 +639,38 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
       <Dialog open={responseDialogOpen} onOpenChange={setResponseDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Respond to Item</DialogTitle>
+            <DialogTitle>Responder ao Item</DialogTitle>
             <DialogDescription>
-              Review and respond to {selectedItem?.tuss?.name}
+              Revise e responda a {selectedItem?.tuss?.name}
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="proposed-value">Proposed Value</Label>
+                <Label htmlFor="proposed-value">Valor Proposto</Label>
                 <Input 
                   id="proposed-value" 
-                  value={selectedItem && typeof selectedItem.proposed_value === 'number' 
-                    ? selectedItem.proposed_value.toFixed(2) 
-                    : '0.00'} 
+                  value={selectedItem && selectedItem.proposed_value 
+                    ? parseFloat(String(selectedItem.proposed_value)).toFixed(2).replace('.', ',')
+                    : '0,00'} 
                   disabled 
                 />
               </div>
               
               <div>
-                <Label htmlFor="status">Response</Label>
+                <Label htmlFor="status">Resposta</Label>
                 <Select 
                   value={responseForm.status} 
                   onValueChange={(value) => setResponseForm({...responseForm, status: value})}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
+                    <SelectValue placeholder="Selecione o status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="approved">Approve</SelectItem>
-                    <SelectItem value="rejected">Reject</SelectItem>
-                    <SelectItem value="counter_offered">Counter Offer</SelectItem>
+                    <SelectItem value="approved">Aprovar</SelectItem>
+                    <SelectItem value="rejected">Rejeitar</SelectItem>
+                    <SelectItem value="counter_offered">Contra-proposta</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -660,7 +679,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
             {responseForm.status !== 'rejected' && (
               <div>
                 <Label htmlFor="approved-value">
-                  {responseForm.status === 'approved' ? 'Approved Value' : 'Counter Offer Value'}
+                  {responseForm.status === 'approved' ? 'Valor Aprovado' : 'Valor da Contra-proposta'}
                 </Label>
                 <Input 
                   id="approved-value"
@@ -673,10 +692,10 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
             )}
             
             <div>
-              <Label htmlFor="notes">Notes</Label>
+              <Label htmlFor="notes">Observações</Label>
               <Textarea 
                 id="notes"
-                placeholder="Add any comments or notes about your response"
+                placeholder="Adicione comentários ou observações sobre sua resposta"
                 value={responseForm.notes}
                 onChange={(e) => setResponseForm({...responseForm, notes: e.target.value})}
               />
@@ -685,13 +704,13 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
           
           <DialogFooter>
             <Button variant="outline" onClick={() => setResponseDialogOpen(false)}>
-              Cancel
+              Cancelar
             </Button>
             <Button 
               onClick={handleResponseSubmit} 
               disabled={respondLoading}
             >
-              {respondLoading ? 'Submitting...' : 'Submit Response'}
+              {respondLoading ? 'Enviando...' : 'Enviar Resposta'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -710,9 +729,9 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleActionConfirm}>
-              Confirm
+              Confirmar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

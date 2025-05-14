@@ -30,6 +30,8 @@ export interface NegotiationItem {
   status: NegotiationItemStatus;
   notes?: string;
   responded_at?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Negotiation {
@@ -61,10 +63,17 @@ export interface Negotiation {
   approved_at?: string;
   created_at: string;
   updated_at: string;
+  entity_type: string;
+  entity_id: number;
 }
 
-export type CreateNegotiationDto = Omit<Negotiation, 'id' | 'creator_id' | 'creator' | 'negotiable' | 'created_at' | 'updated_at'>;
-export type UpdateNegotiationDto = Partial<Omit<Negotiation, 'id' | 'creator_id' | 'creator' | 'negotiable' | 'created_at' | 'updated_at'>>;
+export type CreateNegotiationDto = Omit<Negotiation, 'id' | 'creator_id' | 'creator' | 'negotiable' | 'created_at' | 'updated_at'> & {
+  items: Omit<NegotiationItem, 'id' | 'created_at' | 'updated_at'>[]
+};
+
+export type UpdateNegotiationDto = Partial<Omit<Negotiation, 'id' | 'creator_id' | 'creator' | 'negotiable' | 'created_at' | 'updated_at'>> & {
+  items?: Partial<Omit<NegotiationItem, 'created_at' | 'updated_at'>>[]
+};
 
 // Nome mais amigável para os status
 export const negotiationStatusLabels = {
@@ -104,67 +113,123 @@ export const negotiationItemStatusColors = {
   counter_offered: 'geekblue'
 };
 
+const API_BASE_PATH = '/negotiations';
+
 export const negotiationService = {
   /**
-   * Get negotiations with optional filters
+   * Get list of negotiations
    */
-  getNegotiations: async (params?: {
-    status?: NegotiationStatus;
-    entity_type?: string;
-    entity_id?: number;
-    health_plan_id?: number; // Para compatibilidade
-    search?: string;
-    sort_field?: string;
-    sort_order?: 'asc' | 'desc';
-    page?: number;
-    per_page?: number;
+  getNegotiations: async (params?: { 
+    entity_type?: string; 
+    entity_id?: number; 
+    status?: string;
+    start_date?: string;
+    end_date?: string;
   }) => {
-    const response = await apiClient.get<{
-      success: boolean;
-      data: Negotiation[];
-      meta: {
-        current_page: number;
-        from: number;
-        last_page: number;
-        per_page: number;
-        to: number;
-        total: number;
-      };
-    }>('/negotiations', { params });
+    const response = await apiClient.get<{ success: boolean; data: Negotiation[] }>(
+      API_BASE_PATH, 
+      { params }
+    );
     return response.data;
   },
 
   /**
-   * Get a specific negotiation by ID
+   * Get a specific negotiation
    */
-  getNegotiation: async (id: number) => {
-    const response = await apiClient.get<{
-      success: boolean;
-      data: Negotiation;
-    }>(`/negotiations/${id}`);
+  getNegotiation: async (id: number, includeItems: boolean = true) => {
+    const response = await apiClient.get<{ success: boolean; data: Negotiation }>(
+      `${API_BASE_PATH}/${id}`, 
+      { params: { include_items: includeItems } }
+    );
     return response.data;
   },
 
   /**
    * Create a new negotiation
    */
-  createNegotiation: async (negotiation: CreateNegotiationDto) => {
-    const response = await apiClient.post<{
-      success: boolean;
-      data: Negotiation;
-    }>('/negotiations', negotiation);
+  createNegotiation: async (negotiationData: CreateNegotiationDto) => {
+    const response = await apiClient.post<{ success: boolean; data: Negotiation }>(
+      API_BASE_PATH, 
+      negotiationData
+    );
     return response.data;
   },
 
   /**
    * Update an existing negotiation
    */
-  updateNegotiation: async (id: number, negotiation: UpdateNegotiationDto) => {
-    const response = await apiClient.put<{
-      success: boolean;
-      data: Negotiation;
-    }>(`/negotiations/${id}`, negotiation);
+  updateNegotiation: async (id: number, negotiationData: UpdateNegotiationDto) => {
+    const response = await apiClient.put<{ success: boolean; data: Negotiation }>(
+      `${API_BASE_PATH}/${id}`, 
+      negotiationData
+    );
     return response.data;
+  },
+
+  /**
+   * Delete a negotiation
+   */
+  deleteNegotiation: async (id: number) => {
+    const response = await apiClient.delete<{ success: boolean }>(
+      `${API_BASE_PATH}/${id}`
+    );
+    return response.data;
+  },
+
+  /**
+   * Change negotiation status
+   */
+  changeStatus: async (id: number, status: 'draft' | 'pending' | 'approved' | 'rejected') => {
+    const response = await apiClient.patch<{ success: boolean; data: Negotiation }>(
+      `${API_BASE_PATH}/${id}/status`,
+      { status }
+    );
+    return response.data;
+  },
+
+  /**
+   * Get TUSS procedures 
+   */
+  getTussProcedures: async (search?: string) => {
+    try {
+      const response = await apiClient.get<{ success: boolean; data: { id: number; code: string; name: string }[] }>(
+        '/tuss',
+        { params: { search } }
+      );
+      
+      // Verificar e garantir a estrutura de dados
+      if (response?.data?.success && Array.isArray(response.data.data)) {
+        return {
+          success: true,
+          data: response.data.data.map((item: any) => ({
+            id: item.id || 0,
+            code: item.code || '',
+            name: item.name || item.description || ''
+          }))
+        };
+      } else if (response?.data) {
+        // Caso a API não retorne no formato esperado, tentar adaptar
+        const dados = response.data.data || response.data;
+        
+        if (Array.isArray(dados)) {
+          return {
+            success: true,
+            data: dados.map((item: any) => ({
+              id: item.id || 0,
+              code: item.code || '',
+              name: item.name || item.description || ''
+            }))
+          };
+        }
+      }
+      
+      // Fallback para resposta vazia
+      console.error('Formato de resposta inesperado:', response);
+      return { success: false, data: [] };
+    } catch (error) {
+      console.error('Erro ao buscar procedimentos TUSS:', error);
+      return { success: false, data: [] };
+    }
   },
 
   /**
@@ -174,7 +239,7 @@ export const negotiationService = {
     const response = await apiClient.post<{
       success: boolean;
       data: Negotiation;
-    }>(`/negotiations/${id}/submit`);
+    }>(`${API_BASE_PATH}/${id}/submit`);
     return response.data;
   },
 
@@ -185,7 +250,7 @@ export const negotiationService = {
     const response = await apiClient.post<{
       success: boolean;
       data: Negotiation;
-    }>(`/negotiations/${id}/cancel`);
+    }>(`${API_BASE_PATH}/${id}/cancel`);
     return response.data;
   },
 
@@ -199,7 +264,7 @@ export const negotiationService = {
         contract_id: number;
         negotiation: Negotiation;
       };
-    }>(`/negotiations/${id}/generate-contract`, {
+    }>(`${API_BASE_PATH}/${id}/generate-contract`, {
       template_id: templateId
     });
     return response.data;

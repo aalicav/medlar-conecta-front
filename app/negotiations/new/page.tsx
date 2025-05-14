@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
@@ -8,7 +8,9 @@ import {
   Save, 
   Plus, 
   Trash2,
-  Calendar
+  Calendar,
+  Search,
+  Loader2
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -16,6 +18,7 @@ import {
   negotiationService, 
   CreateNegotiationDto
 } from '../../services/negotiationService';
+import { apiClient } from '../../services/apiClient';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,6 +44,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { Separator } from '@/components/ui/separator';
 import { toast } from '@/components/ui/use-toast';
 import { useForm } from 'react-hook-form';
+import { Badge } from "@/components/ui/badge";
 
 interface OpcaoEntidade {
   id: number;
@@ -72,9 +76,17 @@ interface ValoresFormulario {
 export default function PaginaCriarNegociacao() {
   const router = useRouter();
   const [carregando, setCarregando] = useState(false);
+  const [carregandoEntidades, setCarregandoEntidades] = useState(false);
+  const [carregandoTuss, setCarregandoTuss] = useState(false);
   const [opcoesEntidades, setOpcoesEntidades] = useState<OpcaoEntidade[]>([]);
   const [tipoEntidadeSelecionada, setTipoEntidadeSelecionada] = useState<string>('');
   const [opcoesTuss, setOpcoesTuss] = useState<OpcaoTuss[]>([]);
+  const [termoPesquisaEntidade, setTermoPesquisaEntidade] = useState('');
+  const [termoPesquisaTuss, setTermoPesquisaTuss] = useState('');
+  
+  // Usar refs para armazenar timeouts em vez de state
+  const timeoutEntidadesRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutTussRef = useRef<NodeJS.Timeout | null>(null);
   
   const form = useForm<ValoresFormulario>({
     defaultValues: {
@@ -87,35 +99,219 @@ export default function PaginaCriarNegociacao() {
     }
   });
 
-  // Carregar opções de entidades e TUSS
-  useEffect(() => {
-    // Para fins de demonstração, usaremos dados simulados
-    setOpcoesEntidades([
-      // Planos de Saúde
-      { id: 1, name: 'Unimed', type: 'App\\Models\\HealthPlan' },
-      { id: 2, name: 'Amil', type: 'App\\Models\\HealthPlan' },
-      { id: 3, name: 'SulAmérica', type: 'App\\Models\\HealthPlan' },
-      // Profissionais
-      { id: 1, name: 'Dra. Ana Silva', type: 'App\\Models\\Professional' },
-      { id: 2, name: 'Dr. Carlos Oliveira', type: 'App\\Models\\Professional' },
-      // Clínicas
-      { id: 1, name: 'Clínica São Lucas', type: 'App\\Models\\Clinic' },
-      { id: 2, name: 'Centro Médico Santa Maria', type: 'App\\Models\\Clinic' },
-    ]);
-    
-    // Simular busca de procedimentos TUSS
-    setOpcoesTuss([
-      { id: 1, code: '10101012', name: 'Consulta em consultório' },
-      { id: 2, code: '10101020', name: 'Consulta em pronto socorro' },
-      { id: 3, code: '20101236', name: 'Raio-X de tórax' },
-      { id: 4, code: '31301271', name: 'Avaliação fisioterapêutica' },
-      { id: 5, code: '40202615', name: 'Hemograma completo' },
-    ]);
+  // Buscar procedimentos TUSS com filtragem
+  const buscarProcedimentosTuss = useCallback(async (termo: string = '') => {
+    setCarregandoTuss(true);
+    try {
+      const response = await negotiationService.getTussProcedures(termo);
+      console.log('Resposta da API TUSS:', response);
+      
+      // Verificar explicitamente o tipo da resposta
+      if (response && typeof response === 'object') {
+        // Verificar diferentes formatos de resposta
+        let dadosTuss: any[] = [];
+        
+        if (response && 'data' in response && Array.isArray(response.data)) {
+          // Formato com campo data diretamente
+          dadosTuss = response.data;
+        } else if (response && 'data' in response && response.data && 
+                  typeof response.data === 'object' && 'data' in response.data && 
+                  Array.isArray(response.data.data)) {
+          // Formato com data aninhado
+          dadosTuss = response.data.data;
+        } else if (Array.isArray(response)) {
+          // Formato como array direto
+          dadosTuss = response;
+        }
+        
+        if (dadosTuss.length > 0) {
+          console.log('Dados encontrados:', dadosTuss.length, 'procedimentos TUSS');
+          
+          // Garantir o formato correto dos dados
+          const procedimentos = dadosTuss.map((item: any) => ({
+            id: typeof item.id === 'number' ? item.id : parseInt(item.id || '0'),
+            code: item.code || '',
+            name: item.name || (item.description || ''),
+          }));
+          
+          console.log('Procedimentos TUSS formatados:', procedimentos);
+          setOpcoesTuss(procedimentos);
+        } else {
+          console.log('Nenhum procedimento TUSS encontrado');
+          setOpcoesTuss([]);
+        }
+      } else {
+        console.error('Resposta da API TUSS em formato inválido:', response);
+        setOpcoesTuss([]);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar procedimentos TUSS:', error);
+      setOpcoesTuss([]);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os procedimentos TUSS",
+        variant: "destructive"
+      });
+    } finally {
+      setCarregandoTuss(false);
+    }
   }, []);
+
+  // Buscar entidades com filtragem
+  const buscarEntidades = useCallback(async (tipo: string, termo: string = '') => {
+    if (!tipo) return;
+    
+    setCarregandoEntidades(true);
+    setOpcoesEntidades([]);
+    
+    try {
+      // Definir o endpoint baseado no tipo de entidade
+      let endpoint = '';
+      
+      if (tipo === 'App\\Models\\HealthPlan') {
+        endpoint = '/health-plans';
+      } else if (tipo === 'App\\Models\\Professional') {
+        endpoint = '/professionals';
+      } else if (tipo === 'App\\Models\\Clinic') {
+        endpoint = '/clinics';
+      }
+      
+      if (endpoint) {
+        const response = await apiClient.get(endpoint, { 
+          params: { search: termo, per_page: 50 }
+        });
+        
+        console.log(`Resposta da API ${endpoint}:`, response.data);
+        
+        // Verificar estrutura de resposta paginada
+        let dadosEntidades: any[] = [];
+        
+        if (response.data && response.data.data) {
+          // Resposta paginada (formato Laravel)
+          dadosEntidades = response.data.data;
+        } else if (Array.isArray(response.data)) {
+          // Resposta direta em formato de array
+          dadosEntidades = response.data;
+        } else if (response.data && response.data.success && Array.isArray(response.data.data)) {
+          // Formato da API com success e data
+          dadosEntidades = response.data.data;
+        }
+        
+        if (dadosEntidades.length > 0) {
+          console.log('Dados encontrados:', dadosEntidades.length, 'entidades');
+          
+          // Garantir que os dados estejam no formato correto
+          const entidades = dadosEntidades.map((entidade: any) => ({
+            id: Number(entidade.id) || 0,
+            name: entidade.name || entidade.title || entidade.corporate_name || entidade.full_name || `Entidade ${entidade.id}`,
+            type: tipo
+          }));
+          
+          console.log('Entidades formatadas:', entidades);
+          setOpcoesEntidades(entidades);
+        } else {
+          console.log('Nenhuma entidade encontrada');
+          setOpcoesEntidades([]);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar entidades:', error);
+      setOpcoesEntidades([]);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar as entidades",
+        variant: "destructive"
+      });
+    } finally {
+      setCarregandoEntidades(false);
+    }
+  }, []);
+  
+  // Funções de debounce para busca
+  const debounceEntidadeSearch = useCallback((tipo: string, termo: string) => {
+    if (timeoutEntidadesRef.current) {
+      clearTimeout(timeoutEntidadesRef.current);
+    }
+    
+    timeoutEntidadesRef.current = setTimeout(() => {
+      buscarEntidades(tipo, termo);
+    }, 300);
+  }, [buscarEntidades]);
+  
+  const debounceTussSearch = useCallback((termo: string) => {
+    if (timeoutTussRef.current) {
+      clearTimeout(timeoutTussRef.current);
+    }
+    
+    timeoutTussRef.current = setTimeout(() => {
+      buscarProcedimentosTuss(termo);
+    }, 300);
+  }, [buscarProcedimentosTuss]);
+  
+  // Carregar procedimentos TUSS iniciais
+  useEffect(() => {
+    buscarProcedimentosTuss();
+    
+    // Limpar timeouts ao desmontar o componente
+    return () => {
+      if (timeoutEntidadesRef.current) {
+        clearTimeout(timeoutEntidadesRef.current);
+      }
+      if (timeoutTussRef.current) {
+        clearTimeout(timeoutTussRef.current);
+      }
+    };
+  }, [buscarProcedimentosTuss]);
+
+  // Atualizar entidades quando mudar o tipo
+  useEffect(() => {
+    if (tipoEntidadeSelecionada) {
+      buscarEntidades(tipoEntidadeSelecionada, '');
+    }
+  }, [tipoEntidadeSelecionada, buscarEntidades]);
 
   const handleMudancaTipoEntidade = (valor: string) => {
     setTipoEntidadeSelecionada(valor);
     form.setValue('entity_id', 0);
+    setTermoPesquisaEntidade('');
+  };
+  
+  const handlePesquisaEntidade = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const termo = e.target.value;
+    setTermoPesquisaEntidade(termo);
+    
+    console.log('Iniciando busca de entidades com termo:', termo);
+    
+    // Cancelar timer anterior se existir
+    if (timeoutEntidadesRef.current) {
+      clearTimeout(timeoutEntidadesRef.current);
+    }
+    
+    // Criar novo timer
+    if (tipoEntidadeSelecionada) {
+      timeoutEntidadesRef.current = setTimeout(() => {
+        console.log('Executando busca de entidades com termo:', termo);
+        buscarEntidades(tipoEntidadeSelecionada, termo);
+      }, 300);
+    }
+  };
+  
+  const handlePesquisaTuss = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const termo = e.target.value;
+    setTermoPesquisaTuss(termo);
+    
+    console.log('Iniciando busca de procedimentos TUSS com termo:', termo);
+    
+    // Cancelar timer anterior se existir
+    if (timeoutTussRef.current) {
+      clearTimeout(timeoutTussRef.current);
+    }
+    
+    // Criar novo timer com timeout mais curto para testes
+    timeoutTussRef.current = setTimeout(() => {
+      console.log('Executando busca de procedimentos TUSS com termo:', termo);
+      buscarProcedimentosTuss(termo);
+    }, 300);
   };
 
   const onSubmit = async (valores: ValoresFormulario) => {
@@ -128,8 +324,6 @@ export default function PaginaCriarNegociacao() {
       entity_type: valores.entity_type,
       entity_id: valores.entity_id,
       status: 'draft',
-      negotiable_type: valores.entity_type,
-      negotiable_id: valores.entity_id,
       items: valores.items.map((item) => ({
         tuss_id: item.tuss_id,
         proposed_value: item.proposed_value,
@@ -168,6 +362,15 @@ export default function PaginaCriarNegociacao() {
       form.setValue('items', items.filter((_, i) => i !== index));
     }
   };
+
+  // Adicionar antes da renderização do componente
+  useEffect(() => {
+    console.log('Estado atual das entidades:', opcoesEntidades);
+  }, [opcoesEntidades]);
+
+  useEffect(() => {
+    console.log('Estado atual dos procedimentos TUSS:', opcoesTuss);
+  }, [opcoesTuss]);
 
   return (
     <div className="container py-6 space-y-6">
@@ -247,26 +450,49 @@ export default function PaginaCriarNegociacao() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Entidade</FormLabel>
-                        <Select
-                          onValueChange={(value) => field.onChange(parseInt(value))}
-                          value={field.value?.toString()}
-                          disabled={!tipoEntidadeSelecionada}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione a entidade" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {opcoesEntidades
-                              .filter(entity => entity.type === tipoEntidadeSelecionada)
-                              .map(entity => (
-                                <SelectItem key={entity.id} value={entity.id.toString()}>
-                                  {entity.name}
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
+                        <div className="space-y-2">
+                          {tipoEntidadeSelecionada && (
+                            <div className="relative">
+                              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                              <Input
+                                placeholder="Pesquisar entidade..."
+                                className="pl-8"
+                                value={termoPesquisaEntidade}
+                                onChange={handlePesquisaEntidade}
+                                disabled={!tipoEntidadeSelecionada || carregandoEntidades}
+                              />
+                            </div>
+                          )}
+                          <Select
+                            onValueChange={(value) => field.onChange(parseInt(value))}
+                            value={field.value?.toString()}
+                            disabled={!tipoEntidadeSelecionada || carregandoEntidades}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder={carregandoEntidades ? "Carregando..." : "Selecione a entidade"} />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {carregandoEntidades ? (
+                                <div className="flex items-center justify-center p-2">
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                  <span className="text-sm">Carregando...</span>
+                                </div>
+                              ) : opcoesEntidades.length === 0 ? (
+                                <div className="p-2 text-center text-sm text-muted-foreground">
+                                  Nenhuma entidade encontrada
+                                </div>
+                              ) : (
+                                opcoesEntidades.map(entity => (
+                                  <SelectItem key={entity.id} value={String(entity.id)}>
+                                    {entity.name}
+                                  </SelectItem>
+                                ))
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -378,23 +604,47 @@ export default function PaginaCriarNegociacao() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Procedimento (TUSS)</FormLabel>
-                            <Select
-                              onValueChange={(value) => field.onChange(parseInt(value))}
-                              value={field.value?.toString()}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Selecione o procedimento" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {opcoesTuss.map(tuss => (
-                                  <SelectItem key={tuss.id} value={tuss.id.toString()}>
-                                    {tuss.code} - {tuss.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="space-y-2">
+                              <div className="relative">
+                                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                  placeholder="Pesquisar procedimento..."
+                                  className="pl-8"
+                                  value={termoPesquisaTuss}
+                                  onChange={handlePesquisaTuss}
+                                  disabled={carregandoTuss}
+                                />
+                              </div>
+                              <Select
+                                onValueChange={(value) => field.onChange(parseInt(value))}
+                                value={field.value?.toString()}
+                                disabled={carregandoTuss}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder={carregandoTuss ? "Carregando..." : "Selecione o procedimento"} />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {carregandoTuss ? (
+                                    <div className="flex items-center justify-center p-2">
+                                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                      <span className="text-sm">Carregando...</span>
+                                    </div>
+                                  ) : opcoesTuss.length === 0 ? (
+                                    <div className="p-2 text-center text-sm text-muted-foreground">
+                                      Nenhum procedimento encontrado
+                                    </div>
+                                  ) : (
+                                    opcoesTuss.map(tuss => (
+                                      <SelectItem key={tuss.id} value={String(tuss.id)}>
+                                        {tuss.code} - {tuss.name}
+                                      </SelectItem>
+                                    ))
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            </div>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -454,7 +704,12 @@ export default function PaginaCriarNegociacao() {
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={carregando}>
-                  {carregando ? 'Criando...' : 'Criar Negociação'}
+                  {carregando ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Criando...
+                    </>
+                  ) : 'Criar Negociação'}
                 </Button>
               </div>
             </form>

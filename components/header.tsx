@@ -68,11 +68,32 @@ export function Header({ className }: HeaderProps) {
 
   // Fetch notifications on mount
   useEffect(() => {
-    fetchNotifications()
+    // Define the function inside useEffect to avoid dependency issues
+    const getNotifications = async () => {
+      try {
+        setIsLoading(true)
+        const response = await fetchResource<Notification[]>('notifications', {
+          per_page: 10 // Limit to the 10 most recent notifications for the header
+        })
+        if (response?.data) {
+          setNotifications(response.data)
+        }
+      } catch (error) {
+        console.error('Failed to fetch notifications:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    // Initial fetch
+    getNotifications()
+    
     // Set up polling interval to check for new notifications
-    const interval = setInterval(fetchNotifications, 60000) // Every minute
+    const interval = setInterval(getNotifications, 60000) // Every minute
+    
+    // Clean up interval on unmount
     return () => clearInterval(interval)
-  }, [])
+  }, []) // Empty dependency array means this only runs on mount and unmount
 
   useEffect(() => {
     const handleScroll = () => {
@@ -87,7 +108,7 @@ export function Header({ className }: HeaderProps) {
     try {
       setIsLoading(true)
       const response = await fetchResource<Notification[]>('notifications', {
-        per_page: 10 // Limit to the 10 most recent notifications for the header
+        per_page: 10
       })
       if (response?.data) {
         setNotifications(response.data)

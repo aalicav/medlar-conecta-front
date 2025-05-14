@@ -302,7 +302,6 @@ export default function ExportTemplatePage({ params }: { params: { id: string } 
                           <SelectValue placeholder="Selecione uma negociação" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Nenhuma negociação</SelectItem>
                           {negotiations.map((negotiation) => (
                             <SelectItem key={negotiation.id} value={negotiation.id.toString()}>
                               {negotiation.title}
