@@ -2229,7 +2229,7 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
                                 <Select
                                   value={field.value}
                                   onValueChange={(value) =>
-                                    form.setValue(`phones.${index}.type`, value as "mobile" | "landline")
+                                    form.setValue(`phones.${index}.type` as any, value as "mobile" | "landline" | "whatsapp" | "fax")
                                   }
                                 >
                                   <SelectTrigger>
