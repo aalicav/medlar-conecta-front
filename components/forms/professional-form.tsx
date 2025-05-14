@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react"
-import { useForm, useFieldArray } from "react-hook-form"
+import { useForm, useFieldArray, Controller, SubmitHandler, FieldValues, FieldErrors, ControllerRenderProps, FieldError, FieldPath, Control } from "react-hook-form"
 import * as z from "zod"
 import { Button } from "@/components/ui/button"
 import {
@@ -31,6 +31,10 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { useEntityDocumentTypes } from '@/hooks/useEntityDocumentTypes'
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog"
+import { useRouter } from "next/navigation"
+import estadosCidadesData from '@/hooks/estados-cidades.json'
 
 // Add these interfaces after imports and before formSchema
 interface Clinic {
@@ -81,7 +85,36 @@ const documentSchema = z.object({
   observation: z.string().optional()
 });
 
-// Create a unified schema that handles both professional and establishment
+// Interface para endereço
+interface Address {
+  street: string;
+  number: string;
+  complement?: string;
+  district: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  is_main: boolean;
+}
+
+// Utility to unmask a string (remove non-digits)
+const unmask = (value: string): string => {
+  return value.replace(/\D/g, '');
+};
+
+// Update the address schema to make is_main required
+const addressSchema = z.object({
+  street: z.string().min(1, "Rua é obrigatória"),
+  number: z.string().min(1, "Número é obrigatório"),
+  complement: z.string().optional(),
+  district: z.string().min(1, "Bairro é obrigatório"),
+  city: z.string().min(1, "Cidade é obrigatória"),
+  state: z.string().min(1, "Estado é obrigatório"),
+  postal_code: z.string().min(8, "CEP é obrigatório"),
+  is_main: z.boolean()
+});
+
+// Modificar o schema do formulário
 const formSchema = z.object({
   // Common fields
   documentType: z.enum(["cpf", "cnpj"], {
@@ -90,12 +123,11 @@ const formSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
   phone: z.string().min(10, "Telefone deve ter pelo menos 10 dígitos"),
   email: z.string().email("Email inválido"),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  zip_code: z.string().optional(),
   
-  // Conditional professional fields
+  // Novo campo de endereços múltiplos
+  addresses: z.array(addressSchema).min(1, "Pelo menos um endereço é necessário"),
+  
+  // Campos para profissionais (CPF)
   cpf: z.string().optional(),
   birth_date: z.string().optional(),
   gender: z.enum(["male", "female", "other"]).optional(),
@@ -104,7 +136,7 @@ const formSchema = z.object({
   bio: z.string().optional(),
   clinic_id: z.string().optional(),
   
-  // Conditional establishment fields
+  // Campos para estabelecimentos (CNPJ)
   cnpj: z.string().optional(),
   trading_name: z.string().optional(),
   foundation_date: z.string().optional(),
@@ -112,7 +144,7 @@ const formSchema = z.object({
   services: z.string().optional(),
   health_reg_number: z.string().optional(),
   
-  // Documents
+  // Documentos
   documents: z.array(documentSchema)
 })
 .superRefine((data, ctx) => {
@@ -221,7 +253,23 @@ const formSchema = z.object({
   }
 });
 
+// Definir o tipo para os valores do formulário
 type FormValues = z.infer<typeof formSchema>
+
+// After the FormValues type definition, add field render types
+type FieldRenderProps<T extends FieldPath<FormValues> = FieldPath<FormValues>> = {
+  field: ControllerRenderProps<FormValues, T>;
+  fieldState: {
+    invalid: boolean;
+    isTouched: boolean;
+    isDirty: boolean;
+    error?: FieldError;
+  };
+};
+
+// Near TypedFormField declaration or where components are used
+// Create a typed wrapper for FormField
+const TypedFormField = FormField as any;
 
 interface UnifiedFormProps {
   initialData?: Partial<FormValues>
@@ -236,7 +284,7 @@ interface UnifiedFormProps {
 // Export the form as a forwarded ref component
 export const ProfessionalForm = forwardRef(function ProfessionalForm({
   initialData,
-  onSubmit,
+  onSubmit: submitCallback,
   isClinicAdmin,
   clinicId,
   entityId,
@@ -244,6 +292,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
   onTabChange
 }: UnifiedFormProps, ref) {
   const { toast } = useToast()
+  const router = useRouter()
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [clinics, setClinics] = useState<Clinic[]>([])
@@ -273,21 +322,35 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
   };
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(formSchema) as any,
     defaultValues: {
       documentType: initialData?.documentType || "cpf",
       name: initialData?.name || "",
-      phone: initialData?.phone || "",
+      phone: initialData?.phone ? applyPhoneMask(initialData.phone) : "",
       email: initialData?.email || "",
-      address: initialData?.address || "",
-      city: initialData?.city || "",
-      state: initialData?.state || "",
-      zip_code: initialData?.zip_code || "",
+      addresses: initialData?.addresses?.length
+        ? initialData.addresses.map(addr => ({
+            ...addr,
+            postal_code: addr.postal_code ? applyCEPMask(addr.postal_code) : "",
+            is_main: addr.is_main === undefined ? false : addr.is_main
+          }))
+        : [
+            {
+              street: "",
+              number: "",
+              complement: "",
+              district: "",
+              city: "",
+              state: "",
+              postal_code: "",
+              is_main: true
+            }
+          ],
       
       // Professional fields
       cpf: initialData?.cpf || "",
       birth_date: initialData?.birth_date || "",
-      gender: initialData?.gender || "other",
+      gender: initialData?.gender || undefined,
       specialty: initialData?.specialty || "",
       crm: initialData?.crm || "",
       bio: initialData?.bio || "",
@@ -310,6 +373,12 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
   const { fields: documentFields, append: appendDocument, remove: removeDocument } = useFieldArray({
     control: form.control,
     name: "documents"
+  });
+
+  // Adicionar o FieldArray para endereços
+  const { fields: addressFields, append: appendAddress, remove: removeAddress } = useFieldArray({
+    control: form.control,
+    name: "addresses"
   });
 
   // Update documentType state when form value changes
@@ -506,6 +575,111 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     }
   }, [documentTypes, documentFields.length, appendDocument]);
 
+  // Add error handler for form submission
+  const handleFormSubmitError = (errors: FieldErrors<FormValues>) => {
+    console.error("Form validation errors:", errors);
+    
+    // Show toast with error
+    toast({
+      title: "Erro de validação",
+      description: "Por favor, verifique os campos destacados",
+      variant: "destructive"
+    });
+    
+    // If we're on a tab with errors, stay there
+    // Otherwise, find the first tab with errors and navigate to it
+    const basicInfoHasErrors = hasErrorsInTab(errors, "basic-info");
+    const additionalInfoHasErrors = hasErrorsInTab(errors, "additional-info");
+    const documentsHasErrors = hasErrorsInTab(errors, "documents");
+    
+    if (activeTab === "basic-info" && basicInfoHasErrors) {
+      return; // Stay on current tab
+    }
+    
+    if (activeTab === "additional-info" && additionalInfoHasErrors) {
+      return; // Stay on current tab
+    }
+    
+    if (activeTab === "documents" && documentsHasErrors) {
+      return; // Stay on current tab
+    }
+    
+    // Navigate to tab with errors
+    if (basicInfoHasErrors) {
+      onTabChange?.("basic-info");
+    } else if (additionalInfoHasErrors) {
+      onTabChange?.("additional-info");
+    } else if (documentsHasErrors) {
+      onTabChange?.("documents");
+    }
+  };
+
+  // Helper to check if a tab has errors
+  const hasErrorsInTab = (errors: FieldErrors<FormValues>, tabName: string): boolean => {
+    switch (tabName) {
+      case "basic-info":
+        return !!(
+          errors.documentType || 
+          errors.name || 
+          errors.email || 
+          errors.phone || 
+          errors.cpf || 
+          errors.cnpj || 
+          errors.addresses
+        );
+      case "additional-info":
+        return documentType === "cpf" 
+          ? !!(errors.birth_date || errors.gender || errors.specialty || errors.crm || errors.bio) 
+          : !!(errors.trading_name || errors.foundation_date || errors.health_reg_number || errors.business_hours || errors.services);
+      case "documents":
+        return !!errors.documents;
+      default:
+        return false;
+    }
+  };
+
+  // Form submission handler
+  const onFormSubmit = async (data: FormValues) => {
+    try {
+      setLoading(true);
+      
+      // Validate required documents
+      if (!validateRequiredDocuments()) {
+        setLoading(false);
+        return;
+      }
+      
+      // Call the onSubmit function from props with the enhanced data
+      await submitCallback(data);
+      
+      toast({
+        title: "Sucesso",
+        description: entityId 
+          ? "Profissional atualizado com sucesso" 
+          : "Profissional cadastrado com sucesso",
+        variant: "success"
+      });
+      
+      // Remove localStorage data on successful submission
+      localStorage.removeItem(FORM_STORAGE_KEY);
+      
+      router.push('/professionals');
+      
+    } catch (error: any) {
+      console.error("Erro ao enviar formulário:", error);
+      
+      toast({
+        title: "Erro",
+        description: entityId
+          ? "Não foi possível atualizar o profissional"
+          : "Não foi possível cadastrar o profissional",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Update the handleSubmit function to handle documents
   const handleSubmit = async (data: FormValues) => {
     setLoading(true);
@@ -518,7 +692,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
       }
       
       // Call the onSubmit function from props with the enhanced data
-      await onSubmit(data);
+      await submitCallback(data);
       
       toast({
         title: "Sucesso",
@@ -549,7 +723,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
       let tabToFocus = "basic-info";
       
       const basicInfoFields = ["name", "cpf", "cnpj", "email", "trading_name", "birth_date", "foundation_date", "gender"];
-      const additionalInfoFields = ["address", "city", "state", "zip_code", "phone", "specialty", "crm", "bio", "clinic_id", "business_hours", "services", "health_reg_number"];
+      const additionalInfoFields = ["addresses", "phone", "specialty", "crm", "bio", "clinic_id", "business_hours", "services", "health_reg_number"];
       const documentFields = ["documents"];
       
       // Check which tab has errors
@@ -571,21 +745,6 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
         onTabChange(tabToFocus);
       }
     }
-  };
-  
-  // Handle form submission error
-  const handleFormSubmitError = (errors: any) => {
-    console.log('Form validation errors:', errors);
-    
-    // Navigate to the tab with errors
-    handleFormError(errors);
-    
-    // Toast with error message
-    toast({
-      title: "Erro de validação",
-      description: "Verifique os campos destacados em vermelho",
-      variant: "destructive"
-    });
   };
 
   // Handle document file change
@@ -624,13 +783,28 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
   };
 
   // Handle document type change
-  const handleDocumentTypeChange = (value: string, index: number) => {
-    const typeId = parseInt(value);
-    const docType = documentTypes?.find(dt => dt.id === typeId);
+  const handleDocumentTypeChange = (value: "cpf" | "cnpj") => {
+    setDocumentType(value);
     
-    if (docType) {
-      form.setValue(`documents.${index}.type_id` as any, typeId);
+    // Reset form fields specific to the other document type
+    if (value === "cpf") {
+      form.setValue("cnpj", "");
+      form.setValue("trading_name", "");
+      form.setValue("foundation_date", "");
+      form.setValue("health_reg_number", "");
+      form.setValue("business_hours", "");
+      form.setValue("services", "");
+    } else {
+      form.setValue("cpf", "");
+      form.setValue("birth_date", "");
+      form.setValue("gender", undefined);
+      form.setValue("specialty", "");
+      form.setValue("crm", "");
+      form.setValue("bio", "");
     }
+    
+    // Clear documents since they're different for each type
+    form.setValue("documents", []);
   };
 
   // Add a new document to the form
@@ -659,7 +833,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
       return (
         <div key={field.id} className="space-y-4 p-4 border rounded-lg">
           <div className="flex items-end gap-4">
-            <FormField
+            <TypedFormField
               control={form.control}
               name={`documents.${index}.type_id` as any}
               render={({ field }) => (
@@ -670,7 +844,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                   </FormLabel>
                   <Select
                     value={field.value?.toString()}
-                    onValueChange={(value) => handleDocumentTypeChange(value, index)}
+                    onValueChange={(value) => handleDocumentItemTypeChange(value, index)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o tipo" />
@@ -712,7 +886,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
             </div>
           )}
 
-          <FormField
+          <TypedFormField
             control={form.control}
             name={`documents.${index}.file` as any}
             render={({ field }) => (
@@ -736,7 +910,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
             )}
           />
 
-          <FormField
+          <TypedFormField
             control={form.control}
             name={`documents.${index}.expiration_date` as any}
             render={({ field }) => (
@@ -763,7 +937,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
             )}
           />
 
-          <FormField
+          <TypedFormField
             control={form.control}
             name={`documents.${index}.observation` as any}
             render={({ field }) => (
@@ -844,11 +1018,266 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     }
   };
 
+  // Adicionar botão para novo endereço
+  const handleAddAddress = () => {
+    appendAddress({
+      street: "",
+      number: "",
+      complement: "",
+      district: "",
+      city: "",
+      state: "",
+      postal_code: "",
+      is_main: false
+    });
+  };
+
   // Expose form methods to parent component
   useImperativeHandle(ref, () => ({
     validateTab,
     getForm: () => form
   }), [form]);
+
+  // Add key for localStorage
+  const FORM_STORAGE_KEY = `professional-form-${entityId || 'new'}`;
+
+  // Inside the ProfessionalForm component
+  // Add state for navigation confirmation dialog
+  const [showExitDialog, setShowExitDialog] = useState(false);
+  const [navigationPath, setNavigationPath] = useState<string | null>(null);
+
+  // Add function to handle navigation attempt
+  const handleNavigation = (path: string) => {
+    const formHasChanges = Object.keys(form.formState.dirtyFields).length > 0;
+    
+    if (formHasChanges) {
+      setNavigationPath(path);
+      setShowExitDialog(true);
+    } else {
+      router.push(path);
+    }
+  };
+
+  // Add function to handle confirmed exit
+  const handleConfirmExit = () => {
+    localStorage.removeItem(FORM_STORAGE_KEY);
+    if (navigationPath) {
+      router.push(navigationPath);
+    } else {
+      router.back();
+    }
+    setShowExitDialog(false);
+  };
+
+  // Inside the component, add these useEffect hooks for localStorage persistence
+  useEffect(() => {
+    // Load form data from localStorage on mount
+    const savedFormData = localStorage.getItem(FORM_STORAGE_KEY);
+    if (savedFormData) {
+      try {
+        const parsedData = JSON.parse(savedFormData);
+        // Only load data if we don't already have initialData
+        if (!initialData) {
+          // Don't reset form if there's initialData (editing)
+          form.reset(parsedData);
+          // Set the document type from loaded data
+          if (parsedData.documentType) {
+            setDocumentType(parsedData.documentType);
+          }
+        }
+      } catch (error) {
+        console.error("Error parsing saved form data:", error);
+        // If error parsing, remove invalid data
+        localStorage.removeItem(FORM_STORAGE_KEY);
+      }
+    }
+  }, [form, FORM_STORAGE_KEY, initialData]);
+
+  // Save form data to localStorage on form change
+  useEffect(() => {
+    // Watch for form changes and save to localStorage
+    const subscription = form.watch((data) => {
+      if (Object.keys(form.formState.dirtyFields).length > 0) {
+        localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(data));
+      }
+    });
+    
+    return () => subscription.unsubscribe();
+  }, [form, FORM_STORAGE_KEY]);
+
+  // Inside component
+  const [cidadesDoEstado, setCidadesDoEstado] = useState<string[]>([]);
+
+  // Define the memoized function to update cities based on selected state
+  const atualizarCidadesPorEstado = useCallback((uf: string) => {
+    if (!uf) {
+      setCidadesDoEstado([]);
+      return;
+    }
+
+    // Find the state in the data
+    const estadoEncontrado = estadosCidadesData.estados.find(
+      estado => estado.sigla === uf
+    );
+
+    if (estadoEncontrado) {
+      setCidadesDoEstado(estadoEncontrado.cidades);
+    } else {
+      setCidadesDoEstado([]);
+    }
+  }, []);
+
+  // Fix the document type change handler for specific document items
+  const handleDocumentItemTypeChange = (value: string, index: number) => {
+    const typeId = parseInt(value);
+    const docType = documentTypes?.find(dt => dt.id === typeId);
+    
+    if (docType) {
+      form.setValue(`documents.${index}.type_id` as any, typeId);
+    }
+  };
+
+  // Add CEP change handler
+  const handleCEPChange = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
+    const value = e.target.value;
+    const maskedValue = applyCEPMask(value);
+    form.setValue(`addresses.${index}.postal_code` as any, maskedValue, { shouldValidate: true });
+    
+    // Fetch address by CEP if it has 8 digits
+    if (unmask(maskedValue).length === 8) {
+      fetchAddressByCEP(unmask(maskedValue), index);
+    }
+  };
+
+  // Add CEP lookup function
+  const fetchAddressByCEP = async (cep: string, index: number) => {
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      const data = await response.json();
+      
+      if (data.erro) {
+        toast({
+          title: "CEP não encontrado",
+          description: "Verifique o CEP informado",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Fill address fields with returned data
+      form.setValue(`addresses.${index}.street` as any, data.logradouro);
+      form.setValue(`addresses.${index}.district` as any, data.bairro);
+      form.setValue(`addresses.${index}.state` as any, data.uf);
+      
+      // Update cities for the state
+      atualizarCidadesPorEstado(data.uf);
+      
+      // Set city
+      form.setValue(`addresses.${index}.city` as any, data.localidade);
+      
+      toast({
+        title: "Endereço preenchido",
+        description: "Os dados de endereço foram preenchidos automaticamente",
+        variant: "success"
+      });
+    } catch (error) {
+      console.error("Erro ao buscar CEP:", error);
+      toast({
+        title: "Erro ao buscar CEP",
+        description: "Não foi possível buscar o endereço pelo CEP",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Update the effect to initialize cities when state changes
+  useEffect(() => {
+    // Process addresses if they exist
+    const addresses = form.getValues("addresses");
+    if (addresses && addresses.length > 0) {
+      addresses.forEach((address, index) => {
+        if (address.state) {
+          atualizarCidadesPorEstado(address.state);
+        }
+      });
+    }
+    
+    // Listen for changes in addresses
+    const subscription = form.watch((formValues) => {
+      if (formValues && formValues.addresses) {
+        formValues.addresses.forEach((address: any, index: number) => {
+          if (address && address.state) {
+            atualizarCidadesPorEstado(address.state);
+          }
+        });
+      }
+    });
+    
+    // Clean up subscription
+    return () => {
+      if (subscription && typeof subscription.unsubscribe === 'function') {
+        subscription.unsubscribe();
+      }
+    };
+  }, [form, atualizarCidadesPorEstado]);
+
+  // Update the TypedFormField component interface
+  interface TypedFormFieldProps<T extends FieldPath<FormValues>> {
+    name: T;
+    control: Control<FormValues>;
+    render: (props: {
+      field: ControllerRenderProps<FormValues, T>;
+      fieldState: {
+        invalid: boolean;
+        isTouched: boolean;
+        isDirty: boolean;
+        error?: FieldError;
+      };
+    }) => React.ReactElement;
+  }
+
+  function TypedFormField<T extends FieldPath<FormValues>>({
+    name,
+    control,
+    render,
+  }: TypedFormFieldProps<T>) {
+    return (
+      <FormField
+        control={control as any}
+        name={name}
+        render={render as any}
+      />
+    );
+  }
+
+  // Also fix document fields where we use "as any"
+  interface TypedDocumentFieldProps {
+    name: string;
+    control: Control<FormValues>;
+    render: (props: {
+      field: ControllerRenderProps<FormValues, any>;
+      fieldState: {
+        invalid: boolean;
+        isTouched: boolean;
+        isDirty: boolean;
+        error?: FieldError;
+      };
+    }) => React.ReactElement;
+  }
+
+  function TypedDocumentField({
+    name,
+    control,
+    render,
+  }: TypedDocumentFieldProps) {
+    return (
+      <FormField
+        control={control as any}
+        name={name as any}
+        render={render as any}
+      />
+    );
+  }
 
   return (
     <Card className="w-full max-w-4xl mx-auto">
@@ -871,12 +1300,12 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[calc(100vh-16rem)]">
+        <div className="space-y-6">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit, handleFormSubmitError)} className="space-y-6">
+            <form onSubmit={form.handleSubmit(onFormSubmit, handleFormSubmitError)} className="space-y-6">
               {/* Type selection - only in first tab */}
               {activeTab === "basic-info" && (
-                <FormField
+                <TypedFormField
                   control={form.control}
                   name="documentType"
                   render={({ field }) => (
@@ -896,28 +1325,33 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                       </FormDescription>
                       <FormControl>
                         <RadioGroup
-                          onValueChange={(value) => {
+                          onValueChange={(value: "cpf" | "cnpj") => {
                             field.onChange(value);
-                            setDocumentType(value as "cpf" | "cnpj");
+                            handleDocumentTypeChange(value);
                           }}
                           defaultValue={field.value}
-                          className="flex flex-row space-x-1 p-1 bg-muted rounded-lg"
-                          disabled={formProgressed}
+                          className="flex flex-col space-y-1"
                         >
-                          <FormItem className="flex items-center space-x-2 space-y-0 w-1/2">
+                          <FormItem className="flex items-center space-x-3 space-y-0">
                             <FormControl>
-                              <RadioGroupItem value="cpf" className="sr-only peer" />
+                              <RadioGroupItem value="cpf" id="cpf" disabled={formProgressed} />
                             </FormControl>
-                            <FormLabel className="w-full h-full py-2 px-4 rounded-md peer-data-[state=checked]:bg-white peer-data-[state=checked]:shadow-sm cursor-pointer transition-all flex justify-center items-center gap-2 font-normal">
-                              <User className="h-4 w-4" /> Profissional (CPF)
+                            <FormLabel className="font-normal cursor-pointer" htmlFor="cpf">
+                              <div className="flex items-center">
+                                <User className="h-4 w-4 mr-2" />
+                                <span>Profissional (CPF)</span>
+                              </div>
                             </FormLabel>
                           </FormItem>
-                          <FormItem className="flex items-center space-x-2 space-y-0 w-1/2">
+                          <FormItem className="flex items-center space-x-3 space-y-0">
                             <FormControl>
-                              <RadioGroupItem value="cnpj" className="sr-only peer" />
+                              <RadioGroupItem value="cnpj" id="cnpj" disabled={formProgressed} />
                             </FormControl>
-                            <FormLabel className="w-full h-full py-2 px-4 rounded-md peer-data-[state=checked]:bg-white peer-data-[state=checked]:shadow-sm cursor-pointer transition-all flex justify-center items-center gap-2 font-normal">
-                              <Building2 className="h-4 w-4" /> Estabelecimento (CNPJ)
+                            <FormLabel className="font-normal cursor-pointer" htmlFor="cnpj">
+                              <div className="flex items-center">
+                                <Building2 className="h-4 w-4 mr-2" />
+                                <span>Estabelecimento/Clínica (CNPJ)</span>
+                              </div>
                             </FormLabel>
                           </FormItem>
                         </RadioGroup>
@@ -932,7 +1366,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
               {activeTab === "basic-info" && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
+                    <TypedFormField
                       control={form.control}
                       name="name"
                       render={({ field }) => (
@@ -955,7 +1389,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                     />
 
                     {documentType === "cpf" ? (
-                      <FormField
+                      <TypedFormField
                         control={form.control}
                         name="cpf"
                         render={({ field }) => (
@@ -978,7 +1412,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                         )}
                       />
                     ) : (
-                      <FormField
+                      <TypedFormField
                         control={form.control}
                         name="cnpj"
                         render={({ field }) => (
@@ -1002,7 +1436,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                       />
                     )}
 
-                    <FormField
+                    <TypedFormField
                       control={form.control}
                       name="email"
                       render={({ field }) => (
@@ -1017,7 +1451,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                     />
 
                     {documentType === "cnpj" && (
-                      <FormField
+                      <TypedFormField
                         control={form.control}
                         name="trading_name"
                         render={({ field }) => (
@@ -1034,7 +1468,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
 
                     {documentType === "cpf" ? (
                       <>
-                        <FormField
+                        <TypedFormField
                           control={form.control}
                           name="birth_date"
                           render={({ field }) => (
@@ -1048,7 +1482,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                           )}
                         />
 
-                        <FormField
+                        <TypedFormField
                           control={form.control}
                           name="gender"
                           render={({ field }) => (
@@ -1075,7 +1509,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                         />
                       </>
                     ) : (
-                      <FormField
+                      <TypedFormField
                         control={form.control}
                         name="foundation_date"
                         render={({ field }) => (
@@ -1149,7 +1583,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                   </div>
               
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
+                    <TypedFormField
                       control={form.control}
                       name="phone"
                       render={({ field }) => (
@@ -1172,238 +1606,386 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                       )}
                     />
 
-                    <FormField
-                      control={form.control}
-                      name="zip_code"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>CEP</FormLabel>
-                          <FormControl>
-                            <Input 
-                              placeholder="Digite o CEP" 
-                              {...field} 
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                const maskedValue = applyCEPMask(value);
-                                field.onChange(maskedValue);
+                    {/* Endereços */}
+                    <div className="space-y-4 mt-6">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-medium">Endereços</h3>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleAddAddress}
+                          className="bg-blue-50 hover:bg-blue-100 border-blue-200"
+                        >
+                          <Plus className="w-4 h-4 mr-2 text-blue-500" />
+                          Adicionar Endereço
+                        </Button>
+                      </div>
+                      
+                      {addressFields.map((field, index) => (
+                        <div key={field.id} className="p-4 border rounded-md space-y-4">
+                          <div className="flex justify-between">
+                            <h4 className="font-medium">Endereço {index + 1}</h4>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                if (addressFields.length > 1) {
+                                  removeAddress(index);
+                                } else {
+                                  toast({
+                                    title: "Erro",
+                                    description: "É necessário pelo menos um endereço",
+                                    variant: "destructive"
+                                  });
+                                }
                               }}
-                              maxLength={9}
+                              disabled={addressFields.length <= 1}
+                            >
+                              <Trash2 className="w-4 h-4 text-red-500" />
+                            </Button>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <TypedFormField
+                              control={form.control}
+                              name={`addresses.${index}.street` as const}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Rua<span className="text-red-500">*</span></FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="Digite a rua" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
                             />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                            
+                            <TypedFormField
+                              control={form.control}
+                              name={`addresses.${index}.number` as const}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Número<span className="text-red-500">*</span></FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="Digite o número" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            
+                            <TypedFormField
+                              control={form.control}
+                              name={`addresses.${index}.complement` as const}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Complemento</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="Digite o complemento" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            
+                            <TypedFormField
+                              control={form.control}
+                              name={`addresses.${index}.district` as const}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Bairro<span className="text-red-500">*</span></FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="Digite o bairro" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            
+                            <TypedFormField
+                              control={form.control}
+                              name={`addresses.${index}.city` as const}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Cidade<span className="text-red-500">*</span></FormLabel>
+                                  <FormControl>
+                                    <Select
+                                      value={field.value}
+                                      onValueChange={(value) => form.setValue(`addresses.${index}.city` as any, value)}
+                                      disabled={!form.getValues(`addresses.${index}.state`) || cidadesDoEstado.length === 0}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Selecione a cidade" />
+                                      </SelectTrigger>
+                                      <SelectContent className="max-h-[300px]">
+                                        {cidadesDoEstado.map((cidade) => (
+                                          <SelectItem key={cidade} value={cidade}>
+                                            {cidade}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            
+                            <TypedFormField
+                              control={form.control}
+                              name={`addresses.${index}.state` as const}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Estado<span className="text-red-500">*</span></FormLabel>
+                                  <FormControl>
+                                    <Select
+                                      value={field.value}
+                                      onValueChange={(value) => {
+                                        form.setValue(`addresses.${index}.state` as any, value);
+                                        form.setValue(`addresses.${index}.city` as any, "");
+                                        atualizarCidadesPorEstado(value);
+                                      }}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Selecione o estado" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {estadosCidadesData.estados.map((estado) => (
+                                          <SelectItem key={estado.sigla} value={estado.sigla}>
+                                            {estado.nome} ({estado.sigla})
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            
+                            <TypedFormField
+                              control={form.control}
+                              name={`addresses.${index}.postal_code` as const}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>CEP<span className="text-red-500">*</span></FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      {...field}
+                                      onChange={(e) => handleCEPChange(e, index)}
+                                      placeholder="00000-000"
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            
+                            <TypedFormField
+                              control={form.control}
+                              name={`addresses.${index}.is_main` as const}
+                              render={({ field }) => (
+                                <FormItem className="flex flex-row items-start space-x-3 space-y-0 mt-4">
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={field.value}
+                                      onCheckedChange={(checked) => {
+                                        // Se estiver marcando como principal, desmarca os outros
+                                        if (checked) {
+                                          const formValues = form.getValues();
+                                          formValues.addresses.forEach((_, i) => {
+                                            if (i !== index) {
+                                              form.setValue(`addresses.${i}.is_main`, false);
+                                            }
+                                          });
+                                        }
+                                        field.onChange(checked);
+                                      }}
+                                    />
+                                  </FormControl>
+                                  <div className="space-y-1 leading-none">
+                                    <FormLabel>Endereço Principal</FormLabel>
+                                    <FormDescription>
+                                      Marque esta opção se este for o endereço principal
+                                    </FormDescription>
+                                  </div>
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
 
-                    <FormField
-                      control={form.control}
-                      name="address"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Endereço</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Digite o endereço" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    {/* Professional or establishment specific fields */}
+                    {documentType === "cpf" ? (
+                      <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <TypedFormField
+                            control={form.control}
+                            name="specialty"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Especialidade<span className="text-red-500">*</span></FormLabel>
+                                <Select
+                                  disabled={loadingSpecialties}
+                                  onValueChange={field.onChange}
+                                  defaultValue={field.value}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Selecione uma especialidade" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {specialties.map((specialty) => (
+                                      <SelectItem key={specialty.id} value={specialty.id}>
+                                        {specialty.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
 
-                    <FormField
-                      control={form.control}
-                      name="city"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Cidade</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Digite a cidade" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="state"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Estado</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Digite o estado" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  {/* Professional or establishment specific fields */}
-                  {documentType === "cpf" ? (
-                    <>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField
-                          control={form.control}
-                          name="specialty"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Especialidade<span className="text-red-500">*</span></FormLabel>
-                              <Select
-                                disabled={loadingSpecialties}
-                                onValueChange={field.onChange}
-                                defaultValue={field.value}
-                              >
+                          <TypedFormField
+                            control={form.control}
+                            name="crm"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>CRM<span className="text-red-500">*</span></FormLabel>
                                 <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Selecione uma especialidade" />
-                                  </SelectTrigger>
+                                  <Input placeholder="Digite o CRM" {...field} />
                                 </FormControl>
-                                <SelectContent>
-                                  {specialties.map((specialty) => (
-                                    <SelectItem key={specialty.id} value={specialty.id}>
-                                      {specialty.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
 
-                        <FormField
+                        <TypedFormField
                           control={form.control}
-                          name="crm"
+                          name="bio"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>CRM<span className="text-red-500">*</span></FormLabel>
+                              <FormLabel>Biografia</FormLabel>
                               <FormControl>
-                                <Input placeholder="Digite o CRM" {...field} />
+                                <Textarea
+                                  placeholder="Digite a biografia do profissional"
+                                  className="resize-none"
+                                  {...field}
+                                />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
-                      </div>
 
-                      <FormField
-                        control={form.control}
-                        name="bio"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Biografia</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                placeholder="Digite a biografia do profissional"
-                                className="resize-none"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
+                        {!isClinicAdmin && (
+                          <TypedFormField
+                            control={form.control}
+                            name="clinic_id"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Clínica</FormLabel>
+                                <Select
+                                  disabled={loadingClinics}
+                                  onValueChange={field.onChange}
+                                  defaultValue={field.value}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Selecione uma clínica" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {clinics.map((clinic) => (
+                                      <SelectItem key={clinic.id} value={clinic.id}>
+                                        {clinic.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
                         )}
-                      />
-
-                      {!isClinicAdmin && (
-                        <FormField
+                      </>
+                    ) : (
+                      <>
+                        <TypedFormField
                           control={form.control}
-                          name="clinic_id"
+                          name="health_reg_number"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Clínica</FormLabel>
-                              <Select
-                                disabled={loadingClinics}
-                                onValueChange={field.onChange}
-                                defaultValue={field.value}
-                              >
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Selecione uma clínica" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  {clinics.map((clinic) => (
-                                    <SelectItem key={clinic.id} value={clinic.id}>
-                                      {clinic.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <FormLabel>Registro Sanitário<span className="text-red-500">*</span></FormLabel>
+                              <FormControl>
+                                <Input placeholder="Digite o número de registro" {...field} />
+                              </FormControl>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <FormField
-                        control={form.control}
-                        name="health_reg_number"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Registro Sanitário<span className="text-red-500">*</span></FormLabel>
-                            <FormControl>
-                              <Input placeholder="Digite o número de registro" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
 
-                      <FormField
-                        control={form.control}
-                        name="business_hours"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Horário de Funcionamento</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                placeholder="Descreva os horários de funcionamento"
-                                className="resize-none"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                        <TypedFormField
+                          control={form.control}
+                          name="business_hours"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Horário de Funcionamento</FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  placeholder="Descreva os horários de funcionamento"
+                                  className="resize-none"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
 
-                      <FormField
-                        control={form.control}
-                        name="services"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Serviços Oferecidos</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                placeholder="Descreva os serviços oferecidos"
-                                className="resize-none"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </>
-                  )}
+                        <TypedFormField
+                          control={form.control}
+                          name="services"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Serviços Oferecidos</FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  placeholder="Descreva os serviços oferecidos"
+                                  className="resize-none"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </>
+                    )}
 
-                  <div className="flex justify-between space-x-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => onTabChange?.("basic-info")}
-                      disabled={loading}
-                    >
-                      Voltar
-                    </Button>
-                    <Button 
-                      type="button" 
-                      onClick={() => handleNextTab("additional-info", "documents")}
-                    >
-                      Próximo
-                    </Button>
+                    <div className="flex justify-between space-x-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => onTabChange?.("basic-info")}
+                        disabled={loading}
+                      >
+                        Voltar
+                      </Button>
+                      <Button 
+                        type="button" 
+                        onClick={() => handleNextTab("additional-info", "documents")}
+                      >
+                        Próximo
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1475,26 +2057,48 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                     </div>
                   </div>
 
-                  <div className="flex justify-between space-x-4">
+                  <div className="flex justify-end space-x-4 mt-8 pt-4 border-t">
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => onTabChange?.("additional-info")}
+                      onClick={() => handleNavigation('/professionals')}
                       disabled={loading}
                     >
-                      Voltar
+                      Cancelar
                     </Button>
-                    <Button type="submit" disabled={loading}>
-                      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Salvar
+                    
+                    <Button 
+                      type="submit" 
+                      disabled={loading}
+                    >
+                      {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      {entityId ? "Atualizar" : "Cadastrar"}
                     </Button>
                   </div>
                 </div>
               )}
             </form>
           </Form>
-        </ScrollArea>
+        </div>
       </CardContent>
+      
+      {/* Exit confirmation dialog */}
+      <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Há alterações não salvas que serão perdidas se você sair.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continuar editando</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmExit}>
+              Sim, descartar alterações
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   )
 }) 
