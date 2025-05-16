@@ -10,7 +10,6 @@ import {
   FileText, 
   CheckCircle, 
   XCircle, 
-  PauseCircle,
   Filter,
   FileDown
 } from 'lucide-react';
@@ -70,7 +69,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/components/ui/pagination';
-import { toast } from '@/components/ui/use-toast';
+import { useToast } from '@/components/ui/use-toast';
 
 // Função auxiliar para mapear status para variantes de cores
 const obterVarianteStatus = (status: NegotiationStatus) => {
@@ -78,7 +77,6 @@ const obterVarianteStatus = (status: NegotiationStatus) => {
     case 'draft': return 'outline';
     case 'submitted': return 'secondary';
     case 'pending': return 'default';
-    case 'complete': return 'default';
     case 'approved': return 'default';
     case 'partially_approved': return 'secondary';
     case 'rejected': return 'destructive';
@@ -89,6 +87,7 @@ const obterVarianteStatus = (status: NegotiationStatus) => {
 
 export default function PaginaNegociacoes() {
   const router = useRouter();
+  const { toast } = useToast();
   const [negociacoes, setNegociacoes] = useState<Negotiation[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [textoBusca, setTextoBusca] = useState('');
@@ -119,7 +118,7 @@ export default function PaginaNegociacoes() {
     try {
       const response = await negotiationService.getNegotiations({
         search: textoBusca || undefined,
-        status: filtroStatus as NegotiationStatus || undefined,
+        status: filtroStatus || undefined,
         sort_field: campoOrdenacao,
         sort_order: direcaoOrdenacao,
         page: pagina,
@@ -146,11 +145,11 @@ export default function PaginaNegociacoes() {
 
   useEffect(() => {
     buscarNegociacoes(paginacao.atual, paginacao.tamanhoPagina);
-  }, [textoBusca, filtroStatus, campoOrdenacao, direcaoOrdenacao]);
+  }, [filtroStatus, campoOrdenacao, direcaoOrdenacao]);
 
-  const handleBusca = (valor: string) => {
-    setTextoBusca(valor);
+  const handleBusca = () => {
     setPaginacao({ ...paginacao, atual: 1 });
+    buscarNegociacoes(1, paginacao.tamanhoPagina);
   };
 
   const handleFiltroStatus = (valor: string) => {
@@ -225,9 +224,12 @@ export default function PaginaNegociacoes() {
       const response = await negotiationService.generateContract(id);
       toast({
         title: "Sucesso",
-        description: "Contrato gerado com sucesso",
+        description: "Geração de contrato iniciada com sucesso",
       });
-      router.push(`/contracts/${response.data.contract_id}`);
+      
+      if (response.data?.contract_id) {
+        router.push(`/contracts/${response.data.contract_id}`);
+      }
     } catch (error) {
       console.error('Erro ao gerar contrato:', error);
       toast({
@@ -318,14 +320,18 @@ export default function PaginaNegociacoes() {
         <CardHeader className="pb-3">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div className="w-full sm:w-auto flex-1">
-              <div className="relative">
+              <div className="relative flex">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Buscar negociações..."
                   value={textoBusca}
-                  onChange={(e) => handleBusca(e.target.value)}
-                  className="pl-8"
+                  onChange={(e) => setTextoBusca(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleBusca()}
+                  className="pl-8 mr-2"
                 />
+                <Button type="button" onClick={handleBusca} variant="secondary">
+                  Buscar
+                </Button>
               </div>
             </div>
             
@@ -338,7 +344,6 @@ export default function PaginaNegociacoes() {
                   <SelectValue placeholder="Filtrar por status" />
                 </SelectTrigger>
                 <SelectContent>
-                  
                   {Object.entries(negotiationStatusLabels).map(([value, label]) => (
                     <SelectItem key={value} value={value}>{label}</SelectItem>
                   ))}

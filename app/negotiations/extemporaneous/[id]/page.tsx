@@ -21,11 +21,15 @@ export default function ExtemporaneousNegotiationDetail() {
   const router = useRouter();
   const { toast } = useToast();
   const { hasPermission, hasRole } = usePermissions();
-  const [negotiation, setNegotiation] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [negotiation, setNegotiation] = useState<any>(null);
   const [approvalValue, setApprovalValue] = useState<string>('');
   const [approvalNotes, setApprovalNotes] = useState<string>('');
   const [rejectionReason, setRejectionReason] = useState<string>('');
+  const [addendumText, setAddendumText] = useState<string>('');
+  const [showApprovalDialog, setShowApprovalDialog] = useState(false);
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [showAddendumDialog, setShowAddendumDialog] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Permissions check
@@ -33,29 +37,31 @@ export default function ExtemporaneousNegotiationDetail() {
   const canAddendum = hasRole(['legal', 'commercial', 'admin', 'super_admin']);
   
   // Fetch negotiation details
-  useEffect(() => {
-    const fetchNegotiation = async () => {
-      try {
-        const response = await apiClient.get(`/extemporaneous-negotiations/${params.id}`);
-        const negotiationData = response.data.data;
-        
-        setNegotiation(negotiationData);
-        
-        // Set initial approval value to the requested value
-        if (negotiationData?.requested_value) {
-          setApprovalValue(negotiationData.requested_value.toString());
-        }
-      } catch (error) {
-        toast({
-          title: 'Error',
-          description: getErrorMessage(error),
-          variant: 'destructive',
-        });
-      } finally {
-        setLoading(false);
+  const fetchNegotiation = async () => {
+    try {
+      // NOTA: Em versões futuras do Next.js, será necessário usar React.use(params) 
+      // em vez do acesso direto a params.id
+      const response = await apiClient.get(`/extemporaneous-negotiations/${params.id}`);
+      const negotiationData = response.data.data;
+      
+      setNegotiation(negotiationData);
+      
+      // Set initial approval value to the requested value
+      if (negotiationData?.requested_value) {
+        setApprovalValue(negotiationData.requested_value.toString());
       }
-    };
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     if (params.id) {
       fetchNegotiation();
     }

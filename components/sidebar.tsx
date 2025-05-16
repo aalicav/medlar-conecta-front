@@ -201,7 +201,7 @@ export function Sidebar({ className }: SidebarProps) {
       title: "Notificações",
       href: "/notifications",
       icon: Bell,
-      roles: ["super_admin", "admin", "director", "commercial", "legal", "operational", "financial", "professional", "clinic"],
+      roles: ["super_admin", "admin", "director", "commercial", "legal", "operational", "financial", "plan_admin", "clinic_admin", "professional", "clinic"],
     },
     {
       title: "Relatórios",

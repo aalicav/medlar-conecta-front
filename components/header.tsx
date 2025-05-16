@@ -34,22 +34,34 @@ import {
   MessageSquare,
   CalendarClock,
   AlertCircle,
-  Loader2
+  Loader2,
+  ClipboardList,
+  CreditCard
 } from "lucide-react"
-import { toast } from "@/components/ui/use-toast"
+import { useToast } from "@/components/ui/use-toast"
 import { fetchResource, updateResource, ApiResponse } from "@/services/resource-service"
 import { formatDistanceToNow } from "date-fns"
 import { ptBR } from "date-fns/locale"
+import { useRouter } from "next/navigation"
 
 // Interface for notifications
 interface Notification {
   id: string
   type: string
   title: string
-  message: string
+  message: string | null
   read_at: string | null
   created_at: string
-  data?: any
+  updated_at?: string
+  data?: {
+    body: string
+    action_link?: string
+    icon?: string
+    professional_id?: number
+    professional_name?: string
+    professional_type?: string
+    [key: string]: any
+  }
 }
 
 interface HeaderProps {
@@ -63,6 +75,8 @@ export function Header({ className }: HeaderProps) {
   const [isMarkingRead, setIsMarkingRead] = useState(false)
   const [isScrolled, setIsScrolled] = useState(false)
   const [searchExpanded, setSearchExpanded] = useState(false)
+  const router = useRouter()
+  const { toast } = useToast()
   
   const unreadCount = notifications.filter(n => !n.read_at).length
 
@@ -176,13 +190,38 @@ export function Header({ className }: HeaderProps) {
     }
   }
 
-  const getNotificationIcon = (type: string) => {
-    switch(type) {
-      case "appointment_notification": return <CalendarClock className="h-5 w-5 text-primary" />;
-      case "solicitation_notification": return <FileText className="h-5 w-5 text-primary" />;
-      case "payment_notification": return <FileText className="h-5 w-5 text-primary" />;
-      case "system_notification": return <AlertCircle className="h-5 w-5 text-primary" />;
-      default: return <Bell className="h-5 w-5 text-muted-foreground" />;
+  const getNotificationIcon = (notification: Notification) => {
+    // Use icon from data if available
+    if (notification.data?.icon) {
+      switch(notification.data.icon) {
+        case "user-plus": return <UserRound className="h-5 w-5 text-blue-500" />;
+        case "bell": return <Bell className="h-5 w-5 text-yellow-500" />;
+        case "calendar": return <CalendarClock className="h-5 w-5 text-green-500" />;
+        case "file-text": return <FileText className="h-5 w-5 text-indigo-500" />;
+        case "alert-circle": return <AlertCircle className="h-5 w-5 text-red-500" />;
+        case "message-square": return <MessageSquare className="h-5 w-5 text-purple-500" />;
+        default: return <Bell className="h-5 w-5 text-primary" />;
+      }
+    }
+    
+    // Fallback to type-based icon if no data.icon
+    switch(notification.type) {
+      case "appointment_notification": 
+        return <CalendarClock className="h-5 w-5 text-green-500" />;
+      case "solicitation_notification": 
+        return <ClipboardList className="h-5 w-5 text-indigo-500" />;
+      case "payment_notification": 
+        return <CreditCard className="h-5 w-5 text-violet-500" />;
+      case "system_notification": 
+        return <AlertCircle className="h-5 w-5 text-red-500" />;
+      case "professional_registration_submitted": 
+        return <UserRound className="h-5 w-5 text-blue-500" />;
+      case "contract_notification":
+        return <FileText className="h-5 w-5 text-amber-500" />;
+      case "reminder_notification":
+        return <Clock className="h-5 w-5 text-purple-500" />;
+      default: 
+        return <Bell className="h-5 w-5 text-primary" />;
     }
   }
 
@@ -296,21 +335,31 @@ export function Header({ className }: HeaderProps) {
                     {notifications.filter(n => !n.read_at).map((notification) => (
                       <div 
                         key={notification.id}
-                        className="p-3 hover:bg-muted cursor-pointer border-b border-border/60 transition-colors duration-150"
-                        onClick={() => markAsRead(notification.id)}
+                        className="p-3 hover:bg-muted/80 cursor-pointer border-b border-border/60 transition-colors duration-150 bg-primary/5"
+                        onClick={() => {
+                          // Navigate to action_link if provided, otherwise just mark as read
+                          if (notification.data?.action_link) {
+                            markAsRead(notification.id);
+                            router.push(notification.data.action_link);
+                          } else {
+                            markAsRead(notification.id);
+                          }
+                        }}
                       >
                         <div className="flex gap-3">
-                          <div className="mt-0.5 p-2 bg-muted rounded-full">
-                            {getNotificationIcon(notification.type)}
+                          <div className="mt-0.5 p-2 bg-muted/80 rounded-full">
+                            {getNotificationIcon(notification)}
                           </div>
                           <div className="flex-1">
                             <div className="flex justify-between items-start">
-                              <p className="text-sm font-medium text-foreground">
+                              <p className="text-sm font-semibold text-foreground">
                                 {notification.title}
                               </p>
                               <Badge variant="secondary" className="h-2 w-2 rounded-full p-0 bg-primary" />
                             </div>
-                            <p className="text-xs text-foreground mt-0.5">{notification.message}</p>
+                            <p className="text-xs text-foreground mt-0.5">
+                              {notification.data?.body || notification.message}
+                            </p>
                             <p className="text-xs text-muted-foreground mt-1.5 flex items-center">
                               <Clock className="h-3.5 w-3.5 mr-1" />
                               {formatNotificationTime(notification.created_at)}
@@ -329,15 +378,22 @@ export function Header({ className }: HeaderProps) {
                     {notifications.filter(n => n.read_at).map((notification) => (
                       <div 
                         key={notification.id}
-                        className="p-3 hover:bg-muted cursor-pointer border-b border-border/40 opacity-70 hover:opacity-100 transition-all duration-150"
+                        className="p-3 hover:bg-muted/80 cursor-pointer border-b border-border/40 opacity-80 hover:opacity-100 transition-all duration-150"
+                        onClick={() => {
+                          if (notification.data?.action_link) {
+                            router.push(notification.data.action_link);
+                          }
+                        }}
                       >
                         <div className="flex gap-3">
-                          <div className="mt-0.5 p-2 bg-muted rounded-full">
-                            {getNotificationIcon(notification.type)}
+                          <div className="mt-0.5 p-2 bg-muted/50 rounded-full">
+                            {getNotificationIcon(notification)}
                           </div>
                           <div className="flex-1">
                             <p className="text-sm font-medium text-primary">{notification.title}</p>
-                            <p className="text-xs text-foreground mt-0.5">{notification.message}</p>
+                            <p className="text-xs text-foreground mt-0.5">
+                              {notification.data?.body || notification.message}
+                            </p>
                             <p className="text-xs text-muted-foreground mt-1.5 flex items-center">
                               <Clock className="h-3.5 w-3.5 mr-1" />
                               {formatNotificationTime(notification.created_at)}
