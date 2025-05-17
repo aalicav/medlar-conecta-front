@@ -185,7 +185,7 @@ export const negotiationService = {
   /**
    * Get list of negotiations
    */
-  getNegotiations: async (params?: { 
+  getNegotiations: (params?: { 
     entity_type?: string; 
     entity_id?: number; 
     status?: NegotiationStatus;
@@ -195,115 +195,77 @@ export const negotiationService = {
     page?: number;
     per_page?: number;
   }) => {
-    const response = await apiClient.get(
-      API_BASE_PATH, 
-      { params }
-    );
-    return response.data;
+    return apiClient.get(API_BASE_PATH, { params }).then(response => response.data);
   },
 
   /**
    * Get a specific negotiation
    */
-  getNegotiation: async (id: number) => {
-    const response = await apiClient.get(
-      `${API_BASE_PATH}/${id}`
-    );
-    return response.data;
+  getNegotiation: (id: number) => {
+    return apiClient.get(`${API_BASE_PATH}/${id}`).then(response => response.data);
   },
 
   /**
    * Create a new negotiation
    */
-  createNegotiation: async (negotiationData: CreateNegotiationDto) => {
-    const response = await apiClient.post(
-      API_BASE_PATH, 
-      negotiationData
-    );
-    return response.data;
+  createNegotiation: (negotiationData: CreateNegotiationDto) => {
+    return apiClient.post(API_BASE_PATH, negotiationData).then(response => response.data);
   },
 
   /**
    * Update an existing negotiation
    */
-  updateNegotiation: async (id: number, negotiationData: UpdateNegotiationDto) => {
-    const response = await apiClient.put(
-      `${API_BASE_PATH}/${id}`, 
-      negotiationData
-    );
-    return response.data;
+  updateNegotiation: (id: number, negotiationData: UpdateNegotiationDto) => {
+    return apiClient.put(`${API_BASE_PATH}/${id}`, negotiationData).then(response => response.data);
   },
 
   /**
    * Delete a negotiation (não implementado no backend)
    */
-  deleteNegotiation: async (id: number) => {
+  deleteNegotiation: (id: number) => {
     throw new Error('Esta funcionalidade não está disponível no backend');
   },
 
   /**
    * Submit a negotiation for approval
    */
-  submitNegotiation: async (id: number) => {
-    const response = await apiClient.post(
-      `${API_BASE_PATH}/${id}/submit`
-    );
-    return response.data;
+  submitNegotiation: (id: number) => {
+    return apiClient.post(`${API_BASE_PATH}/${id}/submit`).then(response => response.data);
   },
 
   /**
    * Cancel a negotiation
    */
-  cancelNegotiation: async (id: number) => {
-    const response = await apiClient.post(
-      `${API_BASE_PATH}/${id}/cancel`
-    );
-    return response.data;
+  cancelNegotiation: (id: number) => {
+    return apiClient.post(`${API_BASE_PATH}/${id}/cancel`).then(response => response.data);
   },
 
   /**
    * Generate a contract from a negotiation
    */
-  generateContract: async (id: number) => {
-    const response = await apiClient.post(
-      `${API_BASE_PATH}/${id}/generate-contract`
-    );
-    return response.data;
+  generateContract: (id: number) => {
+    return apiClient.post(`${API_BASE_PATH}/${id}/generate-contract`).then(response => response.data);
   },
 
   /**
    * Respond to a negotiation item
    */
-  respondToItem: async (
-    itemId: number, 
-    data: {
-      status: 'approved' | 'rejected';
-      approved_value?: number;
-      notes?: string;
-    }
-  ) => {
-    const response = await apiClient.post(
-      `/negotiation-items/${itemId}/respond`, 
-      data
-    );
-    return response.data;
+  respondToItem: (itemId: number, data: { 
+    status: 'approved' | 'rejected'; 
+    approved_value?: number; 
+    notes?: string; 
+  }) => {
+    return apiClient.post(`${API_BASE_PATH}/items/${itemId}/respond`, data).then(response => response.data);
   },
 
   /**
    * Make a counter offer
    */
-  counterOffer: async (
-    itemId: number,
-    data: {
-      counter_value: number;
-      notes?: string;
-    }
-  ) => {
-    const response = await apiClient.post(
-      `/negotiation-items/${itemId}/counter`, 
-      data
-    );
-    return response.data;
+  counterOffer: (itemId: number, data: { 
+    counter_value: number; 
+    notes?: string; 
+  }) => {
+    return apiClient.post(`${API_BASE_PATH}/items/${itemId}/counter`, data).then(response => response.data);
   },
 
   /**
@@ -330,21 +292,11 @@ export const negotiationService = {
     }
   },
 
-  async submitForApproval: async (id: number): Promise<{ data: Negotiation }> => {
-    const response = await apiClient.post(
-      `${API_BASE_PATH}/${id}/submit-approval`
-    );
-    return response.data;
+  submitForApproval: (id: number) => {
+    return apiClient.post(`${API_BASE_PATH}/${id}/submit-approval`).then(response => response.data);
   },
 
-  async processApproval: async (id: number, action: ApprovalAction, notes?: string): Promise<{ data: Negotiation }> => {
-    const response = await apiClient.post(
-      `${API_BASE_PATH}/${id}/process-approval`,
-      {
-        action,
-        notes
-      }
-    );
-    return response.data;
+  processApproval: (id: number, action: ApprovalAction) => {
+    return apiClient.post(`${API_BASE_PATH}/${id}/process-approval`, { action }).then(response => response.data);
   }
 }; 
