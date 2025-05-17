@@ -1,12 +1,14 @@
 import { apiClient } from './apiClient';
 
 export type NegotiationStatus = 
-  | 'draft' 
-  | 'submitted' 
-  | 'pending' 
-  | 'approved' 
-  | 'partially_approved' 
-  | 'rejected' 
+  | 'draft'
+  | 'pending_commercial'
+  | 'pending_financial'
+  | 'pending_management'
+  | 'pending_legal'
+  | 'pending_direction'
+  | 'approved'
+  | 'rejected'
   | 'cancelled';
 
 export type NegotiationItemStatus = 
@@ -14,6 +16,22 @@ export type NegotiationItemStatus =
   | 'approved' 
   | 'rejected' 
   | 'counter_offered';
+
+export type ApprovalLevel = 
+  | 'commercial'
+  | 'financial'
+  | 'management'
+  | 'legal'
+  | 'direction';
+
+export type ApprovalAction = 'approve' | 'reject';
+
+export type UserRole = 
+  | 'commercial_manager'
+  | 'financial_manager'
+  | 'management_committee'
+  | 'legal_manager'
+  | 'director';
 
 export interface NegotiationItem {
   id?: number;
@@ -32,6 +50,21 @@ export interface NegotiationItem {
   responded_at?: string;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface ApprovalHistory {
+  id: number;
+  negotiation_id: number;
+  level: ApprovalLevel;
+  status: 'pending' | 'approved' | 'rejected';
+  user_id: number;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+  user?: {
+    id: number;
+    name: string;
+  };
 }
 
 export interface Negotiation {
@@ -62,6 +95,8 @@ export interface Negotiation {
   // Aliases para manter compatibilidade para trás
   entity_type?: string;
   entity_id?: number;
+  current_approval_level?: ApprovalLevel;
+  approval_history?: ApprovalHistory[];
 }
 
 export type CreateNegotiationDto = {
@@ -99,12 +134,14 @@ export type UpdateNegotiationDto = Partial<{
 }>;
 
 // Nome mais amigável para os status
-export const negotiationStatusLabels = {
+export const negotiationStatusLabels: Record<NegotiationStatus, string> = {
   draft: 'Rascunho',
-  submitted: 'Enviado',
-  pending: 'Pendente',
+  pending_commercial: 'Pendente Comercial',
+  pending_financial: 'Pendente Financeiro',
+  pending_management: 'Pendente Gestão',
+  pending_legal: 'Pendente Jurídico',
+  pending_direction: 'Pendente Direção',
   approved: 'Aprovado',
-  partially_approved: 'Parcialmente Aprovado',
   rejected: 'Rejeitado',
   cancelled: 'Cancelado'
 };
@@ -132,6 +169,14 @@ export const negotiationItemStatusColors = {
   approved: 'success',
   rejected: 'error',
   counter_offered: 'geekblue'
+};
+
+export const approvalLevelLabels: Record<ApprovalLevel, string> = {
+  commercial: 'Comercial',
+  financial: 'Financeiro',
+  management: 'Gestão',
+  legal: 'Jurídico',
+  direction: 'Direção'
 };
 
 const API_BASE_PATH = '/negotiations';
@@ -283,5 +328,23 @@ export const negotiationService = {
       console.error('Erro ao buscar procedimentos TUSS:', error);
       return { success: false, data: [] };
     }
+  },
+
+  async submitForApproval: async (id: number): Promise<{ data: Negotiation }> => {
+    const response = await apiClient.post(
+      `${API_BASE_PATH}/${id}/submit-approval`
+    );
+    return response.data;
+  },
+
+  async processApproval: async (id: number, action: ApprovalAction, notes?: string): Promise<{ data: Negotiation }> => {
+    const response = await apiClient.post(
+      `${API_BASE_PATH}/${id}/process-approval`,
+      {
+        action,
+        notes
+      }
+    );
+    return response.data;
   }
 }; 

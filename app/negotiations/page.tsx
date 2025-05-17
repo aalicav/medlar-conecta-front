@@ -18,7 +18,11 @@ import {
   negotiationService, 
   Negotiation, 
   negotiationStatusLabels, 
-  NegotiationStatus 
+  NegotiationStatus,
+  ApprovalLevel,
+  approvalLevelLabels,
+  ApprovalAction,
+  UserRole
 } from '../services/negotiationService';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -75,10 +79,13 @@ import { useToast } from '@/components/ui/use-toast';
 const obterVarianteStatus = (status: NegotiationStatus) => {
   switch (status) {
     case 'draft': return 'outline';
-    case 'submitted': return 'secondary';
-    case 'pending': return 'default';
-    case 'approved': return 'default';
-    case 'partially_approved': return 'secondary';
+    case 'pending_commercial':
+    case 'pending_financial':
+    case 'pending_management':
+    case 'pending_legal':
+    case 'pending_direction':
+      return 'secondary';
+    case 'approved': return 'success';
     case 'rejected': return 'destructive';
     case 'cancelled': return 'outline';
     default: return 'outline';
@@ -101,7 +108,7 @@ export default function PaginaNegociacoes() {
   const [direcaoOrdenacao, setDirecaoOrdenacao] = useState<'asc' | 'desc'>('desc');
   const [dialogoConfirmacao, setDialogoConfirmacao] = useState<{
     aberto: boolean;
-    acao: 'submit' | 'cancel' | null;
+    acao: 'submit' | 'approve' | 'reject' | 'cancel' | null;
     id: number | null;
     titulo: string;
     descricao: string;
@@ -168,14 +175,18 @@ export default function PaginaNegociacoes() {
     setDirecaoOrdenacao(novaDirecao);
   };
 
-  const confirmarAcao = (acao: 'submit' | 'cancel', id: number) => {
+  const confirmarAcao = (acao: 'submit' | 'approve' | 'reject' | 'cancel', id: number) => {
     const titulos = {
-      submit: 'Enviar Negociação',
+      submit: 'Enviar para Aprovação',
+      approve: 'Aprovar Negociação',
+      reject: 'Rejeitar Negociação',
       cancel: 'Cancelar Negociação'
     };
     
     const descricoes = {
       submit: 'Tem certeza que deseja enviar esta negociação para aprovação?',
+      approve: 'Tem certeza que deseja aprovar esta negociação?',
+      reject: 'Tem certeza que deseja rejeitar esta negociação?',
       cancel: 'Tem certeza que deseja cancelar esta negociação?'
     };
     
@@ -192,26 +203,43 @@ export default function PaginaNegociacoes() {
     if (!dialogoConfirmacao.acao || !dialogoConfirmacao.id) return;
     
     try {
-      if (dialogoConfirmacao.acao === 'submit') {
-        await negotiationService.submitNegotiation(dialogoConfirmacao.id);
-        toast({
-          title: "Sucesso",
-          description: "Negociação enviada com sucesso",
-        });
-      } else if (dialogoConfirmacao.acao === 'cancel') {
-        await negotiationService.cancelNegotiation(dialogoConfirmacao.id);
-        toast({
-          title: "Sucesso",
-          description: "Negociação cancelada com sucesso",
-        });
+      switch (dialogoConfirmacao.acao) {
+        case 'submit':
+          await negotiationService.submitForApproval(dialogoConfirmacao.id);
+          toast({
+            title: "Sucesso",
+            description: "Negociação enviada para aprovação com sucesso",
+          });
+          break;
+        case 'approve':
+          await negotiationService.processApproval(dialogoConfirmacao.id, 'approve');
+          toast({
+            title: "Sucesso",
+            description: "Negociação aprovada com sucesso",
+          });
+          break;
+        case 'reject':
+          await negotiationService.processApproval(dialogoConfirmacao.id, 'reject');
+          toast({
+            title: "Sucesso",
+            description: "Negociação rejeitada com sucesso",
+          });
+          break;
+        case 'cancel':
+          await negotiationService.cancelNegotiation(dialogoConfirmacao.id);
+          toast({
+            title: "Sucesso",
+            description: "Negociação cancelada com sucesso",
+          });
+          break;
       }
       
       buscarNegociacoes(paginacao.atual, paginacao.tamanhoPagina);
     } catch (error) {
-      console.error(`Erro ao ${dialogoConfirmacao.acao === 'submit' ? 'enviar' : 'cancelar'} negociação:`, error);
+      console.error(`Erro ao processar ação:`, error);
       toast({
         title: "Erro",
-        description: `Falha ao ${dialogoConfirmacao.acao === 'submit' ? 'enviar' : 'cancelar'} negociação`,
+        description: `Falha ao processar a ação`,
         variant: "destructive"
       });
     } finally {
@@ -299,6 +327,72 @@ export default function PaginaNegociacoes() {
           </PaginationItem>
         </PaginationContent>
       </Pagination>
+    );
+  };
+
+  const renderizarAcoes = (negociacao: Negotiation) => {
+    const userRole = 'commercial_manager' as UserRole; // TODO: Get from auth context
+    
+    const canApprove = (level: ApprovalLevel): boolean => {
+      const roleMap: Record<ApprovalLevel, UserRole> = {
+        commercial: 'commercial_manager',
+        financial: 'financial_manager',
+        management: 'management_committee',
+        legal: 'legal_manager',
+        direction: 'director'
+      };
+      
+      return userRole === roleMap[level];
+    };
+
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" className="h-8 w-8 p-0">
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuLabel>Ações</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          
+          {negociacao.status === 'draft' && (
+            <DropdownMenuItem onClick={() => confirmarAcao('submit', negociacao.id)}>
+              Enviar para Aprovação
+            </DropdownMenuItem>
+          )}
+          
+          {negociacao.status.startsWith('pending_') && 
+           canApprove(negociacao.current_approval_level as ApprovalLevel) && (
+            <>
+              <DropdownMenuItem onClick={() => confirmarAcao('approve', negociacao.id)}>
+                Aprovar
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => confirmarAcao('reject', negociacao.id)}>
+                Rejeitar
+              </DropdownMenuItem>
+            </>
+          )}
+          
+          {!['approved', 'rejected', 'cancelled'].includes(negociacao.status) && (
+            <DropdownMenuItem onClick={() => confirmarAcao('cancel', negociacao.id)}>
+              Cancelar
+            </DropdownMenuItem>
+          )}
+          
+          {negociacao.status === 'approved' && (
+            <DropdownMenuItem onClick={() => handleGerarContrato(negociacao.id)}>
+              Gerar Contrato
+            </DropdownMenuItem>
+          )}
+          
+          <DropdownMenuItem asChild>
+            <Link href={`/negotiations/${negociacao.id}`}>
+              Ver Detalhes
+            </Link>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     );
   };
 
@@ -425,48 +519,7 @@ export default function PaginaNegociacoes() {
                         {new Date(negociacao.created_at).toLocaleDateString()}
                       </TableCell>
                       <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreVertical className="h-4 w-4" />
-                              <span className="sr-only">Ações</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => router.push(`/negotiations/${negociacao.id}`)}>
-                              <FileText className="mr-2 h-4 w-4" />
-                              Visualizar
-                            </DropdownMenuItem>
-                            
-                            {negociacao.status === 'draft' && (
-                              <>
-                                <DropdownMenuItem onClick={() => router.push(`/negotiations/${negociacao.id}/edit`)}>
-                                  <FileText className="mr-2 h-4 w-4" />
-                                  Editar
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => confirmarAcao('submit', negociacao.id)}>
-                                  <CheckCircle className="mr-2 h-4 w-4" />
-                                  Enviar para aprovação
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                            
-                            {['draft', 'submitted', 'pending'].includes(negociacao.status) && (
-                              <DropdownMenuItem onClick={() => confirmarAcao('cancel', negociacao.id)}>
-                                <XCircle className="mr-2 h-4 w-4" />
-                                Cancelar
-                              </DropdownMenuItem>
-                            )}
-                            
-                            {negociacao.status === 'approved' && (
-                              <DropdownMenuItem onClick={() => handleGerarContrato(negociacao.id)}>
-                                <FileDown className="mr-2 h-4 w-4" />
-                                Gerar Contrato
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        {renderizarAcoes(negociacao)}
                       </TableCell>
                     </TableRow>
                   ))

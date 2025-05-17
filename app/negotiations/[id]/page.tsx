@@ -29,6 +29,9 @@ import {
   NegotiationItem,
   negotiationStatusLabels, 
   negotiationItemStatusLabels,
+  UserRole,
+  ApprovalLevel,
+  ApprovalAction
 } from '../../services/negotiationService';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -87,6 +90,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
+import { ApprovalHistoryList } from '@/app/components/ApprovalHistory';
 
 // Helper function to map status to color variants
 const getStatusVariant = (status: string) => {
@@ -151,6 +155,17 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     title: '',
     description: ''
   });
+
+  const getApprovalLevelLabel = (level: ApprovalLevel): string => {
+    const labels: Record<ApprovalLevel, string> = {
+      commercial: 'Comercial',
+      financial: 'Financeiro',
+      management: 'Comitê de Gestão',
+      legal: 'Jurídico',
+      direction: 'Direção'
+    };
+    return labels[level];
+  };
 
   const fetchNegotiation = async () => {
     setLoading(true);
@@ -233,6 +248,83 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     }
   };
 
+  const handleApproval = async (action: ApprovalAction) => {
+    if (!negotiation) return;
+    
+    try {
+      await negotiationService.processApproval(negotiation.id, action);
+      toast({
+        title: "Sucesso",
+        description: `Negociação ${action === 'approve' ? 'aprovada' : 'rejeitada'} com sucesso`,
+      });
+      fetchNegotiation();
+    } catch (error) {
+      console.error(`Erro ao ${action === 'approve' ? 'aprovar' : 'rejeitar'} negociação:`, error);
+      toast({
+        title: "Erro",
+        description: `Falha ao ${action === 'approve' ? 'aprovar' : 'rejeitar'} a negociação`,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const renderizarAcoes = (negociacao: Negotiation) => {
+    // TODO: Get from auth context
+    const userPermissions = [
+      'approve_negotiation_commercial',
+      'approve_negotiation_financial',
+      'approve_negotiation_management',
+      'approve_negotiation_legal',
+      'approve_negotiation_direction'
+    ];
+    
+    const canApprove = (level: ApprovalLevel): boolean => {
+      const permissionMap: Record<ApprovalLevel, string> = {
+        commercial: 'approve_negotiation_commercial',
+        financial: 'approve_negotiation_financial',
+        management: 'approve_negotiation_management',
+        legal: 'approve_negotiation_legal',
+        direction: 'approve_negotiation_direction'
+      };
+      
+      return userPermissions.includes(permissionMap[level]);
+    };
+
+    return (
+      <div className="flex items-center gap-2">
+        {negociacao.status === 'draft' && (
+          <Button onClick={() => confirmAction('submit')}>
+            Enviar para Aprovação
+          </Button>
+        )}
+        
+        {negociacao.status.startsWith('pending_') && 
+         canApprove(negociacao.current_approval_level as ApprovalLevel) && (
+          <>
+            <Button onClick={() => handleApproval('approve')}>
+              Aprovar {getApprovalLevelLabel(negociacao.current_approval_level as ApprovalLevel)}
+            </Button>
+            <Button variant="destructive" onClick={() => handleApproval('reject')}>
+              Rejeitar {getApprovalLevelLabel(negociacao.current_approval_level as ApprovalLevel)}
+            </Button>
+          </>
+        )}
+        
+        {!['approved', 'rejected', 'cancelled'].includes(negociacao.status) && (
+          <Button variant="outline" onClick={() => confirmAction('cancel')}>
+            Cancelar
+          </Button>
+        )}
+        
+        {negociacao.status === 'approved' && (
+          <Button onClick={handleGenerateContract}>
+            Gerar Contrato
+          </Button>
+        )}
+      </div>
+    );
+  };
+
   const handleGenerateContract = async () => {
     if (!negotiation) return;
       
@@ -244,7 +336,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
       });
       
       if (response.data?.contract_id) {
-      router.push(`/contracts/${response.data.contract_id}`);
+        router.push(`/contracts/${response.data.contract_id}`);
       }
     } catch (error) {
       console.error('Erro ao gerar contrato:', error);
@@ -437,32 +529,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
         </div>
         
           <div className="flex flex-wrap gap-2 w-full md:w-auto justify-end">
-          {negotiation.status === 'draft' && (
-            <>
-              <Button variant="outline" onClick={() => router.push(`/negotiations/${negotiation.id}/edit`)}>
-                <Edit className="mr-2 h-4 w-4" />
-                Editar
-              </Button>
-              <Button onClick={() => confirmAction('submit')}>
-                <CheckCircle className="mr-2 h-4 w-4" />
-                  Enviar para Aprovação
-              </Button>
-            </>
-          )}
-          
-          {['draft', 'submitted'].includes(negotiation.status) && (
-            <Button variant="destructive" onClick={() => confirmAction('cancel')}>
-              <XCircle className="mr-2 h-4 w-4" />
-              Cancelar
-            </Button>
-          )}
-          
-          {negotiation.status === 'approved' && (
-            <Button onClick={handleGenerateContract}>
-              <FileText className="mr-2 h-4 w-4" />
-              Gerar Contrato
-            </Button>
-          )}
+          {renderizarAcoes(negotiation)}
           </div>
         </div>
       </div>
@@ -641,13 +708,15 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                 <Clipboard className="h-5 w-5 text-primary" />
                 Itens da Negociação
               </CardTitle>
-          <CardDescription>
-            {negotiation.status === 'draft' ? 
+              <CardDescription>
+                {negotiation.status === 'draft' ? 
                   'Estes itens serão incluídos na negociação após o envio para aprovação.' :
-              'Revise o status de cada procedimento nesta negociação.'}
-          </CardDescription>
+                  negotiation.status.startsWith('pending_') ?
+                  `Aguardando aprovação do ${getApprovalLevelLabel(negotiation.current_approval_level as ApprovalLevel)}` :
+                  'Revise o status de cada procedimento nesta negociação.'}
+              </CardDescription>
             </div>
-            {pendingItems > 0 && negotiation.status === 'submitted' && (
+            {pendingItems > 0 && negotiation.status.startsWith('pending_') && (
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -691,7 +760,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                 </TableRow>
               ) : (
                 negotiation.items.map((item) => (
-                    <TableRow key={item.id} className={item.status === 'pending' && negotiation.status === 'submitted' ? 'bg-amber-50/30' : undefined}>
+                    <TableRow key={item.id} className={item.status === 'pending' && negotiation.status.startsWith('pending_') ? 'bg-amber-50/30' : undefined}>
                     <TableCell>
                       <div>
                         <div className="font-medium">{item.tuss?.name}</div>
@@ -779,23 +848,23 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                     {['submitted'].includes(negotiation.status) && (
                       <TableCell className="text-right">
                         {item.status === 'pending' && (
-                            <div className="space-x-2">
-                          <Button 
-                            size="sm" 
-                            onClick={() => showResponseDialog(item)}
-                                className="bg-primary hover:bg-primary/90"
-                          >
-                            Responder
-                          </Button>
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                onClick={() => showCounterOfferDialog(item)}
-                                className="text-secondary-foreground"
-                              >
-                                Contraproposta
-                              </Button>
-                            </div>
+                          <div className="space-x-2">
+                            <Button 
+                              size="sm" 
+                              onClick={() => showResponseDialog(item)}
+                              className="bg-primary hover:bg-primary/90"
+                            >
+                              Responder
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              onClick={() => showCounterOfferDialog(item)}
+                              className="text-secondary-foreground"
+                            >
+                              Contraproposta
+                            </Button>
+                          </div>
                         )}
                       </TableCell>
                     )}
@@ -958,6 +1027,10 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      
+      {negotiation.approval_history && negotiation.approval_history.length > 0 && (
+        <ApprovalHistoryList history={negotiation.approval_history} />
+      )}
     </div>
   );
 } 
