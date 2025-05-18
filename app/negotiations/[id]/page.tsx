@@ -23,6 +23,8 @@ import {
   MoreHorizontal
 } from 'lucide-react';
 
+import { useAuth } from '@/contexts/auth-context';
+
 import { 
   negotiationService, 
   Negotiation, 
@@ -129,6 +131,7 @@ const formatCurrency = (value: number | string | null | undefined): string => {
 export default function NegotiationDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const { toast } = useToast();
+  const { hasPermission } = useAuth();
   // NOTA: Em versões futuras do Next.js, será necessário usar React.use(params) 
   // em vez do acesso direto a params.id
   const negotiationId = parseInt(params.id);
@@ -200,12 +203,12 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
   
   const confirmAction = (action: 'submit' | 'cancel') => {
     const titulos = {
-      submit: 'Enviar Negociação',
+      submit: 'Enviar Negociação para Aprovação',
       cancel: 'Cancelar Negociação'
     };
     
     const descricoes = {
-      submit: 'Tem certeza que deseja enviar esta negociação para aprovação?',
+      submit: 'Tem certeza que deseja enviar esta negociação para o fluxo de aprovação?',
       cancel: 'Tem certeza que deseja cancelar esta negociação?'
     };
     
@@ -222,10 +225,11 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     
     try {
       if (confirmDialog.action === 'submit') {
-        await negotiationService.submitNegotiation(negotiation.id);
+        // Use the new approval workflow endpoint
+        await negotiationService.submitForApproval(negotiation.id);
         toast({
           title: "Sucesso",
-          description: "Negociação enviada com sucesso",
+          description: "Negociação enviada para aprovação comercial",
         });
       } else if (confirmDialog.action === 'cancel') {
         await negotiationService.cancelNegotiation(negotiation.id);
@@ -268,16 +272,26 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     }
   };
 
-  const renderizarAcoes = (negociacao: Negotiation) => {
-    // TODO: Get from auth context
-    const userPermissions = [
-      'approve_negotiation_commercial',
-      'approve_negotiation_financial',
-      'approve_negotiation_management',
-      'approve_negotiation_legal',
-      'approve_negotiation_direction'
-    ];
+  const handleResendNotifications = async () => {
+    if (!negotiation) return;
     
+    try {
+      await negotiationService.resendNotifications(negotiation.id, negotiation.status);
+      toast({
+        title: "Sucesso",
+        description: "Notificações reenviadas com sucesso",
+      });
+    } catch (error) {
+      console.error('Erro ao reenviar notificações:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao reenviar notificações",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const renderizarAcoes = (negociacao: Negotiation) => {
     const canApprove = (level: ApprovalLevel): boolean => {
       const permissionMap: Record<ApprovalLevel, string> = {
         commercial: 'approve_negotiation_commercial',
@@ -287,7 +301,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
         direction: 'approve_negotiation_direction'
       };
       
-      return userPermissions.includes(permissionMap[level]);
+      return hasPermission(permissionMap[level]);
     };
 
     return (
@@ -305,9 +319,15 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
               Aprovar {getApprovalLevelLabel(negociacao.current_approval_level as ApprovalLevel)}
             </Button>
             <Button variant="destructive" onClick={() => handleApproval('reject')}>
-              Rejeitar {getApprovalLevelLabel(negociacao.current_approval_level as ApprovalLevel)}
+              Rejeitar
             </Button>
           </>
+        )}
+
+        {(negociacao.status.startsWith('pending_') || negociacao.status === 'submitted' as any) && (
+          <Button variant="outline" onClick={handleResendNotifications}>
+            Reenviar Notificações
+          </Button>
         )}
         
         {!['approved', 'rejected', 'cancelled'].includes(negociacao.status) && (
@@ -378,6 +398,14 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     setRespondLoading(true);
     try {
       if (counterOfferMode) {
+        console.log("Enviando contraproposta:", {
+          endpoint: `/negotiation-items/${selectedItem.id}/counter`,
+          data: {
+            counter_value: responseForm.counter_value,
+            notes: responseForm.notes
+          }
+        });
+        
         // Usando a API de contra-oferta
         await negotiationService.counterOffer(selectedItem.id, {
           counter_value: responseForm.counter_value,
@@ -389,6 +417,15 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
           description: "Contra-proposta enviada com sucesso",
         });
       } else {
+        console.log("Enviando resposta:", {
+          endpoint: `/negotiation-items/${selectedItem.id}/respond`,
+          data: {
+            status: responseForm.status,
+            approved_value: responseForm.status === 'approved' ? responseForm.approved_value : undefined,
+            notes: responseForm.notes
+          }
+        });
+        
         // Usando a API de resposta
         await negotiationService.respondToItem(selectedItem.id, {
           status: responseForm.status as 'approved' | 'rejected',
@@ -396,20 +433,37 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
           notes: responseForm.notes
         });
       
-      toast({
-        title: "Sucesso",
-        description: "Resposta enviada com sucesso",
-      });
+        toast({
+          title: "Sucesso",
+          description: "Resposta enviada com sucesso",
+        });
       }
       
       setResponseDialogOpen(false);
       fetchNegotiation();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao responder ao item:', error);
+      
+      // Mensagem de erro mais detalhada
+      const errorMessage = error.response?.data?.message || 
+        (counterOfferMode ? "Falha ao enviar contra-proposta" : "Falha ao enviar resposta");
+      
       toast({
         title: "Erro",
-        description: counterOfferMode ? "Falha ao enviar contra-proposta" : "Falha ao enviar resposta",
+        description: errorMessage,
         variant: "destructive"
+      });
+      
+      // Log detalhado do erro para depuração
+      console.error('Detalhes do erro:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          data: error.config?.data
+        }
       });
     } finally {
       setRespondLoading(false);
@@ -711,7 +765,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
               <CardDescription>
                 {negotiation.status === 'draft' ? 
                   'Estes itens serão incluídos na negociação após o envio para aprovação.' :
-                  negotiation.status.startsWith('pending_') ?
+                  negotiation.status.startsWith('pending_') && negotiation.current_approval_level ?
                   `Aguardando aprovação do ${getApprovalLevelLabel(negotiation.current_approval_level as ApprovalLevel)}` :
                   'Revise o status de cada procedimento nesta negociação.'}
               </CardDescription>
@@ -743,7 +797,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                   <TableHead className="text-right">Valor Aprovado</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Observações</TableHead>
-                {['submitted'].includes(negotiation.status) && (
+                {negotiation.status.startsWith('pending_') && (
                   <TableHead className="text-right">Ações</TableHead>
                 )}
               </TableRow>
@@ -845,7 +899,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                           <span className="text-muted-foreground text-sm">-</span>
                         )}
                     </TableCell>
-                    {['submitted'].includes(negotiation.status) && (
+                    {negotiation.status.startsWith('pending_') && (
                       <TableCell className="text-right">
                         {item.status === 'pending' && (
                           <div className="space-x-2">

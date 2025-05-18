@@ -1,4 +1,5 @@
-import { apiClient } from './apiClient';
+// Import the shared API client used across the application
+import api from '@/services/api-client';
 
 export type NegotiationStatus = 
   | 'draft'
@@ -9,7 +10,8 @@ export type NegotiationStatus =
   | 'pending_direction'
   | 'approved'
   | 'rejected'
-  | 'cancelled';
+  | 'cancelled'
+  | 'submitted';
 
 export type NegotiationItemStatus = 
   | 'pending' 
@@ -143,7 +145,8 @@ export const negotiationStatusLabels: Record<NegotiationStatus, string> = {
   pending_direction: 'Pendente Direção',
   approved: 'Aprovado',
   rejected: 'Rejeitado',
-  cancelled: 'Cancelado'
+  cancelled: 'Cancelado',
+  submitted: 'Submetido'
 };
 
 export const negotiationItemStatusLabels = {
@@ -195,28 +198,28 @@ export const negotiationService = {
     page?: number;
     per_page?: number;
   }) => {
-    return apiClient.get(API_BASE_PATH, { params }).then(response => response.data);
+    return api.get(API_BASE_PATH, { params }).then(response => response.data);
   },
 
   /**
    * Get a specific negotiation
    */
   getNegotiation: (id: number) => {
-    return apiClient.get(`${API_BASE_PATH}/${id}`).then(response => response.data);
+    return api.get(`${API_BASE_PATH}/${id}`).then(response => response.data);
   },
 
   /**
    * Create a new negotiation
    */
   createNegotiation: (negotiationData: CreateNegotiationDto) => {
-    return apiClient.post(API_BASE_PATH, negotiationData).then(response => response.data);
+    return api.post(API_BASE_PATH, negotiationData).then(response => response.data);
   },
 
   /**
    * Update an existing negotiation
    */
   updateNegotiation: (id: number, negotiationData: UpdateNegotiationDto) => {
-    return apiClient.put(`${API_BASE_PATH}/${id}`, negotiationData).then(response => response.data);
+    return api.put(`${API_BASE_PATH}/${id}`, negotiationData).then(response => response.data);
   },
 
   /**
@@ -227,24 +230,41 @@ export const negotiationService = {
   },
 
   /**
-   * Submit a negotiation for approval
-   */
-  submitNegotiation: (id: number) => {
-    return apiClient.post(`${API_BASE_PATH}/${id}/submit`).then(response => response.data);
-  },
-
-  /**
    * Cancel a negotiation
    */
   cancelNegotiation: (id: number) => {
-    return apiClient.post(`${API_BASE_PATH}/${id}/cancel`).then(response => response.data);
+    return api.post(`${API_BASE_PATH}/${id}/cancel`).then(response => response.data);
+  },
+
+  /**
+   * Submit a negotiation (legacy method)
+   * 
+   * This method has been updated to use the new approval workflow endpoints
+   * but is kept for backward compatibility with existing code.
+   */
+  submitNegotiation: (id: number) => {
+    return api.post(`${API_BASE_PATH}/${id}/submit-approval`).then(response => response.data);
+  },
+
+  /**
+   * Submit a negotiation for approval (new workflow)
+   * 
+   * This starts the multi-step approval workflow:
+   * 1. Commercial approval
+   * 2. Financial approval
+   * 3. Management committee approval
+   * 4. Legal approval
+   * 5. Director approval
+   */
+  submitForApproval: (id: number) => {
+    return api.post(`${API_BASE_PATH}/${id}/submit`).then(response => response.data);
   },
 
   /**
    * Generate a contract from a negotiation
    */
   generateContract: (id: number) => {
-    return apiClient.post(`${API_BASE_PATH}/${id}/generate-contract`).then(response => response.data);
+    return api.post(`${API_BASE_PATH}/${id}/generate-contract`).then(response => response.data);
   },
 
   /**
@@ -255,7 +275,7 @@ export const negotiationService = {
     approved_value?: number; 
     notes?: string; 
   }) => {
-    return apiClient.post(`${API_BASE_PATH}/items/${itemId}/respond`, data).then(response => response.data);
+    return api.post(`/negotiation-items/${itemId}/respond`, data).then(response => response.data);
   },
 
   /**
@@ -265,7 +285,7 @@ export const negotiationService = {
     counter_value: number; 
     notes?: string; 
   }) => {
-    return apiClient.post(`${API_BASE_PATH}/items/${itemId}/counter`, data).then(response => response.data);
+    return api.post(`/negotiation-items/${itemId}/counter`, data).then(response => response.data);
   },
 
   /**
@@ -273,18 +293,53 @@ export const negotiationService = {
    */
   getTussProcedures: async (search?: string) => {
     try {
-      const response = await apiClient.get(
+      // Build search params with more options
+      const params: any = {};
+      
+      if (search) {
+        params.search = search;
+        // Set a larger per_page to get more results
+        params.per_page = 50;
+      } else {
+        // If no search term, get a default list limited to fewer items
+        params.per_page = 20;
+      }
+      
+      console.log('TUSS search params:', params);
+      
+      const response = await api.get(
         '/tuss',
-        { params: { search } }
+        { params }
       );
       
-      if (response?.data?.data) {
+      console.log('TUSS API response:', response);
+      
+      // Handle paginated response format (Laravel standard)
+      if (response?.data?.data && Array.isArray(response.data.data)) {
+        console.log('TUSS data found, mapping', response.data.data.length, 'items');
+        console.log('First TUSS item structure:', JSON.stringify(response.data.data[0], null, 2));
+        
+        // Map each TUSS item to our expected format
+        const mappedData = response.data.data.map((item: any) => {
+          const mappedItem = {
+            id: item.id,
+            code: item.code,
+            name: item.description, // Use description as name since the backend is using description field
+            description: item.description // Keep the full description
+          };
+          console.log('TUSS item mapped:', { original: item, mapped: mappedItem });
+          return mappedItem;
+        });
+        
+        console.log('Mapped TUSS data:', mappedData);
+        
         return {
           success: true,
-          data: response.data.data
+          data: mappedData
         };
       }
       
+      console.log('No TUSS data found or invalid format');
       return { success: false, data: [] };
     } catch (error) {
       console.error('Erro ao buscar procedimentos TUSS:', error);
@@ -292,11 +347,29 @@ export const negotiationService = {
     }
   },
 
-  submitForApproval: (id: number) => {
-    return apiClient.post(`${API_BASE_PATH}/${id}/submit-approval`).then(response => response.data);
+  /**
+   * Process approval for a negotiation
+   * 
+   * Used to approve or reject a negotiation at the current approval level.
+   * If approved, it will move to the next approval level or mark as fully approved.
+   * If rejected, it will mark the negotiation as rejected.
+   */
+  processApproval: (id: number, action: ApprovalAction) => {
+    return api.post(`${API_BASE_PATH}/${id}/process-approval`, { action }).then(response => response.data);
   },
 
-  processApproval: (id: number, action: ApprovalAction) => {
-    return apiClient.post(`${API_BASE_PATH}/${id}/process-approval`, { action }).then(response => response.data);
+  /**
+   * Resend notifications for a pending negotiation
+   * 
+   * Used to resend notifications to users who need to approve a negotiation
+   * that is currently in a pending status.
+   */
+  resendNotifications: (id: number, status?: string) => {
+    // Use different endpoints based on negotiation status
+    if (status === 'submitted') {
+      return api.post(`${API_BASE_PATH}/${id}/resend-submitted-notifications`).then(response => response.data);
+    } else {
+      return api.post(`${API_BASE_PATH}/${id}/resend-notifications`).then(response => response.data);
+    }
   }
-}; 
+};

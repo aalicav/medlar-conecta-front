@@ -37,6 +37,7 @@ import {
   CommandGroup,
   CommandInput,
   CommandItem,
+  CommandList,
 } from "@/components/ui/command";
 
 import { 
@@ -83,6 +84,7 @@ interface OpcaoTuss {
   id: number;
   code: string;
   name: string;
+  description?: string;
 }
 
 // Schema para validação com Zod
@@ -132,32 +134,44 @@ export default function PaginaCriarNegociacao() {
 
   // Buscar procedimentos TUSS com filtragem
   const buscarProcedimentosTuss = useCallback(async (termo: string = '') => {
+    console.log('🔄 Iniciando busca TUSS, termo:', termo);
     setCarregandoTuss(true);
     try {
       const response = await negotiationService.getTussProcedures(termo);
       
+      console.log('📊 Resposta da busca TUSS:', response);
+      
       if (response && response.success && Array.isArray(response.data)) {
-        setOpcoesTuss(response.data);
+        console.log('✅ Dados TUSS recebidos, quantidade:', response.data.length);
+        if (response.data.length > 0) {
+          console.log('🔍 Primeiro item TUSS:', response.data[0]);
+        }
+        
+        // Importante: atualizar o estado
+        const novaOpcoesTuss = response.data;
+        setOpcoesTuss(novaOpcoesTuss);
         
         // Se ainda não temos um procedimento padrão e temos opções disponíveis, selecione o primeiro
-        if (!procedimentoPadrao && response.data.length > 0) {
-          setProcedimentoPadrao(response.data[0].id);
+        if (!procedimentoPadrao && novaOpcoesTuss.length > 0) {
+          console.log('🔄 Definindo procedimento padrão:', novaOpcoesTuss[0].id);
+          setProcedimentoPadrao(novaOpcoesTuss[0].id);
           
           // Se o formulário ainda não tem itens, adiciona o primeiro item com o procedimento padrão
           const itensAtuais = form.getValues('items');
           if (itensAtuais.length === 0) {
+            console.log('➕ Adicionando item padrão ao formulário');
             form.setValue('items', [{ 
-              tuss_id: response.data[0].id, 
+              tuss_id: novaOpcoesTuss[0].id, 
               proposed_value: 0 
             }]);
           }
         }
       } else {
-        console.error('Formato de resposta inválido para procedimentos TUSS:', response);
+        console.error('❌ Formato de resposta inválido para procedimentos TUSS:', response);
         setOpcoesTuss([]);
       }
     } catch (error) {
-      console.error('Erro ao carregar procedimentos TUSS:', error);
+      console.error('❌ Erro ao carregar procedimentos TUSS:', error);
       setOpcoesTuss([]);
       toast({
         title: "Erro",
@@ -167,7 +181,7 @@ export default function PaginaCriarNegociacao() {
     } finally {
       setCarregandoTuss(false);
     }
-  }, [toast, procedimentoPadrao, form]);
+  }, [toast, procedimentoPadrao, form, termoPesquisaTuss]);
 
   // Buscar entidades com filtragem
   const buscarEntidades = useCallback(async (tipo: string, termo: string = '') => {
@@ -190,16 +204,16 @@ export default function PaginaCriarNegociacao() {
         throw new Error('Tipo de entidade inválido');
       }
       
-        const response = await apiClient.get(endpoint, { 
-          params: { search: termo, per_page: 50 }
-        });
+      const response = await apiClient.get(endpoint, { 
+        params: { search: termo, per_page: 50 }
+      });
         
       // Extrair dados da resposta paginada
-      if (response.data && response.data.data && Array.isArray(response.data.data)) {
+      if (response.data?.data && response.data?.data && Array.isArray(response.data?.data)) {
         setOpcoesEntidades(response.data.data);
-        } else {
+      } else {
         console.error('Formato de resposta inválido para entidades:', response.data);
-          setOpcoesEntidades([]);
+        setOpcoesEntidades([]);
       }
     } catch (error) {
       console.error(`Erro ao carregar ${tipo}:`, error);
@@ -415,52 +429,57 @@ export default function PaginaCriarNegociacao() {
                             </PopoverTrigger>
                             <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                               <Command>
-                                <div className="flex items-center border-b px-3">
-                                  <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-                                  <CommandInput
-                                    placeholder="Buscar entidade..."
-                                    className="h-9 flex-1 border-0 outline-none focus:ring-0"
-                                    value={termoPesquisaEntidade}
-                                    onValueChange={(value) => {
-                                      setTermoPesquisaEntidade(value);
+                                <CommandInput
+                                  placeholder="Buscar entidade..."
+                                  value={termoPesquisaEntidade}
+                                  onValueChange={(value) => {
+                                    setTermoPesquisaEntidade(value);
+                                    // Buscar no servidor apenas se o termo tiver 2+ caracteres ou não tivermos dados
+                                    if (value.length >= 2 || opcoesEntidades.length === 0) {
                                       buscarEntidades(tipoEntidadeSelecionada, value);
-                                    }}
-                                    disabled={!tipoEntidadeSelecionada}
-                                  />
-                                  {carregandoEntidades && (
-                                    <Loader2 className="ml-2 h-4 w-4 animate-spin opacity-50" />
-                                  )}
-                                </div>
-                                <CommandEmpty className="py-6 text-center text-sm">
-                                  <div className="mb-2">Nenhuma entidade encontrada</div>
-                                  <div className="text-xs text-muted-foreground">Tente outros termos de busca</div>
-                                </CommandEmpty>
-                                <CommandGroup className="max-h-[300px] overflow-auto">
-                                  {opcoesEntidades.length > 0 && (
-                                    <div className="p-1 text-xs text-muted-foreground border-b mx-2">
-                                      {opcoesEntidades.length} entidade(s) encontrada(s)
-                                </div>
-                                  )}
-                                  {opcoesEntidades.map((entity) => (
-                                    <CommandItem
-                                      key={entity.id}
-                                      value={entity.id.toString()}
-                                      onSelect={() => {
-                                        field.onChange(entity.id);
-                                      }}
-                                      className="data-[selected=true]:bg-primary/10 data-[selected=true]:text-primary"
-                                    >
-                                      <div className="flex items-center">
-                                        <span className={field.value === entity.id ? 'font-medium' : ''}>
-                                    {entity.name}
-                                        </span>
+                                    }
+                                  }}
+                                  disabled={!tipoEntidadeSelecionada}
+                                />
+                                <CommandList>
+                                  <CommandEmpty>
+                                    <div className="py-6 text-center text-sm">
+                                      <div className="mb-2">Nenhuma entidade encontrada</div>
+                                      <div className="text-xs text-muted-foreground">Tente outros termos de busca</div>
+                                    </div>
+                                  </CommandEmpty>
+                                  <CommandGroup className="max-h-[300px] overflow-auto">
+                                    {carregandoEntidades && (
+                                      <div className="flex justify-center items-center py-4">
+                                        <Loader2 className="h-6 w-6 animate-spin opacity-50" />
                                       </div>
-                                      {field.value === entity.id && (
-                                        <Check className="ml-auto h-4 w-4 text-primary" />
-                                      )}
-                                    </CommandItem>
-                                  ))}
-                                </CommandGroup>
+                                    )}
+                                    {opcoesEntidades.length > 0 && !carregandoEntidades && (
+                                      <div className="p-1 text-xs text-muted-foreground border-b mx-2">
+                                        {opcoesEntidades.length} entidade(s) encontrada(s)
+                                      </div>
+                                    )}
+                                    {opcoesEntidades.map((entity) => (
+                                      <CommandItem
+                                        key={entity.id}
+                                        value={entity.name}
+                                        onSelect={() => {
+                                          field.onChange(entity.id);
+                                        }}
+                                        className="data-[selected=true]:bg-primary/10 data-[selected=true]:text-primary"
+                                      >
+                                        <div className="flex items-center">
+                                          <span className={field.value === entity.id ? 'font-medium' : ''}>
+                                            {entity.name}
+                                          </span>
+                                        </div>
+                                        {field.value === entity.id && (
+                                          <Check className="ml-auto h-4 w-4 text-primary" />
+                                        )}
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </CommandList>
                               </Command>
                             </PopoverContent>
                           </Popover>
@@ -630,8 +649,18 @@ export default function PaginaCriarNegociacao() {
                         </div>
                         
                         {item.tuss_id > 0 && opcoesTuss.find(t => t.id === item.tuss_id) && (
-                          <div className="text-sm font-medium mt-2">
-                            {opcoesTuss.find(t => t.id === item.tuss_id)?.name}
+                          <div className="flex flex-col mt-2">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline">
+                                {opcoesTuss.find(t => t.id === item.tuss_id)?.code}
+                              </Badge>
+                              <span className="text-sm font-medium">
+                                TUSS
+                              </span>
+                            </div>
+                            <div className="text-sm mt-1">
+                              {opcoesTuss.find(t => t.id === item.tuss_id)?.description}
+                            </div>
                           </div>
                         )}
                         
@@ -664,10 +693,10 @@ export default function PaginaCriarNegociacao() {
                                               {opcoesTuss.find((tuss) => tuss.id === field.value)?.code}
                                             </Badge>
                                             <span className="truncate max-w-[250px]">
-                                              {opcoesTuss.find((tuss) => tuss.id === field.value)?.name}
+                                              {opcoesTuss.find((tuss) => tuss.id === field.value)?.description}
                                             </span>
-                                    </div>
-                                  ) : (
+                                          </div>
+                                        ) : (
                                           <span className="text-muted-foreground">Selecione um procedimento</span>
                                         )}
                                         <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -675,57 +704,65 @@ export default function PaginaCriarNegociacao() {
                                     </PopoverTrigger>
                                     <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                                       <Command>
-                                        <div className="flex items-center border-b px-3">
-                                          <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-                                          <CommandInput
-                                            placeholder="Buscar por código ou nome..."
-                                            className="h-9 flex-1 border-0 outline-none focus:ring-0"
-                                            value={termoPesquisaTuss}
-                                            onValueChange={(value) => {
-                                              setTermoPesquisaTuss(value);
+                                        <CommandInput
+                                          placeholder="Buscar por código ou nome..."
+                                          value={termoPesquisaTuss}
+                                          onValueChange={(value) => {
+                                            setTermoPesquisaTuss(value);
+                                            if (opcoesTuss.length === 0 || value.length >= 3) {
                                               buscarProcedimentosTuss(value);
-                                            }}
-                                          />
-                                          {carregandoTuss && (
-                                            <Loader2 className="ml-2 h-4 w-4 animate-spin opacity-50" />
-                                          )}
-                                        </div>
-                                        <CommandEmpty className="py-6 text-center text-sm">
-                                          <div className="mb-2">Nenhum procedimento encontrado</div>
-                                          <div className="text-xs text-muted-foreground">Tente outros termos</div>
-                                        </CommandEmpty>
-                                        <CommandGroup className="max-h-[300px] overflow-auto">
-                                          {opcoesTuss.length > 0 && (
-                                            <div className="p-1 text-xs text-muted-foreground border-b mx-2">
-                                              {opcoesTuss.length} procedimento(s) encontrado(s)
-                                            </div>
-                                          )}
-                                          {opcoesTuss.map((tuss) => (
-                                            <CommandItem
-                                              key={tuss.id}
-                                              value={tuss.id.toString()}
-                                              onSelect={() => {
-                                                field.onChange(tuss.id);
-                                              }}
-                                              className="data-[selected=true]:bg-primary/10 data-[selected=true]:text-primary"
-                                            >
-                                              <div className="flex items-center">
-                                                <Badge 
-                                                  variant="outline" 
-                                                  className={`mr-2 text-xs ${field.value === tuss.id ? 'bg-primary/20 border-primary/30' : ''}`}
-                                                >
-                                                  {tuss.code}
-                                                </Badge>
-                                                <span className={field.value === tuss.id ? 'font-medium' : ''}>
-                                                  {tuss.name}
-                                                </span>
+                                            }
+                                          }}
+                                        />
+                                        <CommandList>
+                                          <CommandEmpty>
+                                            <div className="py-6 text-center text-sm">
+                                              <div className="mb-2">Nenhum procedimento encontrado</div>
+                                              <div className="text-xs text-muted-foreground">
+                                                Tente outros termos ou códigos TUSS
                                               </div>
-                                              {field.value === tuss.id && (
-                                                <Check className="ml-auto h-4 w-4 text-primary" />
-                                              )}
-                                            </CommandItem>
-                                          ))}
-                                        </CommandGroup>
+                                            </div>
+                                          </CommandEmpty>
+                                          <CommandGroup className="max-h-[300px] overflow-auto">
+                                            {carregandoTuss && (
+                                              <div className="flex justify-center items-center py-4">
+                                                <Loader2 className="h-6 w-6 animate-spin opacity-50" />
+                                              </div>
+                                            )}
+                                            {opcoesTuss.length > 0 && !carregandoTuss && (
+                                              <div className="p-1 text-xs text-muted-foreground border-b mx-2">
+                                                {opcoesTuss.length} procedimento(s) disponível(is)
+                                              </div>
+                                            )}
+                                            {opcoesTuss.map((tuss) => (
+                                              <CommandItem
+                                                key={tuss.id}
+                                                value={`${tuss.code} ${tuss.name || ''} ${tuss.description || ''}`}
+                                                onSelect={() => {
+                                                  field.onChange(tuss.id);
+                                                }}
+                                                className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-accent data-[selected=true]:bg-primary/10 data-[selected=true]:text-primary border-b last:border-b-0"
+                                              >
+                                                <div className="flex flex-col w-full">
+                                                  <div className="flex items-center">
+                                                    <Badge 
+                                                      variant="outline" 
+                                                      className={`mr-2 text-xs font-bold ${field.value === tuss.id ? 'bg-primary/20 text-primary border-primary' : ''}`}
+                                                    >
+                                                      {tuss.code}
+                                                    </Badge>
+                                                    <span className={`${field.value === tuss.id ? 'font-medium text-primary' : ''} flex-1 text-sm`}>
+                                                      {tuss.name || tuss.description}
+                                                    </span>
+                                                  </div>
+                                                </div>
+                                                {field.value === tuss.id && (
+                                                  <Check className="ml-auto h-4 w-4 flex-shrink-0 text-primary" />
+                                                )}
+                                              </CommandItem>
+                                            ))}
+                                          </CommandGroup>
+                                        </CommandList>
                                       </Command>
                                     </PopoverContent>
                                   </Popover>

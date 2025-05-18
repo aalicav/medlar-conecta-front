@@ -268,6 +268,26 @@ export default function PaginaNegociacoes() {
     }
   };
 
+  const handleResendNotifications = async (id: number) => {
+    try {
+      const negotiation = negociacoes.find(n => n.id === id);
+      await negotiationService.resendNotifications(id, negotiation?.status);
+      toast({
+        title: "Sucesso",
+        description: "Notificações reenviadas com sucesso",
+      });
+      
+      buscarNegociacoes(paginacao.atual, paginacao.tamanhoPagina);
+    } catch (error) {
+      console.error('Erro ao reenviar notificações:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao reenviar notificações",
+        variant: "destructive"
+      });
+    }
+  };
+
   const renderizarPaginacao = () => {
     const { atual, total, tamanhoPagina } = paginacao;
     const totalPaginas = Math.ceil(total / tamanhoPagina);
@@ -372,6 +392,12 @@ export default function PaginaNegociacoes() {
                 Rejeitar
               </DropdownMenuItem>
             </>
+          )}
+          
+          {negociacao.status.startsWith('submitted') && (
+            <DropdownMenuItem onClick={() => handleResendNotifications(negociacao.id)}>
+              Reenviar Notificações
+            </DropdownMenuItem>
           )}
           
           {!['approved', 'rejected', 'cancelled'].includes(negociacao.status) && (
