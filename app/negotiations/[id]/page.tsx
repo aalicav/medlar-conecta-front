@@ -94,11 +94,22 @@ import {
 } from "@/components/ui/hover-card";
 import { ApprovalHistoryList } from '@/app/components/ApprovalHistory';
 
+// Update the NegotiationStatus type to include 'pending_approval'
+type NegotiationStatus = 
+  | 'draft'
+  | 'submitted'
+  | 'pending_approval'
+  | 'approved'
+  | 'partially_approved'
+  | 'rejected'
+  | 'cancelled';
+
 // Helper function to map status to color variants
 const getStatusVariant = (status: string) => {
   switch (status) {
     case 'draft': return 'outline';
     case 'submitted': return 'secondary';
+    case 'pending_approval': return 'secondary';
     case 'approved': return 'default';
     case 'partially_approved': return 'secondary';
     case 'rejected': return 'destructive';
@@ -149,7 +160,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
   });
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
-    action: 'submit' | 'cancel' | null;
+    action: 'submit' | 'submit_for_approval' | 'cancel' | null;
     title: string;
     description: string;
   }>({
@@ -160,14 +171,12 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
   });
 
   const getApprovalLevelLabel = (level: ApprovalLevel): string => {
-    const labels: Record<ApprovalLevel, string> = {
-      commercial: 'Comercial',
-      financial: 'Financeiro',
-      management: 'Comitê de Gestão',
-      legal: 'Jurídico',
-      direction: 'Direção'
-    };
-    return labels[level];
+    return 'Aprovação';
+  };
+
+  // Function to check if negotiation has no pending items
+  const hasNoPendingItems = (negotiation: Negotiation): boolean => {
+    return !negotiation.items.some(item => item.status === 'pending');
   };
 
   const fetchNegotiation = async () => {
@@ -201,14 +210,17 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     }
   }, [negotiationId]);
   
-  const confirmAction = (action: 'submit' | 'cancel') => {
+  // Update confirmAction function to handle the new submit_for_approval action
+  const confirmAction = (action: 'submit' | 'submit_for_approval' | 'cancel') => {
     const titulos = {
-      submit: 'Enviar Negociação para Aprovação',
+      submit: 'Enviar Negociação para Entidade',
+      submit_for_approval: 'Enviar para Aprovação Interna',
       cancel: 'Cancelar Negociação'
     };
     
     const descricoes = {
-      submit: 'Tem certeza que deseja enviar esta negociação para o fluxo de aprovação?',
+      submit: 'Tem certeza que deseja enviar esta negociação para a entidade?',
+      submit_for_approval: 'Tem certeza que deseja enviar esta negociação para aprovação interna?',
       cancel: 'Tem certeza que deseja cancelar esta negociação?'
     };
     
@@ -220,16 +232,24 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     });
   };
 
+  // Update handleActionConfirm to handle the new submit_for_approval action
   const handleActionConfirm = async () => {
     if (!confirmDialog.action || !negotiation) return;
     
     try {
       if (confirmDialog.action === 'submit') {
-        // Use the new approval workflow endpoint
+        // Submit to entity
+        await negotiationService.submitNegotiation(negotiation.id);
+        toast({
+          title: "Sucesso",
+          description: "Negociação enviada para a entidade",
+        });
+      } else if (confirmDialog.action === 'submit_for_approval') {
+        // Submit for internal approval
         await negotiationService.submitForApproval(negotiation.id);
         toast({
           title: "Sucesso",
-          description: "Negociação enviada para aprovação comercial",
+          description: "Negociação enviada para aprovação interna",
         });
       } else if (confirmDialog.action === 'cancel') {
         await negotiationService.cancelNegotiation(negotiation.id);
@@ -241,10 +261,19 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
       
       fetchNegotiation();
     } catch (error) {
-      console.error(`Erro ao ${confirmDialog.action === 'submit' ? 'enviar' : 'cancelar'} negociação:`, error);
+      console.error(`Erro ao ${
+        confirmDialog.action === 'submit' ? 'enviar para entidade' : 
+        confirmDialog.action === 'submit_for_approval' ? 'enviar para aprovação interna' : 
+        'cancelar'
+      } negociação:`, error);
+      
       toast({
         title: "Erro",
-        description: `Falha ao ${confirmDialog.action === 'submit' ? 'enviar' : 'cancelar'} a negociação`,
+        description: `Falha ao ${
+          confirmDialog.action === 'submit' ? 'enviar para entidade' : 
+          confirmDialog.action === 'submit_for_approval' ? 'enviar para aprovação interna' : 
+          'cancelar'
+        } a negociação`,
         variant: "destructive"
       });
     } finally {
@@ -292,31 +321,39 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
   };
 
   const renderizarAcoes = (negociacao: Negotiation) => {
-    const canApprove = (level: ApprovalLevel): boolean => {
-      const permissionMap: Record<ApprovalLevel, string> = {
-        commercial: 'approve_negotiation_commercial',
-        financial: 'approve_negotiation_financial',
-        management: 'approve_negotiation_management',
-        legal: 'approve_negotiation_legal',
-        direction: 'approve_negotiation_direction'
-      };
-      
-      return hasPermission(permissionMap[level]);
+    const canApprove = (): boolean => {
+      // Check if user has permission to approve negotiations
+      return hasPermission('approve_negotiations');
     };
 
     return (
       <div className="flex items-center gap-2">
+        {/* Draft status - initial submission to entity */}
         {negociacao.status === 'draft' && (
           <Button onClick={() => confirmAction('submit')}>
-            Enviar para Aprovação
+            Enviar para Entidade
           </Button>
         )}
         
-        {negociacao.status.startsWith('pending_') && 
-         canApprove(negociacao.current_approval_level as ApprovalLevel) && (
+        {/* Submitted status - can be sent for internal approval if all items are responded */}
+        {negociacao.status === 'submitted' && hasNoPendingItems(negociacao) && (
+          <Button onClick={() => confirmAction('submit_for_approval')}>
+            Enviar para Aprovação Interna
+          </Button>
+        )}
+        
+        {/* Partially approved status - can be sent for internal approval */}
+        {negociacao.status === 'partially_approved' && (
+          <Button onClick={() => confirmAction('submit_for_approval')}>
+            Enviar para Aprovação Interna
+          </Button>
+        )}
+        
+        {/* Pending approval status - internal approval buttons */}
+        {negociacao.status === 'pending_approval' && canApprove() && (
           <>
             <Button onClick={() => handleApproval('approve')}>
-              Aprovar {getApprovalLevelLabel(negociacao.current_approval_level as ApprovalLevel)}
+              Aprovar Negociação
             </Button>
             <Button variant="destructive" onClick={() => handleApproval('reject')}>
               Rejeitar
@@ -324,18 +361,21 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
           </>
         )}
 
-        {(negociacao.status.startsWith('pending_') || negociacao.status === 'submitted' as any) && (
+        {/* Notification resend for appropriate statuses */}
+        {(negociacao.status === 'pending_approval' || negociacao.status === 'submitted') && (
           <Button variant="outline" onClick={handleResendNotifications}>
             Reenviar Notificações
           </Button>
         )}
         
+        {/* Cancel button for active negotiations */}
         {!['approved', 'rejected', 'cancelled'].includes(negociacao.status) && (
           <Button variant="outline" onClick={() => confirmAction('cancel')}>
             Cancelar
           </Button>
         )}
         
+        {/* Generate contract for approved negotiations */}
         {negociacao.status === 'approved' && (
           <Button onClick={handleGenerateContract}>
             Gerar Contrato
@@ -765,12 +805,12 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
               <CardDescription>
                 {negotiation.status === 'draft' ? 
                   'Estes itens serão incluídos na negociação após o envio para aprovação.' :
-                  negotiation.status.startsWith('pending_') && negotiation.current_approval_level ?
-                  `Aguardando aprovação do ${getApprovalLevelLabel(negotiation.current_approval_level as ApprovalLevel)}` :
+                  negotiation.status === 'pending_approval' ?
+                  'Aguardando aprovação de usuário com alçada superior' :
                   'Revise o status de cada procedimento nesta negociação.'}
               </CardDescription>
             </div>
-            {pendingItems > 0 && negotiation.status.startsWith('pending_') && (
+            {pendingItems > 0 && negotiation.status === 'submitted' && (
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -797,7 +837,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                   <TableHead className="text-right">Valor Aprovado</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Observações</TableHead>
-                {negotiation.status.startsWith('pending_') && (
+                {negotiation.status === 'submitted' && (
                   <TableHead className="text-right">Ações</TableHead>
                 )}
               </TableRow>
@@ -899,7 +939,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                           <span className="text-muted-foreground text-sm">-</span>
                         )}
                     </TableCell>
-                    {negotiation.status.startsWith('pending_') && (
+                    {negotiation.status === 'submitted' && (
                       <TableCell className="text-right">
                         {item.status === 'pending' && (
                           <div className="space-x-2">

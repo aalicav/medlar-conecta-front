@@ -3,15 +3,12 @@ import api from '@/services/api-client';
 
 export type NegotiationStatus = 
   | 'draft'
-  | 'pending_commercial'
-  | 'pending_financial'
-  | 'pending_management'
-  | 'pending_legal'
-  | 'pending_direction'
+  | 'submitted'
+  | 'pending_approval'
   | 'approved'
+  | 'partially_approved'
   | 'rejected'
-  | 'cancelled'
-  | 'submitted';
+  | 'cancelled';
 
 export type NegotiationItemStatus = 
   | 'pending' 
@@ -19,12 +16,7 @@ export type NegotiationItemStatus =
   | 'rejected' 
   | 'counter_offered';
 
-export type ApprovalLevel = 
-  | 'commercial'
-  | 'financial'
-  | 'management'
-  | 'legal'
-  | 'direction';
+export type ApprovalLevel = 'approval';
 
 export type ApprovalAction = 'approve' | 'reject';
 
@@ -34,6 +26,12 @@ export type UserRole =
   | 'management_committee'
   | 'legal_manager'
   | 'director';
+
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+}
 
 export interface NegotiationItem {
   id?: number;
@@ -54,51 +52,35 @@ export interface NegotiationItem {
   updated_at?: string;
 }
 
-export interface ApprovalHistory {
+export interface ApprovalHistoryItem {
   id: number;
-  negotiation_id: number;
   level: ApprovalLevel;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approve' | 'reject';
   user_id: number;
+  user?: User;
   notes?: string;
   created_at: string;
-  updated_at: string;
-  user?: {
-    id: number;
-    name: string;
-  };
 }
 
 export interface Negotiation {
   id: number;
   title: string;
   description?: string;
-  start_date: string;
-  end_date: string;
   negotiable_type: string;
   negotiable_id: number;
-  negotiable?: {
-    id: number;
-    name: string;
-    type?: string;
-  };
+  negotiable?: any;
   creator_id: number;
-  creator?: {
-    id: number;
-    name: string;
-    email: string;
-  };
+  creator?: User;
   status: NegotiationStatus;
+  start_date: string;
+  end_date: string;
   notes?: string;
   items: NegotiationItem[];
-  approved_at?: string;
   created_at: string;
   updated_at: string;
-  // Aliases para manter compatibilidade para trás
-  entity_type?: string;
-  entity_id?: number;
+  approved_at?: string;
   current_approval_level?: ApprovalLevel;
-  approval_history?: ApprovalHistory[];
+  approval_history?: ApprovalHistoryItem[];
 }
 
 export type CreateNegotiationDto = {
@@ -136,17 +118,14 @@ export type UpdateNegotiationDto = Partial<{
 }>;
 
 // Nome mais amigável para os status
-export const negotiationStatusLabels: Record<NegotiationStatus, string> = {
-  draft: 'Rascunho',
-  pending_commercial: 'Pendente Comercial',
-  pending_financial: 'Pendente Financeiro',
-  pending_management: 'Pendente Gestão',
-  pending_legal: 'Pendente Jurídico',
-  pending_direction: 'Pendente Direção',
-  approved: 'Aprovado',
-  rejected: 'Rejeitado',
-  cancelled: 'Cancelado',
-  submitted: 'Submetido'
+export const negotiationStatusLabels: Record<string, string> = {
+  'draft': 'Rascunho',
+  'submitted': 'Enviado',
+  'pending_approval': 'Aguardando Aprovação',
+  'approved': 'Aprovado',
+  'partially_approved': 'Parcialmente Aprovado',
+  'rejected': 'Rejeitado',
+  'cancelled': 'Cancelado'
 };
 
 export const negotiationItemStatusLabels = {
@@ -175,11 +154,7 @@ export const negotiationItemStatusColors = {
 };
 
 export const approvalLevelLabels: Record<ApprovalLevel, string> = {
-  commercial: 'Comercial',
-  financial: 'Financeiro',
-  management: 'Gestão',
-  legal: 'Jurídico',
-  direction: 'Direção'
+  approval: 'Aprovação'
 };
 
 const API_BASE_PATH = '/negotiations';
