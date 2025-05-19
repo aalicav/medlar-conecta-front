@@ -1,18 +1,18 @@
-import { ApprovalHistory, approvalLevelLabels } from '../services/negotiationService';
+import { ApprovalHistoryItem, approvalLevelLabels } from '../services/negotiationService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface ApprovalHistoryProps {
-  history: ApprovalHistory[];
+  history: ApprovalHistoryItem[];
 }
 
 export function ApprovalHistoryList({ history }: ApprovalHistoryProps) {
   const getStatusVariant = (status: string) => {
     switch (status) {
-      case 'approved': return 'success';
-      case 'rejected': return 'destructive';
+      case 'approve': return 'default';
+      case 'reject': return 'destructive';
       case 'pending': return 'secondary';
       default: return 'outline';
     }
@@ -20,8 +20,8 @@ export function ApprovalHistoryList({ history }: ApprovalHistoryProps) {
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'approved': return 'Aprovado';
-      case 'rejected': return 'Rejeitado';
+      case 'approve': return 'Aprovado';
+      case 'reject': return 'Rejeitado';
       case 'pending': return 'Pendente';
       default: return status;
     }

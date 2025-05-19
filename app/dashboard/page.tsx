@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { 
   Row, 
   Col, 
-  Card, 
+  Card as AntCard, 
   Statistic, 
   Typography, 
   List, 
@@ -42,6 +42,8 @@ import OperationalDashboard from '@/app/components/dashboards/OperationalDashboa
 import FinancialDashboard from '@/app/components/dashboards/FinancialDashboard';
 import ProfessionalDashboard from '@/app/components/dashboards/ProfessionalDashboard';
 import ClinicDashboard from '@/app/components/dashboards/ClinicDashboard';
+import { CardContent, CardDescription, CardHeader, CardTitle, Card as UICard } from '@/components/ui/card'
+import { TrendingUp, Clock } from 'lucide-react'
 
 const { Title, Text, Paragraph } = Typography;
 const { TabPane } = Tabs;
@@ -209,34 +211,34 @@ export default function DashboardHomepage() {
             <Row gutter={[24, 24]}>
               {/* Statistics */}
               <Col xs={24} sm={12} md={6}>
-                <Card loading={loading} className="dark-card">
+                <AntCard loading={loading} className="dark-card">
                   <Statistic 
                     title="Consultas Hoje" 
                     value={todayAppointmentCount} 
                     prefix={<CalendarOutlined />} 
                   />
-                </Card>
+                </AntCard>
               </Col>
               <Col xs={24} sm={12} md={6}>
-                <Card loading={loading} className="dark-card">
+                <AntCard loading={loading} className="dark-card">
                   <Statistic 
                     title="Novos Pacientes (Mês)" 
                     value={stats.patients?.active} 
                     prefix={<TeamOutlined />} 
                   />
-                </Card>
+                </AntCard>
               </Col>
               <Col xs={24} sm={12} md={6}>
-                <Card loading={loading} className="dark-card">
+                <AntCard loading={loading} className="dark-card">
                   <Statistic 
                     title="Mensagens SURI" 
                     value={suriMessageCount} 
                     prefix={<MessageOutlined />} 
                   />
-                </Card>
+                </AntCard>
               </Col>
               <Col xs={24} sm={12} md={6}>
-                <Card loading={loading} className="dark-card">
+                <AntCard loading={loading} className="dark-card">
                   <Statistic 
                     title="Faturamento (Mês)" 
                     value={stats.revenue?.total} 
@@ -244,7 +246,7 @@ export default function DashboardHomepage() {
                     precision={2} 
                     suffix="R$"
                   />
-                </Card>
+                </AntCard>
               </Col>
               
               {/* Feature Cards */}
@@ -253,7 +255,7 @@ export default function DashboardHomepage() {
                 <Row gutter={[16, 16]}>
                   {featureCards.map((feature, index) => (
                     <Col xs={24} sm={12} md={8} key={index}>
-                      <Card 
+                      <AntCard 
                         hoverable 
                         style={{ backgroundColor: feature.color }}
                         styles={{
@@ -281,12 +283,12 @@ export default function DashboardHomepage() {
                             Acessar <ArrowRightOutlined />
                           </Button>
                         </Link>
-                      </Card>
+                      </AntCard>
                     </Col>
                   ))}
                   
                   <Col xs={24} sm={12} md={8}>
-                    <Card 
+                    <AntCard 
                       hoverable 
                       style={{ backgroundColor: 'hsl(var(--warning) / 0.1)' }}
                       styles={{
@@ -313,11 +315,11 @@ export default function DashboardHomepage() {
                           Acessar <ArrowRightOutlined />
                         </Button>
                       </Link>
-                    </Card>
+                    </AntCard>
                   </Col>
                   
                   <Col xs={24} sm={12} md={8}>
-                    <Card 
+                    <AntCard 
                       hoverable 
                       style={{ backgroundColor: 'hsl(var(--info) / 0.1)' }}
                       styles={{
@@ -344,11 +346,11 @@ export default function DashboardHomepage() {
                           Acessar <ArrowRightOutlined />
                         </Button>
                       </Link>
-                    </Card>
+                    </AntCard>
                   </Col>
                   
                   <Col xs={24} sm={12} md={8}>
-                    <Card 
+                    <AntCard 
                       hoverable 
                       style={{ backgroundColor: 'hsl(var(--accent) / 0.1)' }}
                       styles={{
@@ -375,14 +377,14 @@ export default function DashboardHomepage() {
                           Acessar <ArrowRightOutlined />
                         </Button>
                       </Link>
-                    </Card>
+                    </AntCard>
                   </Col>
                 </Row>
               </Col>
               
               {/* Appointments and Messages */}
               <Col xs={24} md={16}>
-                <Card
+                <AntCard
                   title={
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ color: 'rgba(255, 255, 255, 0.85)' }}>Próximas Consultas</span>
@@ -431,11 +433,11 @@ export default function DashboardHomepage() {
                   ) : (
                     <Empty description="Não há consultas agendadas" />
                   )}
-                </Card>
+                </AntCard>
               </Col>
               
               <Col xs={24} md={8}>
-                <Card
+                <AntCard
                   title={<span style={{ color: 'rgba(255, 255, 255, 0.85)' }}>Itens Pendentes</span>}
                   loading={loading}
                   className="dark-card"
@@ -493,7 +495,7 @@ export default function DashboardHomepage() {
                       }
                     ]}
                   />
-                </Card>
+                </AntCard>
               </Col>
             </Row>
           </>
@@ -524,6 +526,43 @@ export default function DashboardHomepage() {
       />
       
       {renderRoleDashboard()}
+
+      {/* Seção de Negociações */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <Link href="/negotiations">
+          <UICard className="hover:bg-accent transition-colors cursor-pointer h-full">
+            <CardHeader>
+              <CardTitle>Negociações</CardTitle>
+              <CardDescription>
+                Gerencie negociações com planos, profissionais e clínicas
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center space-x-2">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                <span>Contratos e valores</span>
+              </div>
+            </CardContent>
+          </UICard>
+        </Link>
+        
+        <Link href="/negotiations/extemporaneous">
+          <UICard className="hover:bg-accent transition-colors cursor-pointer h-full">
+            <CardHeader>
+              <CardTitle>Negociações Extemporâneas</CardTitle>
+              <CardDescription>
+                Procedimentos fora dos contratos padrão
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center space-x-2">
+                <Clock className="h-5 w-5 text-primary" />
+                <span>Solicitações especiais</span>
+              </div>
+            </CardContent>
+          </UICard>
+        </Link>
+      </div>
     </>
   )
 } 

@@ -15,9 +15,12 @@ import { usePermissions } from '@/app/hooks/usePermissions';
 import { apiClient, getErrorMessage } from '@/app/services/api-client';
 import { notificationService } from '@/app/services/notification-service';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { PencilIcon } from 'lucide-react';
+import Link from 'next/link';
 
 export default function ExtemporaneousNegotiationDetail() {
-  const params = useParams();
+  const params = useParams<{ id: string }>();
+  const negotiationId = params?.id;
   const router = useRouter();
   const { toast } = useToast();
   const { hasPermission, hasRole } = usePermissions();
@@ -41,7 +44,7 @@ export default function ExtemporaneousNegotiationDetail() {
     try {
       // NOTA: Em versões futuras do Next.js, será necessário usar React.use(params) 
       // em vez do acesso direto a params.id
-      const response = await apiClient.get(`/extemporaneous-negotiations/${params.id}`);
+      const response = await apiClient.get(`/extemporaneous-negotiations/${negotiationId}`);
       const negotiationData = response.data.data;
       
       setNegotiation(negotiationData);
@@ -62,10 +65,10 @@ export default function ExtemporaneousNegotiationDetail() {
   };
 
   useEffect(() => {
-    if (params.id) {
+    if (negotiationId) {
       fetchNegotiation();
     }
-  }, [params.id, toast]);
+  }, [negotiationId, toast]);
 
   // Handle approve negotiation
   const handleApprove = async () => {
@@ -90,7 +93,7 @@ export default function ExtemporaneousNegotiationDetail() {
     setIsSubmitting(true);
     
     try {
-      const response = await apiClient.post(`/extemporaneous-negotiations/${params.id}/approve`, {
+      const response = await apiClient.post(`/extemporaneous-negotiations/${negotiationId}/approve`, {
         approved_value: parseFloat(approvalValue),
         approval_notes: approvalNotes,
         is_requiring_addendum: true,
@@ -106,7 +109,7 @@ export default function ExtemporaneousNegotiationDetail() {
         await notificationService.sendToRole('commercial', {
           title: 'New Addendum Required',
           body: `An extemporaneous negotiation for contract #${negotiation.contract.contract_number} has been approved and requires a formal addendum.`,
-          action_link: `/negotiations/extemporaneous/${params.id}`,
+          action_link: `/negotiations/extemporaneous/${negotiationId}`,
           icon: 'file-plus',
           priority: 'high'
         });
@@ -150,7 +153,7 @@ export default function ExtemporaneousNegotiationDetail() {
     setIsSubmitting(true);
     
     try {
-      const response = await apiClient.post(`/extemporaneous-negotiations/${params.id}/reject`, {
+      const response = await apiClient.post(`/extemporaneous-negotiations/${negotiationId}/reject`, {
         rejection_reason: rejectionReason,
       });
       
@@ -186,7 +189,7 @@ export default function ExtemporaneousNegotiationDetail() {
     setIsSubmitting(true);
     
     try {
-      const response = await apiClient.post(`/extemporaneous-negotiations/${params.id}/addendum`, {
+      const response = await apiClient.post(`/extemporaneous-negotiations/${negotiationId}/addendum`, {
         addendum_number: `A-${Date.now().toString().slice(-6)}`,
         addendum_date: new Date().toISOString().split('T')[0],
         notes: 'Addendum created from the system',
@@ -240,9 +243,17 @@ export default function ExtemporaneousNegotiationDetail() {
           </p>
         </div>
         
-        <Button variant="outline" onClick={() => router.push('/negotiations/extemporaneous')}>
-          Back to List
-        </Button>
+        <div className="flex gap-2">
+          {negotiation.status === 'pending' && hasPermission('edit extemporaneous negotiations') && (
+            <Button variant="outline" onClick={() => router.push(`/negotiations/extemporaneous/${negotiationId}/edit`)}>
+              <PencilIcon className="h-4 w-4 mr-2" />
+              Edit
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => router.push('/negotiations/extemporaneous')}>
+            Back to List
+          </Button>
+        </div>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

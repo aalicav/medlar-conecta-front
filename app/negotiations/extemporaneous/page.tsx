@@ -8,7 +8,7 @@ import { DataTable } from "@/components/data-table/data-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { EyeIcon, FilterIcon, CalendarIcon } from "lucide-react";
+import { EyeIcon, FilterIcon, CalendarIcon, PencilIcon, PlusIcon } from "lucide-react";
 import { formatDate, formatMoney } from "@/app/utils/format";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -245,6 +245,16 @@ export default function PaginaNegociacoesExtemporaneas() {
             >
               <EyeIcon className="h-4 w-4" />
             </Button>
+            {negotiation.status === 'pending' && hasPermission('edit extemporaneous negotiations') && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push(`/negotiations/extemporaneous/${negotiation.id}/edit`)}
+              >
+                <PencilIcon className="h-4 w-4" />
+                Editar
+              </Button>
+            )}
           </div>
         );
       },

@@ -13,6 +13,12 @@ import {
   Filter,
   FileDown
 } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 import { 
   negotiationService, 
@@ -75,20 +81,61 @@ import {
 } from '@/components/ui/pagination';
 import { useToast } from '@/components/ui/use-toast';
 
+/**
+ * Fluxo de status da negociação:
+ * 1. draft: Rascunho inicial
+ * 2. submitted: Em análise pela entidade, aguardando respostas para envio à aprovação interna
+ * 3. pending: Em avaliação interna para aprovação 
+ * 4. approved: Aprovado internamente, enviado automaticamente à entidade para aprovação final
+ * 5a. complete: Completamente aprovado pela entidade externa
+ * 5b. partially_complete: Parcialmente aprovado pela entidade externa
+ * 
+ * Também pode ser:
+ * - partially_approved: Alguns itens aprovados, outros rejeitados pela entidade
+ * - rejected: Rejeitado internamente ou externamente
+ * - cancelled: Cancelado manualmente
+ */
 // Função auxiliar para mapear status para variantes de cores
 const obterVarianteStatus = (status: NegotiationStatus) => {
   switch (status) {
     case 'draft': return 'outline';
-    case 'pending_commercial':
-    case 'pending_financial':
-    case 'pending_management':
-    case 'pending_legal':
-    case 'pending_direction':
-      return 'secondary';
+    case 'submitted': return 'secondary';
+    case 'pending': return 'warning';
+    case 'complete': return 'success';
+    case 'partially_complete': return 'warning';
     case 'approved': return 'success';
+    case 'partially_approved': return 'warning';
     case 'rejected': return 'destructive';
     case 'cancelled': return 'outline';
     default: return 'outline';
+  }
+};
+
+/**
+ * Obter descrição do fluxo de status para ajudar na compreensão do usuário
+ */
+const getStatusDescription = (status: NegotiationStatus): string => {
+  switch (status) {
+    case 'draft':
+      return 'Rascunho inicial aguardando envio para aprovação interna';
+    case 'submitted':
+      return 'Em análise pela entidade, aguardando respostas para envio à aprovação interna';
+    case 'pending':
+      return 'Em análise interna para aprovação';
+    case 'approved':
+      return 'Aprovado internamente, negociação enviada automaticamente à entidade para aprovação final';
+    case 'complete':
+      return 'Aprovado pela entidade (aprovação completa)';
+    case 'partially_complete':
+      return 'Parcialmente aprovado pela entidade';
+    case 'partially_approved':
+      return 'Alguns itens foram aprovados, outros rejeitados';
+    case 'rejected':
+      return 'Rejeitado internamente ou pela entidade';
+    case 'cancelled':
+      return 'Cancelado manualmente';
+    default:
+      return 'Status desconhecido';
   }
 };
 
@@ -108,7 +155,7 @@ export default function PaginaNegociacoes() {
   const [direcaoOrdenacao, setDirecaoOrdenacao] = useState<'asc' | 'desc'>('desc');
   const [dialogoConfirmacao, setDialogoConfirmacao] = useState<{
     aberto: boolean;
-    acao: 'submit' | 'approve' | 'reject' | 'cancel' | null;
+    acao: 'approve' | 'reject' | 'cancel' | null;
     id: number | null;
     titulo: string;
     descricao: string;
@@ -175,17 +222,15 @@ export default function PaginaNegociacoes() {
     setDirecaoOrdenacao(novaDirecao);
   };
 
-  const confirmarAcao = (acao: 'submit' | 'approve' | 'reject' | 'cancel', id: number) => {
+  const confirmarAcao = (acao: 'approve' | 'reject' | 'cancel', id: number) => {
     const titulos = {
-      submit: 'Enviar para Aprovação',
-      approve: 'Aprovar Negociação',
+      approve: 'Aprovar Negociação Internamente',
       reject: 'Rejeitar Negociação',
       cancel: 'Cancelar Negociação'
     };
     
     const descricoes = {
-      submit: 'Tem certeza que deseja enviar esta negociação para aprovação?',
-      approve: 'Tem certeza que deseja aprovar esta negociação?',
+      approve: 'Tem certeza que deseja aprovar internamente esta negociação? Após aprovação interna, a entidade deverá dar o veredito final.',
       reject: 'Tem certeza que deseja rejeitar esta negociação?',
       cancel: 'Tem certeza que deseja cancelar esta negociação?'
     };
@@ -203,29 +248,29 @@ export default function PaginaNegociacoes() {
     if (!dialogoConfirmacao.acao || !dialogoConfirmacao.id) return;
     
     try {
+      setCarregando(true);
+      
       switch (dialogoConfirmacao.acao) {
-        case 'submit':
-          await negotiationService.submitForApproval(dialogoConfirmacao.id);
-          toast({
-            title: "Sucesso",
-            description: "Negociação enviada para aprovação com sucesso",
-          });
-          break;
         case 'approve':
+          // Aprovar internamente
           await negotiationService.processApproval(dialogoConfirmacao.id, 'approve');
           toast({
             title: "Sucesso",
             description: "Negociação aprovada com sucesso",
           });
           break;
+          
         case 'reject':
+          // Rejeitar
           await negotiationService.processApproval(dialogoConfirmacao.id, 'reject');
           toast({
             title: "Sucesso",
             description: "Negociação rejeitada com sucesso",
           });
           break;
+          
         case 'cancel':
+          // Cancelar
           await negotiationService.cancelNegotiation(dialogoConfirmacao.id);
           toast({
             title: "Sucesso",
@@ -234,16 +279,18 @@ export default function PaginaNegociacoes() {
           break;
       }
       
+      // Fechar o diálogo de confirmação e atualizar a lista
+      setDialogoConfirmacao({ ...dialogoConfirmacao, aberto: false });
       buscarNegociacoes(paginacao.atual, paginacao.tamanhoPagina);
     } catch (error) {
-      console.error(`Erro ao processar ação:`, error);
+      console.error(`Erro ao ${dialogoConfirmacao.acao} negociação:`, error);
       toast({
         title: "Erro",
-        description: `Falha ao processar a ação`,
+        description: `Falha ao ${dialogoConfirmacao.acao} a negociação`,
         variant: "destructive"
       });
     } finally {
-      setDialogoConfirmacao({ ...dialogoConfirmacao, aberto: false });
+      setCarregando(false);
     }
   };
 
@@ -351,15 +398,12 @@ export default function PaginaNegociacoes() {
   };
 
   const renderizarAcoes = (negociacao: Negotiation) => {
-    const userRole = 'commercial_manager' as UserRole; // TODO: Get from auth context
+    // TODO: Get from auth context
+    const userRole = 'commercial_manager' as UserRole; 
     
     const canApprove = (level: ApprovalLevel): boolean => {
       const roleMap: Record<ApprovalLevel, UserRole> = {
-        commercial: 'commercial_manager',
-        financial: 'financial_manager',
-        management: 'management_committee',
-        legal: 'legal_manager',
-        direction: 'director'
+        approval: 'commercial_manager'
       };
       
       return userRole === roleMap[level];
@@ -376,14 +420,22 @@ export default function PaginaNegociacoes() {
           <DropdownMenuLabel>Ações</DropdownMenuLabel>
           <DropdownMenuSeparator />
           
+          {/* Draft - Enviar para aprovação interna */}
           {negociacao.status === 'draft' && (
-            <DropdownMenuItem onClick={() => confirmarAcao('submit', negociacao.id)}>
-              Enviar para Aprovação
+            <DropdownMenuItem onClick={() => handleSubmitForFinalApproval(negociacao.id)}>
+              Enviar para Aprovação Interna
             </DropdownMenuItem>
           )}
           
-          {negociacao.status.startsWith('pending_') && 
-           canApprove(negociacao.current_approval_level as ApprovalLevel) && (
+          {/* Submitted/Partially Approved - Enviar para aprovação interna */}
+          {(negociacao.status === 'submitted' || negociacao.status === 'partially_approved') && (
+            <DropdownMenuItem onClick={() => handleSubmitForFinalApproval(negociacao.id)}>
+              Enviar para Aprovação Interna
+            </DropdownMenuItem>
+          )}
+          
+          {/* Pending - Aprovação / Rejeição interna */}
+          {negociacao.status === 'pending' && canApprove(negociacao.current_approval_level as ApprovalLevel) && (
             <>
               <DropdownMenuItem onClick={() => confirmarAcao('approve', negociacao.id)}>
                 Aprovar
@@ -394,19 +446,29 @@ export default function PaginaNegociacoes() {
             </>
           )}
           
-          {negociacao.status.startsWith('submitted') && (
+          {/* Approved - Mudanças de status são gerenciadas automaticamente pela aplicação */}
+          {negociacao.status === 'approved' && (
+            <DropdownMenuItem onClick={() => handleResendNotifications(negociacao.id)}>
+              Reenviar Notificação à Entidade
+            </DropdownMenuItem>
+          )}
+          
+          {/* Reenvio de notificações */}
+          {['submitted', 'pending'].includes(negociacao.status) && (
             <DropdownMenuItem onClick={() => handleResendNotifications(negociacao.id)}>
               Reenviar Notificações
             </DropdownMenuItem>
           )}
           
-          {!['approved', 'rejected', 'cancelled'].includes(negociacao.status) && (
+          {/* Cancelar negociação ativa */}
+          {!['complete', 'partially_complete', 'approved', 'rejected', 'cancelled'].includes(negociacao.status) && (
             <DropdownMenuItem onClick={() => confirmarAcao('cancel', negociacao.id)}>
               Cancelar
             </DropdownMenuItem>
           )}
           
-          {negociacao.status === 'approved' && (
+          {/* Gerar contrato para negociações aprovadas ou completas */}
+          {['approved', 'complete', 'partially_complete'].includes(negociacao.status) && (
             <DropdownMenuItem onClick={() => handleGerarContrato(negociacao.id)}>
               Gerar Contrato
             </DropdownMenuItem>
@@ -422,6 +484,82 @@ export default function PaginaNegociacoes() {
     );
   };
 
+  // Adicionar funções para novas ações
+  const handleRequestExternalReview = async (id: number) => {
+    try {
+      // Agora, em vez de enviar diretamente para a entidade,
+      // enviamos para aprovação interna primeiro
+      await negotiationService.submitForApproval(id);
+      toast({
+        title: "Sucesso",
+        description: "Negociação enviada para aprovação interna com sucesso",
+      });
+      buscarNegociacoes(paginacao.atual, paginacao.tamanhoPagina);
+    } catch (error) {
+      console.error('Erro ao enviar para aprovação interna:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao enviar para aprovação interna",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  const handleSubmitForFinalApproval = async (id: number) => {
+    try {
+      // Usar o serviço para enviar para aprovação final
+      await negotiationService.submitForApproval(id);
+      toast({
+        title: "Sucesso",
+        description: "Negociação enviada para aprovação final com sucesso",
+      });
+      buscarNegociacoes(paginacao.atual, paginacao.tamanhoPagina);
+    } catch (error) {
+      console.error('Erro ao enviar para aprovação final:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao enviar para aprovação final",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleMarkAsComplete = async (id: number) => {
+    try {
+      await negotiationService.markAsComplete(id);
+      toast({
+        title: "Sucesso",
+        description: "Negociação marcada como completa com sucesso",
+      });
+      buscarNegociacoes(paginacao.atual, paginacao.tamanhoPagina);
+    } catch (error) {
+      console.error('Erro ao marcar negociação como completa:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao marcar negociação como completa",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleMarkAsPartiallyComplete = async (id: number) => {
+    try {
+      await negotiationService.markAsPartiallyComplete(id);
+      toast({
+        title: "Sucesso",
+        description: "Negociação marcada como parcialmente completa com sucesso",
+      });
+      buscarNegociacoes(paginacao.atual, paginacao.tamanhoPagina);
+    } catch (error) {
+      console.error('Erro ao marcar negociação como parcialmente completa:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao marcar negociação como parcialmente completa",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <div className="container py-6 space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -430,10 +568,17 @@ export default function PaginaNegociacoes() {
           <p className="text-muted-foreground">Gerencie suas negociações com planos de saúde, profissionais e clínicas</p>
         </div>
         
-        <Button onClick={() => router.push('/negotiations/new')}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nova Negociação
-        </Button>
+        <div className="flex gap-2">
+          <Link href="/negotiations/extemporaneous">
+            <Button variant="secondary">
+              Negociações Extemporâneas
+            </Button>
+          </Link>
+          <Button onClick={() => router.push('/negotiations/new')}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nova Negociação
+          </Button>
+        </div>
       </div>
       
       <Card>
@@ -534,9 +679,18 @@ export default function PaginaNegociacoes() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={obterVarianteStatus(negociacao.status)}>
-                          {negotiationStatusLabels[negociacao.status]}
-                        </Badge>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant={obterVarianteStatus(negociacao.status)}>
+                                {negotiationStatusLabels[negociacao.status]}
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{getStatusDescription(negociacao.status)}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </TableCell>
                       <TableCell>
                         {new Date(negociacao.start_date).toLocaleDateString()} - {new Date(negociacao.end_date).toLocaleDateString()}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { apiClient } from '@/app/services/api-client';
 import { usePermissions } from '@/app/hooks/usePermissions';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle, Loader2 } from 'lucide-react';
+import { createExtemporaneousNegotiation, getExtemporaneousNegotiation } from '@/services/extemporaneous-negotiations';
 
 // Esquema do formulário
 const esquemaNegociacaoExtemporanea = z.object({
@@ -26,10 +29,19 @@ const esquemaNegociacaoExtemporanea = z.object({
 
 type FormularioValores = z.infer<typeof esquemaNegociacaoExtemporanea>;
 
-export default function NovaNegociacaoExtemporanea() {
+interface NegociacaoExtemporaneaProps {
+  negotiationId?: string;
+  isEditing?: boolean;
+}
+
+export default function FormularioNegociacaoExtemporanea({ negotiationId, isEditing = false }: NegociacaoExtemporaneaProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [estaEnviando, setEstaEnviando] = useState(false);
+  const [estaCarregando, setEstaCarregando] = useState(isEditing);
+  const [erro, setErro] = useState<string | null>(null);
+  const [contratos, setContratos] = useState<Array<{id: string, numero: string}>>([]);
+  const [procedimentos, setProcedimentos] = useState<Array<{id: string, codigo: string, descricao: string}>>([]);
   const { hasPermission } = usePermissions();
   
   // Inicializar formulário com tipagem corrigida
@@ -44,18 +56,71 @@ export default function NovaNegociacaoExtemporanea() {
     }
   });
 
+  // Carregar dados para edição
+  useEffect(() => {
+    const carregarNegociacao = async () => {
+      if (!isEditing || !negotiationId) return;
+      
+      setEstaCarregando(true);
+      setErro(null);
+      
+      try {
+        const response = await getExtemporaneousNegotiation(Number(negotiationId));
+        const dadosNegociacao = response.data.data;
+        
+        // Preencher o formulário com os dados da negociação
+        form.reset({
+          contract_id: dadosNegociacao.contract_id.toString(),
+          tuss_id: dadosNegociacao.tuss_id.toString(),
+          requested_value: dadosNegociacao.requested_value.toString(),
+          justification: dadosNegociacao.justification,
+          urgency_level: dadosNegociacao.urgency_level || 'medium',
+        });
+      } catch (error: any) {
+        setErro(error.response?.data?.message || 'Erro ao carregar dados da negociação');
+        console.error('Erro ao carregar negociação:', error);
+      } finally {
+        setEstaCarregando(false);
+      }
+    };
+
+    carregarNegociacao();
+  }, [isEditing, negotiationId, form]);
+
+  // Carregar dados de contratos e procedimentos TUSS
+  useEffect(() => {
+    // Simulação - em ambiente real, estes dados seriam carregados da API
+    setContratos([
+      { id: '1', numero: '12345' },
+      { id: '2', numero: '67890' },
+      { id: '3', numero: '24680' },
+      { id: '4', numero: '13579' },
+    ]);
+    
+    setProcedimentos([
+      { id: '1', codigo: '10101039', descricao: 'Consulta médica' },
+      { id: '2', codigo: '40103110', descricao: 'Raio-X de tórax' },
+      { id: '3', codigo: '50101012', descricao: 'Consulta cardiológica' },
+      { id: '4', codigo: '40701220', descricao: 'Ultrassonografia' },
+      { id: '5', codigo: '30101018', descricao: 'Procedimento dermatológico' },
+    ]);
+  }, []);
+
   // Manipular envio do formulário
   const onSubmit = async (values: FormularioValores) => {
-    if (!hasPermission('manage extemporaneous negotiations')) {
+    const permissaoNecessaria = isEditing ? 'edit extemporaneous negotiations' : 'manage extemporaneous negotiations';
+    
+    if (!hasPermission(permissaoNecessaria)) {
       toast({
         title: 'Permissão Negada',
-        description: 'Você não tem permissão para criar negociações extemporâneas',
+        description: `Você não tem permissão para ${isEditing ? 'editar' : 'criar'} negociações extemporâneas`,
         variant: 'destructive',
       });
       return;
     }
 
     setEstaEnviando(true);
+    setErro(null);
     
     try {
       // Converter valor string para número
@@ -64,20 +129,30 @@ export default function NovaNegociacaoExtemporanea() {
         requested_value: parseFloat(values.requested_value),
       };
       
-      // Enviar a negociação
-      const response = await apiClient.post('/extemporaneous-negotiations', valoresFormatados);
-      
-      toast({
-        title: 'Sucesso',
-        description: 'Solicitação de negociação extemporânea criada com sucesso',
-      });
+      if (isEditing && negotiationId) {
+        // Atualizar negociação existente
+        await apiClient.put(`/extemporaneous-negotiations/${negotiationId}`, valoresFormatados);
+        toast({
+          title: 'Sucesso',
+          description: 'Negociação extemporânea atualizada com sucesso',
+        });
+      } else {
+        // Criar nova negociação
+        await createExtemporaneousNegotiation(valoresFormatados as any);
+        toast({
+          title: 'Sucesso',
+          description: 'Solicitação de negociação extemporânea criada com sucesso',
+        });
+      }
       
       // Redirecionar para a lista de negociações
       router.push('/negotiations/extemporaneous');
     } catch (error: any) {
+      const mensagemErro = error.response?.data?.message || `Falha ao ${isEditing ? 'atualizar' : 'criar'} negociação`;
+      setErro(mensagemErro);
       toast({
         title: 'Erro',
-        description: error.response?.data?.message || 'Falha ao criar negociação',
+        description: mensagemErro,
         variant: 'destructive',
       });
     } finally {
@@ -85,12 +160,33 @@ export default function NovaNegociacaoExtemporanea() {
     }
   };
 
+  if (estaCarregando) {
+    return (
+      <Card>
+        <CardContent className="pt-6 flex justify-center items-center min-h-[300px]">
+          <div className="flex flex-col items-center gap-2">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-muted-foreground">Carregando dados da negociação...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Nova Negociação Extemporânea</CardTitle>
+        <CardTitle>{isEditing ? 'Editar Negociação Extemporânea' : 'Nova Negociação Extemporânea'}</CardTitle>
       </CardHeader>
       <CardContent>
+        {erro && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Erro</AlertTitle>
+            <AlertDescription>{erro}</AlertDescription>
+          </Alert>
+        )}
+        
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6">
             <FormField
@@ -103,14 +199,18 @@ export default function NovaNegociacaoExtemporanea() {
                     <Select 
                       onValueChange={field.onChange} 
                       defaultValue={field.value}
+                      value={field.value}
+                      disabled={isEditing && negotiationId && form.getValues().contract_id !== ''}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione um contrato" />
                       </SelectTrigger>
                       <SelectContent>
-                        {/* Opções de contrato seriam carregadas aqui */}
-                        <SelectItem value="1">Contrato #12345</SelectItem>
-                        <SelectItem value="2">Contrato #67890</SelectItem>
+                        {contratos.map(contrato => (
+                          <SelectItem key={contrato.id} value={contrato.id}>
+                            Contrato #{contrato.numero}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </FormControl>
@@ -129,17 +229,17 @@ export default function NovaNegociacaoExtemporanea() {
                     <Select 
                       onValueChange={field.onChange} 
                       defaultValue={field.value}
+                      value={field.value}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione um procedimento" />
                       </SelectTrigger>
                       <SelectContent>
-                        {/* Opções de procedimentos TUSS seriam carregadas aqui */}
-                        <SelectItem value="1">10101039 - Consulta médica</SelectItem>
-                        <SelectItem value="2">40103110 - Raio-X de tórax</SelectItem>
-                        <SelectItem value="3">50101012 - Consulta cardiológica</SelectItem>
-                        <SelectItem value="4">40701220 - Ultrassonografia</SelectItem>
-                        <SelectItem value="5">30101018 - Procedimento dermatológico</SelectItem>
+                        {procedimentos.map(proc => (
+                          <SelectItem key={proc.id} value={proc.id}>
+                            {proc.codigo} - {proc.descricao}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </FormControl>
@@ -178,6 +278,7 @@ export default function NovaNegociacaoExtemporanea() {
                     <Select 
                       onValueChange={field.onChange} 
                       defaultValue={field.value}
+                      value={field.value}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione o nível de urgência" />
@@ -224,7 +325,14 @@ export default function NovaNegociacaoExtemporanea() {
                 type="submit"
                 disabled={estaEnviando}
               >
-                {estaEnviando ? 'Enviando...' : 'Enviar Solicitação'}
+                {estaEnviando ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {isEditing ? 'Atualizando...' : 'Enviando...'}
+                  </>
+                ) : (
+                  isEditing ? 'Atualizar Negociação' : 'Enviar Solicitação'
+                )}
               </Button>
             </CardFooter>
           </form>

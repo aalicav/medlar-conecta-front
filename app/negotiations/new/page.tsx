@@ -204,16 +204,16 @@ export default function PaginaCriarNegociacao() {
         throw new Error('Tipo de entidade inválido');
       }
       
-      const response = await apiClient.get(endpoint, { 
-        params: { search: termo, per_page: 50 }
-      });
+        const response = await apiClient.get(endpoint, { 
+          params: { search: termo, per_page: 50 }
+        });
         
       // Extrair dados da resposta paginada
       if (response.data?.data && response.data?.data && Array.isArray(response.data?.data)) {
         setOpcoesEntidades(response.data.data);
-      } else {
+        } else {
         console.error('Formato de resposta inválido para entidades:', response.data);
-        setOpcoesEntidades([]);
+          setOpcoesEntidades([]);
       }
     } catch (error) {
       console.error(`Erro ao carregar ${tipo}:`, error);
@@ -429,56 +429,56 @@ export default function PaginaCriarNegociacao() {
                             </PopoverTrigger>
                             <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                               <Command>
-                                <CommandInput
-                                  placeholder="Buscar entidade..."
-                                  value={termoPesquisaEntidade}
-                                  onValueChange={(value) => {
-                                    setTermoPesquisaEntidade(value);
+                                  <CommandInput
+                                    placeholder="Buscar entidade..."
+                                    value={termoPesquisaEntidade}
+                                    onValueChange={(value) => {
+                                      setTermoPesquisaEntidade(value);
                                     // Buscar no servidor apenas se o termo tiver 2+ caracteres ou não tivermos dados
                                     if (value.length >= 2 || opcoesEntidades.length === 0) {
                                       buscarEntidades(tipoEntidadeSelecionada, value);
                                     }
-                                  }}
-                                  disabled={!tipoEntidadeSelecionada}
-                                />
+                                    }}
+                                    disabled={!tipoEntidadeSelecionada}
+                                  />
                                 <CommandList>
                                   <CommandEmpty>
                                     <div className="py-6 text-center text-sm">
-                                      <div className="mb-2">Nenhuma entidade encontrada</div>
-                                      <div className="text-xs text-muted-foreground">Tente outros termos de busca</div>
+                                  <div className="mb-2">Nenhuma entidade encontrada</div>
+                                  <div className="text-xs text-muted-foreground">Tente outros termos de busca</div>
                                     </div>
-                                  </CommandEmpty>
-                                  <CommandGroup className="max-h-[300px] overflow-auto">
+                                </CommandEmpty>
+                                <CommandGroup className="max-h-[300px] overflow-auto">
                                     {carregandoEntidades && (
                                       <div className="flex justify-center items-center py-4">
                                         <Loader2 className="h-6 w-6 animate-spin opacity-50" />
                                       </div>
                                     )}
                                     {opcoesEntidades.length > 0 && !carregandoEntidades && (
-                                      <div className="p-1 text-xs text-muted-foreground border-b mx-2">
-                                        {opcoesEntidades.length} entidade(s) encontrada(s)
-                                      </div>
-                                    )}
-                                    {opcoesEntidades.map((entity) => (
-                                      <CommandItem
-                                        key={entity.id}
+                                    <div className="p-1 text-xs text-muted-foreground border-b mx-2">
+                                      {opcoesEntidades.length} entidade(s) encontrada(s)
+                                </div>
+                                  )}
+                                  {opcoesEntidades.map((entity) => (
+                                    <CommandItem
+                                      key={entity.id}
                                         value={entity.name}
-                                        onSelect={() => {
-                                          field.onChange(entity.id);
-                                        }}
-                                        className="data-[selected=true]:bg-primary/10 data-[selected=true]:text-primary"
-                                      >
-                                        <div className="flex items-center">
-                                          <span className={field.value === entity.id ? 'font-medium' : ''}>
-                                            {entity.name}
-                                          </span>
-                                        </div>
-                                        {field.value === entity.id && (
-                                          <Check className="ml-auto h-4 w-4 text-primary" />
-                                        )}
-                                      </CommandItem>
-                                    ))}
-                                  </CommandGroup>
+                                      onSelect={() => {
+                                        field.onChange(entity.id);
+                                      }}
+                                      className="data-[selected=true]:bg-primary/10 data-[selected=true]:text-primary"
+                                    >
+                                      <div className="flex items-center">
+                                        <span className={field.value === entity.id ? 'font-medium' : ''}>
+                                    {entity.name}
+                                        </span>
+                                      </div>
+                                      {field.value === entity.id && (
+                                        <Check className="ml-auto h-4 w-4 text-primary" />
+                                      )}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
                                 </CommandList>
                               </Command>
                             </PopoverContent>
@@ -695,8 +695,8 @@ export default function PaginaCriarNegociacao() {
                                             <span className="truncate max-w-[250px]">
                                               {opcoesTuss.find((tuss) => tuss.id === field.value)?.description}
                                             </span>
-                                          </div>
-                                        ) : (
+                                    </div>
+                                  ) : (
                                           <span className="text-muted-foreground">Selecione um procedimento</span>
                                         )}
                                         <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -704,64 +704,64 @@ export default function PaginaCriarNegociacao() {
                                     </PopoverTrigger>
                                     <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                                       <Command>
-                                        <CommandInput
-                                          placeholder="Buscar por código ou nome..."
-                                          value={termoPesquisaTuss}
-                                          onValueChange={(value) => {
-                                            setTermoPesquisaTuss(value);
+                                          <CommandInput
+                                            placeholder="Buscar por código ou nome..."
+                                            value={termoPesquisaTuss}
+                                            onValueChange={(value) => {
+                                              setTermoPesquisaTuss(value);
                                             if (opcoesTuss.length === 0 || value.length >= 3) {
                                               buscarProcedimentosTuss(value);
                                             }
-                                          }}
-                                        />
+                                            }}
+                                          />
                                         <CommandList>
                                           <CommandEmpty>
                                             <div className="py-6 text-center text-sm">
-                                              <div className="mb-2">Nenhum procedimento encontrado</div>
-                                              <div className="text-xs text-muted-foreground">
-                                                Tente outros termos ou códigos TUSS
+                                          <div className="mb-2">Nenhum procedimento encontrado</div>
+                                          <div className="text-xs text-muted-foreground">
+                                            Tente outros termos ou códigos TUSS
                                               </div>
-                                            </div>
-                                          </CommandEmpty>
-                                          <CommandGroup className="max-h-[300px] overflow-auto">
+                                          </div>
+                                        </CommandEmpty>
+                                        <CommandGroup className="max-h-[300px] overflow-auto">
                                             {carregandoTuss && (
                                               <div className="flex justify-center items-center py-4">
                                                 <Loader2 className="h-6 w-6 animate-spin opacity-50" />
                                               </div>
                                             )}
                                             {opcoesTuss.length > 0 && !carregandoTuss && (
-                                              <div className="p-1 text-xs text-muted-foreground border-b mx-2">
+                                            <div className="p-1 text-xs text-muted-foreground border-b mx-2">
                                                 {opcoesTuss.length} procedimento(s) disponível(is)
-                                              </div>
-                                            )}
-                                            {opcoesTuss.map((tuss) => (
-                                              <CommandItem
-                                                key={tuss.id}
+                                            </div>
+                                          )}
+                                          {opcoesTuss.map((tuss) => (
+                                            <CommandItem
+                                              key={tuss.id}
                                                 value={`${tuss.code} ${tuss.name || ''} ${tuss.description || ''}`}
-                                                onSelect={() => {
-                                                  field.onChange(tuss.id);
-                                                }}
-                                                className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-accent data-[selected=true]:bg-primary/10 data-[selected=true]:text-primary border-b last:border-b-0"
-                                              >
-                                                <div className="flex flex-col w-full">
-                                                  <div className="flex items-center">
-                                                    <Badge 
-                                                      variant="outline" 
-                                                      className={`mr-2 text-xs font-bold ${field.value === tuss.id ? 'bg-primary/20 text-primary border-primary' : ''}`}
-                                                    >
-                                                      {tuss.code}
-                                                    </Badge>
-                                                    <span className={`${field.value === tuss.id ? 'font-medium text-primary' : ''} flex-1 text-sm`}>
+                                              onSelect={() => {
+                                                field.onChange(tuss.id);
+                                              }}
+                                              className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-accent data-[selected=true]:bg-primary/10 data-[selected=true]:text-primary border-b last:border-b-0"
+                                            >
+                                              <div className="flex flex-col w-full">
+                                                <div className="flex items-center">
+                                                  <Badge 
+                                                    variant="outline" 
+                                                    className={`mr-2 text-xs font-bold ${field.value === tuss.id ? 'bg-primary/20 text-primary border-primary' : ''}`}
+                                                  >
+                                                    {tuss.code}
+                                                  </Badge>
+                                                  <span className={`${field.value === tuss.id ? 'font-medium text-primary' : ''} flex-1 text-sm`}>
                                                       {tuss.name || tuss.description}
-                                                    </span>
-                                                  </div>
+                                                  </span>
                                                 </div>
-                                                {field.value === tuss.id && (
-                                                  <Check className="ml-auto h-4 w-4 flex-shrink-0 text-primary" />
-                                                )}
-                                              </CommandItem>
-                                            ))}
-                                          </CommandGroup>
+                                              </div>
+                                              {field.value === tuss.id && (
+                                                <Check className="ml-auto h-4 w-4 flex-shrink-0 text-primary" />
+                                              )}
+                                            </CommandItem>
+                                          ))}
+                                        </CommandGroup>
                                         </CommandList>
                                       </Command>
                                     </PopoverContent>

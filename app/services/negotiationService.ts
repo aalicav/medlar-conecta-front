@@ -1,10 +1,26 @@
 // Import the shared API client used across the application
 import api from '@/services/api-client';
+import { ApiResponse, ForkGroupItem, handleApiError } from './types';
 
+/**
+ * Status constants with descriptions:
+ * 
+ * - 'draft': Rascunho inicial da negociação
+ * - 'submitted': Enviado para entidade externa (plano, profissional, clínica)
+ * - 'pending': Em aprovação interna
+ * - 'approved': Aprovado internamente, aguardando veredito da entidade
+ * - 'complete': Aprovado externamente (entidade aprovou todos os itens)
+ * - 'partially_complete': Parcialmente aprovado externamente (entidade aprovou apenas parte dos itens)
+ * - 'partially_approved': Negociação com alguns itens aprovados e outros rejeitados
+ * - 'rejected': Rejeitado internamente ou externamente
+ * - 'cancelled': Cancelado antes da conclusão
+ */
 export type NegotiationStatus = 
   | 'draft'
   | 'submitted'
-  | 'pending_approval'
+  | 'pending'
+  | 'complete'
+  | 'partially_complete'
   | 'approved'
   | 'partially_approved'
   | 'rejected'
@@ -81,6 +97,22 @@ export interface Negotiation {
   approved_at?: string;
   current_approval_level?: ApprovalLevel;
   approval_history?: ApprovalHistoryItem[];
+  
+  // Campos de controle de ciclos
+  negotiation_cycle?: number;
+  max_cycles_allowed?: number;
+  previous_cycles_data?: any[];
+  
+  // Campos de bifurcação
+  is_fork?: boolean;
+  forked_at?: string;
+  fork_count?: number;
+  parent_negotiation_id?: number;
+  
+  // Relações
+  parent_negotiation?: Negotiation;
+  forked_negotiations?: Negotiation[];
+  status_history?: any[];
 }
 
 export type CreateNegotiationDto = {
@@ -121,7 +153,9 @@ export type UpdateNegotiationDto = Partial<{
 export const negotiationStatusLabels: Record<string, string> = {
   'draft': 'Rascunho',
   'submitted': 'Enviado',
-  'pending_approval': 'Aguardando Aprovação',
+  'pending': 'Pendente',
+  'complete': 'Completo',
+  'partially_complete': 'Parcialmente Completo',
   'approved': 'Aprovado',
   'partially_approved': 'Parcialmente Aprovado',
   'rejected': 'Rejeitado',
@@ -140,6 +174,8 @@ export const negotiationStatusColors = {
   draft: 'default',
   submitted: 'processing',
   pending: 'warning',
+  complete: 'success',
+  partially_complete: 'geekblue',
   approved: 'success',
   partially_approved: 'geekblue',
   rejected: 'error',
@@ -250,7 +286,7 @@ export const negotiationService = {
     approved_value?: number; 
     notes?: string; 
   }) => {
-    return api.post(`/negotiation-items/${itemId}/respond`, data).then(response => response.data);
+    return api.post(`${API_BASE_PATH}/items/${itemId}/respond`, data).then(response => response.data);
   },
 
   /**
@@ -260,7 +296,25 @@ export const negotiationService = {
     counter_value: number; 
     notes?: string; 
   }) => {
-    return api.post(`/negotiation-items/${itemId}/counter`, data).then(response => response.data);
+    return api.post(`${API_BASE_PATH}/items/${itemId}/counter`, data).then(response => response.data);
+  },
+
+  /**
+   * Make batch counter offers for multiple items at once
+   */
+  batchCounterOffer: (negotiationId: number, items: { 
+    item_id: number;
+    counter_value: number; 
+    notes?: string;
+  }[]) => {
+    return api.post(`${API_BASE_PATH}/${negotiationId}/batch-counter`, { items }).then(response => response.data);
+  },
+
+  /**
+   * Get announcements related to negotiations
+   */
+  getAnnouncements: () => {
+    return api.get(`${API_BASE_PATH}/announcements`).then(response => response.data);
   },
 
   /**
@@ -326,7 +380,8 @@ export const negotiationService = {
    * Process approval for a negotiation
    * 
    * Used to approve or reject a negotiation at the current approval level.
-   * If approved, it will move to the next approval level or mark as fully approved.
+   * If approved, the negotiation status changes to 'approved' e será necessária uma confirmação 
+   * da entidade externa (plano/profissional/clínica) para marcar como completa ou parcialmente completa.
    * If rejected, it will mark the negotiation as rejected.
    */
   processApproval: (id: number, action: ApprovalAction) => {
@@ -346,5 +401,82 @@ export const negotiationService = {
     } else {
       return api.post(`${API_BASE_PATH}/${id}/resend-notifications`).then(response => response.data);
     }
+  },
+
+  /**
+   * Mark a negotiation as complete
+   */
+  markAsComplete: (id: number) => {
+    return api.post(`${API_BASE_PATH}/${id}/mark-complete`).then(response => response.data);
+  },
+
+  /**
+   * Mark a negotiation as partially complete
+   */
+  markAsPartiallyComplete: (id: number) => {
+    return api.post(`${API_BASE_PATH}/${id}/mark-partially-complete`).then(response => response.data);
+  },
+
+  /**
+   * Inicia um novo ciclo de negociação
+   */
+  startNewCycle: async (negotiationId: number): Promise<ApiResponse<Negotiation>> => {
+    try {
+      const response = await api.post(`${API_BASE_PATH}/${negotiationId}/cycles`);
+      return {
+        data: response.data.data,
+        message: response.data.message || 'Novo ciclo de negociação iniciado',
+        success: true
+      };
+    } catch (error) {
+      handleApiError(error, 'Falha ao iniciar ciclo de negociação');
+      throw error;
+    }
+  },
+
+  /**
+   * Reverte o status de uma negociação para um status anterior
+   */
+  rollbackStatus: async (
+    negotiationId: number, 
+    targetStatus: 'draft' | 'submitted' | 'pending',
+    reason: string
+  ): Promise<ApiResponse<Negotiation>> => {
+    try {
+      const response = await api.post(`${API_BASE_PATH}/${negotiationId}/rollback`, {
+        target_status: targetStatus,
+        reason
+      });
+      return {
+        data: response.data.data,
+        message: response.data.message || 'Status revertido com sucesso',
+        success: true
+      };
+    } catch (error) {
+      handleApiError(error, 'Falha ao reverter status da negociação');
+      throw error;
+    }
+  },
+
+  /**
+   * Bifurca uma negociação em múltiplas com base nos grupos de itens fornecidos
+   */
+  forkNegotiation: async (
+    negotiationId: number,
+    itemGroups: ForkGroupItem[]
+  ): Promise<ApiResponse<{original_negotiation: Negotiation, forked_negotiations: Negotiation[]}>> => {
+    try {
+      const response = await api.post(`${API_BASE_PATH}/${negotiationId}/fork`, {
+        item_groups: itemGroups
+      });
+      return {
+        data: response.data,
+        message: response.data.message || 'Negociação bifurcada com sucesso',
+        success: true
+      };
+    } catch (error) {
+      handleApiError(error, 'Falha ao bifurcar negociação');
+      throw error;
+    }
   }
-};
+}; 

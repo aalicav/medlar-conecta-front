@@ -93,12 +93,19 @@ import {
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import { ApprovalHistoryList } from '@/app/components/ApprovalHistory';
+import { NegotiationAnnouncement } from '@/app/components/NegotiationAnnouncement';
+import { RollbackStatusDialog } from '@/app/components/RollbackStatusDialog';
+import { NegotiationCycleDialog } from '@/app/components/NegotiationCycleDialog';
+import { NegotiationForkDialog } from '@/app/components/NegotiationForkDialog';
+import { ForkedNegotiationsList } from '@/app/components/ForkedNegotiationsList';
 
-// Update the NegotiationStatus type to include 'pending_approval'
+// Updated NegotiationStatus type to include all status values
 type NegotiationStatus = 
   | 'draft'
   | 'submitted'
-  | 'pending_approval'
+  | 'pending'
+  | 'complete'
+  | 'partially_complete'
   | 'approved'
   | 'partially_approved'
   | 'rejected'
@@ -109,7 +116,9 @@ const getStatusVariant = (status: string) => {
   switch (status) {
     case 'draft': return 'outline';
     case 'submitted': return 'secondary';
-    case 'pending_approval': return 'secondary';
+    case 'pending': return 'secondary';
+    case 'complete': return 'default';
+    case 'partially_complete': return 'warning';
     case 'approved': return 'default';
     case 'partially_approved': return 'secondary';
     case 'rejected': return 'destructive';
@@ -137,6 +146,34 @@ const formatCurrency = (value: number | string | null | undefined): string => {
   
   // Format with Brazilian style (comma as decimal separator)
   return `R$ ${numValue.toFixed(2).replace('.', ',')}`;
+};
+
+/**
+ * Obter descrição do fluxo de status para ajudar na compreensão do usuário
+ */
+const getStatusDescription = (status: NegotiationStatus): string => {
+  switch (status) {
+    case 'draft':
+      return 'Rascunho inicial aguardando envio para aprovação interna';
+    case 'submitted':
+      return 'Em análise pela entidade, aguardando respostas para envio à aprovação interna';
+    case 'pending':
+      return 'Em análise interna para aprovação';
+    case 'approved':
+      return 'Aprovado internamente, negociação enviada automaticamente à entidade para aprovação final';
+    case 'complete':
+      return 'Aprovado pela entidade (aprovação completa)';
+    case 'partially_complete':
+      return 'Parcialmente aprovado pela entidade';
+    case 'partially_approved':
+      return 'Alguns itens foram aprovados, outros rejeitados';
+    case 'rejected':
+      return 'Rejeitado internamente ou pela entidade';
+    case 'cancelled':
+      return 'Cancelado manualmente';
+    default:
+      return 'Status desconhecido';
+  }
 };
 
 export default function NegotiationDetailPage({ params }: { params: { id: string } }) {
@@ -182,10 +219,27 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
   const fetchNegotiation = async () => {
     setLoading(true);
     try {
+      console.log(`Buscando negociação ID: ${negotiationId}`);
       const response = await negotiationService.getNegotiation(negotiationId);
+      
       if (response.data) {
-      setNegotiation(response.data);
+        console.log("Dados da negociação recebidos:", response.data);
+        console.log("Status da negociação:", response.data.status);
+        console.log("Itens da negociação:", response.data.items?.length || 0);
+        
+        // Log dos itens com status counter_offered
+        const counterOfferedItems = response.data.items?.filter(
+          (item: NegotiationItem) => item.status === 'counter_offered'
+        );
+        console.log("Itens com contraproposta:", counterOfferedItems?.length || 0);
+        
+        if (counterOfferedItems?.length > 0) {
+          console.log("Detalhes dos itens com contraproposta:", counterOfferedItems);
+        }
+        
+        setNegotiation(response.data);
       } else {
+        console.error("Resposta vazia ao buscar negociação");
         toast({
           title: "Erro",
           description: "Não foi possível carregar os detalhes da negociação",
@@ -211,15 +265,13 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
   }, [negotiationId]);
   
   // Update confirmAction function to handle the new submit_for_approval action
-  const confirmAction = (action: 'submit' | 'submit_for_approval' | 'cancel') => {
+  const confirmAction = (action: 'submit_for_approval' | 'cancel') => {
     const titulos = {
-      submit: 'Enviar Negociação para Entidade',
       submit_for_approval: 'Enviar para Aprovação Interna',
       cancel: 'Cancelar Negociação'
     };
     
     const descricoes = {
-      submit: 'Tem certeza que deseja enviar esta negociação para a entidade?',
       submit_for_approval: 'Tem certeza que deseja enviar esta negociação para aprovação interna?',
       cancel: 'Tem certeza que deseja cancelar esta negociação?'
     };
@@ -237,14 +289,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     if (!confirmDialog.action || !negotiation) return;
     
     try {
-      if (confirmDialog.action === 'submit') {
-        // Submit to entity
-        await negotiationService.submitNegotiation(negotiation.id);
-        toast({
-          title: "Sucesso",
-          description: "Negociação enviada para a entidade",
-        });
-      } else if (confirmDialog.action === 'submit_for_approval') {
+      if (confirmDialog.action === 'submit_for_approval') {
         // Submit for internal approval
         await negotiationService.submitForApproval(negotiation.id);
         toast({
@@ -262,7 +307,6 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
       fetchNegotiation();
     } catch (error) {
       console.error(`Erro ao ${
-        confirmDialog.action === 'submit' ? 'enviar para entidade' : 
         confirmDialog.action === 'submit_for_approval' ? 'enviar para aprovação interna' : 
         'cancelar'
       } negociação:`, error);
@@ -270,7 +314,6 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
       toast({
         title: "Erro",
         description: `Falha ao ${
-          confirmDialog.action === 'submit' ? 'enviar para entidade' : 
           confirmDialog.action === 'submit_for_approval' ? 'enviar para aprovação interna' : 
           'cancelar'
         } a negociação`,
@@ -281,6 +324,11 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     }
   };
 
+  /**
+   * Processa a aprovação ou rejeição interna da negociação.
+   * Quando aprovada, notifica a entidade (plano/profissional/clínica) para dar o veredito final,
+   * podendo aprovar todos os itens (complete) ou apenas parte deles (partially_complete).
+   */
   const handleApproval = async (action: ApprovalAction) => {
     if (!negotiation) return;
     
@@ -290,6 +338,16 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
         title: "Sucesso",
         description: `Negociação ${action === 'approve' ? 'aprovada' : 'rejeitada'} com sucesso`,
       });
+      
+      // Quando aprovado internamente, mostra uma mensagem específica
+      if (action === 'approve') {
+        toast({
+          title: "Entidade será notificada",
+          description: "Uma notificação foi enviada à entidade para dar o veredito final",
+          variant: "default"
+        });
+      }
+      
       fetchNegotiation();
     } catch (error) {
       console.error(`Erro ao ${action === 'approve' ? 'aprovar' : 'rejeitar'} negociação:`, error);
@@ -320,7 +378,33 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     }
   };
 
+  /**
+   * Renderiza as ações disponíveis para cada status da negociação.
+   * 
+   * Fluxo de status da negociação:
+   * 1. draft: Rascunho inicial
+   * 2. pending: Em avaliação interna 
+   * 3. approved: Aprovado internamente, aguardando confirmação final da entidade 
+   * 4a. complete: Completamente aprovado pela entidade externa
+   * 4b. partially_complete: Parcialmente aprovado pela entidade externa
+   * 
+   * Também pode ser:
+   * - rejected: Rejeitado internamente ou externamente
+   * - cancelled: Cancelado manualmente
+   */
   const renderizarAcoes = (negociacao: Negotiation) => {
+    /**
+     * Fluxo de status da negociação:
+     * 1. draft: Rascunho inicial
+     * 2. pending: Em avaliação interna 
+     * 3. approved: Aprovado internamente, aguardando confirmação final da entidade 
+     * 4a. complete: Completamente aprovado pela entidade externa
+     * 4b. partially_complete: Parcialmente aprovado pela entidade externa
+     * 
+     * Também pode ser:
+     * - rejected: Rejeitado internamente ou externamente
+     * - cancelled: Cancelado manualmente
+     */
     const canApprove = (): boolean => {
       // Check if user has permission to approve negotiations
       return hasPermission('approve_negotiations');
@@ -328,29 +412,31 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
 
     return (
       <div className="flex items-center gap-2">
-        {/* Draft status - initial submission to entity */}
+        {/* 1. Draft → Pending: Enviar o rascunho para aprovação interna */}
         {negociacao.status === 'draft' && (
-          <Button onClick={() => confirmAction('submit')}>
-            Enviar para Entidade
+          <Button onClick={() => confirmAction('submit_for_approval')}>
+            Enviar para Aprovação Interna
           </Button>
         )}
         
-        {/* Submitted status - can be sent for internal approval if all items are responded */}
+        {/* 2. Submitted → Pending: Depois que a entidade responde aos itens, 
+            pode ser enviado para aprovação interna */}
         {negociacao.status === 'submitted' && hasNoPendingItems(negociacao) && (
           <Button onClick={() => confirmAction('submit_for_approval')}>
             Enviar para Aprovação Interna
           </Button>
         )}
         
-        {/* Partially approved status - can be sent for internal approval */}
+        {/* 2b. Partially_approved → Pending: Negociação parcialmente aprovada 
+             pode ser enviada para aprovação interna novamente */}
         {negociacao.status === 'partially_approved' && (
           <Button onClick={() => confirmAction('submit_for_approval')}>
             Enviar para Aprovação Interna
           </Button>
         )}
         
-        {/* Pending approval status - internal approval buttons */}
-        {negociacao.status === 'pending_approval' && canApprove() && (
+        {/* 3. Pending → Approved/Rejected: Decisão de aprovação interna */}
+        {negociacao.status === 'pending' && canApprove() && (
           <>
             <Button onClick={() => handleApproval('approve')}>
               Aprovar Negociação
@@ -360,26 +446,63 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
             </Button>
           </>
         )}
-
-        {/* Notification resend for appropriate statuses */}
-        {(negociacao.status === 'pending_approval' || negociacao.status === 'submitted') && (
+        
+        {/* 4. Approved → Complete/Partially_complete: Após aprovação interna,
+            a aplicação gerencia a mudança para complete/partially_complete automaticamente
+            com base nas respostas da entidade */}
+        {negociacao.status === 'approved' && (
+          <Button onClick={handleResendNotifications}>
+            Reenviar Notificação à Entidade
+          </Button>
+        )}
+        
+        {/* Funcionalidade para reenviar notificações */}
+        {(negociacao.status === 'pending' || negociacao.status === 'submitted') && (
           <Button variant="outline" onClick={handleResendNotifications}>
             Reenviar Notificações
           </Button>
         )}
         
-        {/* Cancel button for active negotiations */}
-        {!['approved', 'rejected', 'cancelled'].includes(negociacao.status) && (
+        {/* Cancelar negociação ativa (apenas status não-finais) */}
+        {!['approved', 'rejected', 'cancelled', 'complete', 'partially_complete'].includes(negociacao.status) && (
           <Button variant="outline" onClick={() => confirmAction('cancel')}>
             Cancelar
           </Button>
         )}
         
-        {/* Generate contract for approved negotiations */}
-        {negociacao.status === 'approved' && (
+        {/* Gerar contrato para negociações aprovadas ou completas */}
+        {(['approved', 'complete', 'partially_complete'].includes(negociacao.status)) && (
           <Button onClick={handleGenerateContract}>
             Gerar Contrato
           </Button>
+        )}
+
+        {/* Adicionar reverter status quando aplicável */}
+        {(['pending', 'approved', 'partially_approved'].includes(negociacao.status)) && (
+          <RollbackStatusDialog 
+            negotiation={negociacao} 
+            onComplete={fetchNegotiation} 
+          />
+        )}
+
+        {/* Adicionar novo ciclo de negociação para negociações parcialmente ou totalmente completadas */}
+        {(['partially_complete', 'complete', 'rejected'].includes(negociacao.status) && 
+          negociacao.negotiation_cycle !== undefined && 
+          negociacao.max_cycles_allowed !== undefined && 
+          negociacao.negotiation_cycle < negociacao.max_cycles_allowed) && (
+          <NegotiationCycleDialog 
+            negotiation={negociacao} 
+            onComplete={fetchNegotiation} 
+          />
+        )}
+
+        {/* Adicionar bifurcação de negociação (apenas em draft ou quando não houve bifurcação) */}
+        {(negociacao.status === 'draft' && !negociacao.is_fork && 
+          negociacao.items.length > 1 && hasPermission('manage_negotiations')) && (
+          <NegotiationForkDialog 
+            negotiation={negociacao} 
+            onComplete={fetchNegotiation} 
+          />
         )}
       </div>
     );
@@ -411,9 +534,15 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
   const showResponseDialog = (item: NegotiationItem) => {
     setSelectedItem(item);
     setCounterOfferMode(false);
+    
+    // Se o item já tiver uma contraproposta, use o valor proposto como valor aprovado inicial
+    const initialApprovedValue = item.status === 'counter_offered' && item.approved_value 
+      ? item.approved_value 
+      : item.proposed_value;
+    
     setResponseForm({
       status: 'approved',
-      approved_value: item.proposed_value,
+      approved_value: initialApprovedValue,
       counter_value: item.proposed_value,
       notes: ''
     });
@@ -510,6 +639,46 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     }
   };
 
+  const handleMarkAsComplete = async () => {
+    if (!negotiation) return;
+    
+    try {
+      await negotiationService.markAsComplete(negotiation.id);
+      toast({
+        title: "Sucesso",
+        description: "Negociação marcada como completa com sucesso",
+      });
+      fetchNegotiation();
+    } catch (error) {
+      console.error('Erro ao marcar negociação como completa:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao marcar negociação como completa",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleMarkAsPartiallyComplete = async () => {
+    if (!negotiation) return;
+    
+    try {
+      await negotiationService.markAsPartiallyComplete(negotiation.id);
+      toast({
+        title: "Sucesso",
+        description: "Negociação marcada como parcialmente completa com sucesso",
+      });
+      fetchNegotiation();
+    } catch (error) {
+      console.error('Erro ao marcar negociação como parcialmente completa:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao marcar negociação como parcialmente completa",
+        variant: "destructive"
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col justify-center items-center h-[70vh] space-y-4">
@@ -586,8 +755,11 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
         <span>/</span>
         <Link href="/negotiations" className="hover:underline">Negociações</Link>
         <span>/</span>
-        <span className="text-foreground font-medium">{negotiation.title}</span>
+        <span className="text-foreground font-medium">{negotiation?.title}</span>
       </div>
+      
+      {/* Announcement Banner */}
+      <NegotiationAnnouncement />
       
       {/* Header */}
       <div className="bg-card border rounded-lg p-6 shadow-sm">
@@ -598,13 +770,22 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
           </Button>
           <div>
               <div className="flex items-center gap-3 mb-1">
-                <Badge variant={getStatusVariant(negotiation.status)} className="px-3 py-1">
-                {negotiationStatusLabels[negotiation.status]}
-              </Badge>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant={getStatusVariant(negotiation.status)} className="px-3 py-1">
+                        {negotiationStatusLabels[negotiation.status]}
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{getStatusDescription(negotiation.status)}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <span className="text-muted-foreground text-sm">
-                ID: {negotiation.id}
-              </span>
-            </div>
+                  ID: {negotiation.id}
+                </span>
+              </div>
               <h1 className="text-3xl font-bold tracking-tight mb-1">{negotiation.title}</h1>
               <div className="flex items-center gap-3 text-sm text-muted-foreground">
                 <div className="flex items-center">
@@ -805,8 +986,16 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
               <CardDescription>
                 {negotiation.status === 'draft' ? 
                   'Estes itens serão incluídos na negociação após o envio para aprovação.' :
-                  negotiation.status === 'pending_approval' ?
-                  'Aguardando aprovação de usuário com alçada superior' :
+                  negotiation.status === 'submitted' ? 
+                  'Aguardando avaliação por parte da entidade (plano/profissional/clínica).' :
+                  negotiation.status === 'pending' ?
+                  'Aguardando aprovação interna por usuário com alçada.' :
+                  negotiation.status === 'approved' ?
+                  'Aprovado internamente. Aguardando confirmação final da entidade.' :
+                  negotiation.status === 'complete' ?
+                  'Negociação concluída e aprovada pela entidade.' :
+                  negotiation.status === 'partially_complete' ?
+                  'Negociação parcialmente concluída pela entidade (algumas especialidades aprovadas, outras não).' :
                   'Revise o status de cada procedimento nesta negociação.'}
               </CardDescription>
             </div>
@@ -854,7 +1043,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                 </TableRow>
               ) : (
                 negotiation.items.map((item) => (
-                    <TableRow key={item.id} className={item.status === 'pending' && negotiation.status.startsWith('pending_') ? 'bg-amber-50/30' : undefined}>
+                    <TableRow key={item.id} className={item.status === 'pending' && negotiation.status === 'pending' ? 'bg-amber-50/30' : undefined}>
                     <TableCell>
                       <div>
                         <div className="font-medium">{item.tuss?.name}</div>
@@ -871,47 +1060,87 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                     </TableCell>
                       <TableCell className="text-right">
                       {item.status === 'approved' && item.approved_value ? (
-                          <HoverCard>
-                            <HoverCardTrigger>
-                              <span className={`font-medium ${
-                                parseFloat(String(item.approved_value)) < parseFloat(String(item.proposed_value))
-                                  ? "text-red-600 flex items-center justify-end" 
-                                  : parseFloat(String(item.approved_value)) > parseFloat(String(item.proposed_value))
-                                    ? "text-green-600 flex items-center justify-end" 
-                                    : "flex items-center justify-end"
-                              }`}>
-                                {formatCurrency(item.approved_value)}
-                                {parseFloat(String(item.approved_value)) < parseFloat(String(item.proposed_value)) && 
-                                  <TrendingDown className="h-4 w-4 ml-1" />}
-                                {parseFloat(String(item.approved_value)) > parseFloat(String(item.proposed_value)) && 
-                                  <TrendingUp className="h-4 w-4 ml-1" />}
-                              </span>
-                            </HoverCardTrigger>
-                            <HoverCardContent className="w-auto">
-                              <div className="space-y-2">
-                                <div className="text-sm font-medium">Comparativo</div>
-                                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                                  <div className="text-muted-foreground">Proposto:</div>
-                                  <div className="text-right">{formatCurrency(item.proposed_value)}</div>
-                                  
-                                  <div className="text-muted-foreground">Aprovado:</div>
-                                  <div className="text-right">{formatCurrency(item.approved_value)}</div>
-                                  
-                                  <div className="text-muted-foreground border-t pt-1 mt-1">Diferença:</div>
-                                  <div className={`text-right border-t pt-1 mt-1 ${
+                        <HoverCard>
+                          <HoverCardTrigger>
+                            <span className={`font-medium ${
+                              parseFloat(String(item.approved_value)) < parseFloat(String(item.proposed_value))
+                                ? "text-red-600 flex items-center justify-end" 
+                                : parseFloat(String(item.approved_value)) > parseFloat(String(item.proposed_value))
+                                  ? "text-green-600 flex items-center justify-end" 
+                                  : "flex items-center justify-end"
+                            }`}>
+                              {formatCurrency(item.approved_value)}
+                              {parseFloat(String(item.approved_value)) < parseFloat(String(item.proposed_value)) && 
+                                <TrendingDown className="h-4 w-4 ml-1" />}
+                              {parseFloat(String(item.approved_value)) > parseFloat(String(item.proposed_value)) && 
+                                <TrendingUp className="h-4 w-4 ml-1" />}
+                            </span>
+                          </HoverCardTrigger>
+                          <HoverCardContent className="w-auto">
+                            <div className="space-y-2">
+                              <div className="text-sm font-medium">Comparativo</div>
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                                <div className="text-muted-foreground">Proposto:</div>
+                                <div className="text-right">{formatCurrency(item.proposed_value)}</div>
+                                
+                                <div className="text-muted-foreground">Aprovado:</div>
+                                <div className="text-right">{formatCurrency(item.approved_value)}</div>
+                                
+                                <div className="text-muted-foreground border-t pt-1 mt-1">Diferença:</div>
+                                <div className={`text-right border-t pt-1 mt-1 ${
                           parseFloat(String(item.approved_value)) < parseFloat(String(item.proposed_value))
                             ? "text-red-600" 
                             : parseFloat(String(item.approved_value)) > parseFloat(String(item.proposed_value))
                               ? "text-green-600" 
                               : ""
-                                  }`}>
-                                    {parseFloat(String(item.approved_value)) > parseFloat(String(item.proposed_value)) ? "+" : ""}
-                                    {formatCurrency(parseFloat(String(item.approved_value)) - parseFloat(String(item.proposed_value))).replace('R$ ', '')}
-                                  </div>
+                                }`}>
+                                  {parseFloat(String(item.approved_value)) > parseFloat(String(item.proposed_value)) ? "+" : ""}
+                                  {formatCurrency(parseFloat(String(item.approved_value)) - parseFloat(String(item.proposed_value))).replace('R$ ', '')}
                                 </div>
                               </div>
-                            </HoverCardContent>
-                          </HoverCard>
+                            </div>
+                          </HoverCardContent>
+                        </HoverCard>
+                      ) : item.status === 'counter_offered' && item.approved_value ? (
+                        <HoverCard>
+                          <HoverCardTrigger>
+                            <span className="font-medium text-blue-600 flex items-center justify-end">
+                              {formatCurrency(item.approved_value)}
+                              <TrendingUp className="h-4 w-4 ml-1" />
+                            </span>
+                          </HoverCardTrigger>
+                          <HoverCardContent className="w-auto">
+                            <div className="space-y-2">
+                              <div className="text-sm font-medium">Detalhes da Proposta</div>
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                                <div className="text-muted-foreground">Valor Original:</div>
+                                <div className="text-right">{formatCurrency(item.proposed_value)}</div>
+                                
+                                <div className="text-muted-foreground">Proposta:</div>
+                                <div className="text-right font-medium text-blue-600">{formatCurrency(item.approved_value)}</div>
+                                
+                                <div className="text-muted-foreground border-t pt-1 mt-1">Diferença:</div>
+                                <div className={`text-right border-t pt-1 mt-1 ${
+                          parseFloat(String(item.approved_value)) < parseFloat(String(item.proposed_value))
+                            ? "text-red-600" 
+                            : parseFloat(String(item.approved_value)) > parseFloat(String(item.proposed_value))
+                              ? "text-green-600" 
+                              : ""
+                                }`}>
+                                  {parseFloat(String(item.approved_value)) > parseFloat(String(item.proposed_value)) ? "+" : ""}
+                                  {formatCurrency(parseFloat(String(item.approved_value)) - parseFloat(String(item.proposed_value))).replace('R$ ', '')}
+                                </div>
+                                
+                                {item.notes && (
+                                  <>
+                                    <div className="text-muted-foreground col-span-2 border-t pt-1 mt-1">Observações:</div>
+                                    <div className="text-sm col-span-2 italic">{item.notes}</div>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </HoverCardContent>
+                        </HoverCard>
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
@@ -945,18 +1174,21 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                           <div className="space-x-2">
                             <Button 
                               size="sm" 
-                              onClick={() => showResponseDialog(item)}
+                              onClick={() => showCounterOfferDialog(item)}
                               className="bg-primary hover:bg-primary/90"
                             >
-                              Responder
+                              Proposta
                             </Button>
+                          </div>
+                        )}
+                        {item.status === 'counter_offered' && (
+                          <div className="space-x-2">
                             <Button 
                               size="sm" 
-                              variant="outline" 
-                              onClick={() => showCounterOfferDialog(item)}
-                              className="text-secondary-foreground"
+                              onClick={() => showResponseDialog(item)}
+                              className="bg-secondary hover:bg-secondary/90"
                             >
-                              Contraproposta
+                              Responder Proposta
                             </Button>
                           </div>
                         )}
@@ -979,7 +1211,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
               {counterOfferMode ? (
                 <>
                   <TrendingUp className="h-5 w-5 text-secondary" />
-                  Enviar Contraproposta
+                  Proposta de Valor
                 </>
               ) : (
                 <>
@@ -1019,7 +1251,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
             
             <div className="grid grid-cols-2 gap-4 items-end">
               <div>
-                <Label htmlFor="proposed-value" className="text-muted-foreground">Valor Proposto</Label>
+                <Label htmlFor="proposed-value" className="text-muted-foreground">Valor Original</Label>
                 <div className="relative mt-1.5">
                   <Input 
                     id="proposed-value" 
@@ -1038,7 +1270,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
               {(responseForm.status !== 'rejected' || counterOfferMode) && (
               <div>
                   <Label htmlFor="response-value" className="text-muted-foreground">
-                    {counterOfferMode ? 'Valor da Contraproposta' : 'Valor Aprovado'}
+                    {counterOfferMode ? 'Valor Proposto' : 'Valor Aprovado'}
                 </Label>
                   <div className="relative mt-1.5">
                 <Input 
@@ -1053,7 +1285,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                       }
                       className={`pl-8 ${
                         counterOfferMode
-                          ? 'border-secondary focus-visible:ring-secondary'
+                          ? 'border-primary focus-visible:ring-primary'
                           : responseForm.status === 'approved'
                             ? 'border-primary focus-visible:ring-primary'
                             : ''
@@ -1071,7 +1303,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
               <Label htmlFor="notes" className="text-muted-foreground">Observações</Label>
               <Textarea 
                 id="notes"
-                placeholder="Adicione comentários ou observações sobre sua resposta"
+                placeholder="Adicione comentários ou observações sobre sua proposta"
                 value={responseForm.notes}
                 onChange={(e) => setResponseForm({...responseForm, notes: e.target.value})}
                 className="mt-1.5 min-h-[100px]"
@@ -1086,7 +1318,6 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
             <Button 
               onClick={handleResponseSubmit} 
               disabled={respondLoading}
-              className={counterOfferMode ? 'bg-secondary hover:bg-secondary/90' : ''}
             >
               {respondLoading ? (
                 <>
@@ -1094,7 +1325,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                   {counterOfferMode ? 'Enviando...' : 'Respondendo...'}
                 </>
               ) : (
-                counterOfferMode ? 'Enviar Contraproposta' : 'Confirmar Resposta'
+                counterOfferMode ? 'Enviar Proposta' : 'Confirmar Resposta'
               )}
             </Button>
           </DialogFooter>
@@ -1122,8 +1353,21 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
         </AlertDialogContent>
       </AlertDialog>
       
-      {negotiation.approval_history && negotiation.approval_history.length > 0 && (
-        <ApprovalHistoryList history={negotiation.approval_history} />
+      {/* Approval History Section */}
+      {negotiation && negotiation.approval_history && negotiation.approval_history.length > 0 && (
+        <div className="my-6">
+          <ApprovalHistoryList history={negotiation.approval_history} />
+        </div>
+      )}
+
+      {/* Forked Negotiations Section */}
+      {negotiation && (negotiation.fork_count > 0 || negotiation.parent_negotiation_id) && (
+        <div className="my-6">
+          <ForkedNegotiationsList 
+            parentNegotiation={negotiation} 
+            forkedNegotiations={negotiation.forked_negotiations} 
+          />
+        </div>
       )}
     </div>
   );
