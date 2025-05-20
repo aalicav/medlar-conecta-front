@@ -1510,57 +1510,54 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
       const currentDocType = documentTypes?.find(dt => dt.id === currentTypeId);
       const hasExistingFile = !!form.getValues(`documents.${index}.file_url`);
       
+      // Only render fields for required document types
+      if (!currentDocType?.is_required) return null;
+      
       return (
-        <div key={field.id} className="space-y-4 p-4 border rounded-lg">
-          <div className="flex items-end gap-4">
-            <TypedFormField
-              control={form.control}
-              name={`documents.${index}.type_id`}
-              render={({ field }: any) => (
-                <FormItem className="flex-1">
-                  <FormLabel>
-                    Tipo de Documento
-                    {currentDocType?.is_required && <span className="text-red-500">*</span>}
-                  </FormLabel>
+        <div 
+          key={field.id} 
+          className="space-y-4 p-4 border border-red-100 rounded-lg bg-red-50/30"
+        >
+          <TypedFormField
+            control={form.control}
+            name={`documents.${index}.type_id`}
+            render={({ field }: any) => (
+              <FormItem className="flex-1">
+                <FormLabel className="flex items-center">
+                  {currentDocType.name}
+                  <span className="text-red-500 ml-1 font-bold">*</span>
+                </FormLabel>
+                
+                {/* Hidden select that's disabled to prevent changes */}
+                <div className="hidden">
                   <Select
                     value={field.value?.toString()}
-                    onValueChange={(value) => handleDocumentTypeChange(value, index)}
+                    onValueChange={() => {}}
+                    disabled={true}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o tipo" />
                     </SelectTrigger>
                     <SelectContent>
-                      {documentTypes?.map((type) => (
+                      {documentTypes?.filter(dt => dt.is_required).map((type) => (
                         <SelectItem
                           key={type.id}
                           value={type.id.toString()}
-                          disabled={type.is_required && documentFields.some((f, i) => 
-                            i !== index && form.getValues(`documents.${i}.type_id`) === type.id
-                          )}
                         >
-                          {type.name} {type.is_required && "(Obrigatório)"}
+                          {type.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <FormMessage className={formErrorStyles} />
-                </FormItem>
-              )}
-            />
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => removeDocument(index)}
-              disabled={currentDocType?.is_required}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          </div>
+                </div>
+                
+                <FormMessage className={formErrorStyles} />
+              </FormItem>
+            )}
+          />
 
           {hasExistingFile && (
-            <div className="text-sm text-green-600 flex items-center gap-2 mb-2">
+            <div className="text-sm text-green-600 flex items-center gap-2 p-2 bg-green-50 rounded-md">
               <Check className="h-4 w-4" />
               Documento já enviado
             </div>
@@ -1571,9 +1568,9 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
             name={`documents.${index}.file`}
             render={({ field }: any) => (
               <FormItem>
-                <FormLabel>
+                <FormLabel className="flex items-center">
                   Arquivo
-                  {currentDocType?.is_required && !hasExistingFile && <span className="text-red-500">*</span>}
+                  {!hasExistingFile && <span className="text-red-500 ml-1 font-bold">*</span>}
                 </FormLabel>
                 <FormControl>
                   <Input
@@ -1583,7 +1580,9 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
                   />
                 </FormControl>
                 <FormDescription>
-                  {hasExistingFile ? "Você pode substituir o arquivo existente" : "Formatos aceitos: PDF, DOC, DOCX, JPG, PNG. Tamanho máximo: 10MB"}
+                  {hasExistingFile ? 
+                    "Você pode substituir o arquivo existente" : 
+                    "Formatos aceitos: PDF, DOC, DOCX, JPG, PNG. Tamanho máximo: 10MB"}
                 </FormDescription>
                 <FormMessage className={formErrorStyles} />
               </FormItem>
@@ -1595,9 +1594,11 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
             name={`documents.${index}.expiration_date`}
             render={({ field }: any) => (
               <FormItem>
-                <FormLabel>
+                <FormLabel className="flex items-center">
                   Data de Expiração
-                  {currentDocType?.expiration_alert_days && <span className="text-red-500">*</span>}
+                  {currentDocType?.expiration_alert_days && 
+                    <span className="text-red-500 ml-1 font-bold">*</span>
+                  }
                 </FormLabel>
                 <FormControl>
                   <Input
@@ -2265,54 +2266,188 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
             </TabsContent>
 
             <TabsContent value="documents">
-              <Card className="border-t-4 border-t-purple-500">
+              <Card className="border-t-4 border-t-primary">
                 <CardHeader className="bg-muted/50">
                   <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-purple-500" /> 
-                    Documentos
+                    <FileText className="h-5 w-5 text-primary" /> 
+                    Documentos Exigidos
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="pt-6">
+                <CardContent className="space-y-6 pt-6">
+                  {/* Lista informativa de documentos exigidos */}
+                  <div className="bg-muted/30 p-4 rounded-lg mb-4">
+                    <div className="text-sm text-muted-foreground mb-2">
+                      Os seguintes documentos são obrigatórios para o cadastro do plano de saúde:
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {documentTypes
+                        ?.filter(type => type.is_required)
+                        .map(type => (
+                          <div key={type.id} className="flex items-start gap-2">
+                            <span className="text-red-500 font-bold">*</span>
+                            <div>
+                              <span className="font-medium">{type.name}</span>
+                              {type.description && (
+                                <p className="text-sm text-muted-foreground">{type.description}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                  
+                  {/* Formulário de documentos */}
                   <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-medium flex items-center gap-2">
-                        <InfoIcon className="h-4 w-4 text-purple-500" />
-                        Documentação Necessária
-                      </h3>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleAddDocument}
-                        className="bg-purple-50 hover:bg-purple-100 border-purple-200"
-                      >
-                        <Plus className="w-4 h-4 mr-2 text-purple-500" />
-                        Adicionar Documento
-                      </Button>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {renderDocuments()}
-                    </div>
-                    
-                    <div className="flex justify-end space-x-4 mt-8 pt-4 border-t">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => handleNavigation('/health-plans')}
-                        disabled={isSubmitting}
-                      >
-                        Cancelar
-                      </Button>
+                    {documentFields.map((field, index) => {
+                      const currentTypeId = form.getValues(`documents.${index}.type_id`);
+                      const currentDocType = documentTypes?.find(dt => dt.id === currentTypeId);
+                      const hasExistingFile = !!form.getValues(`documents.${index}.file_url`);
                       
-                      <Button 
-                        type="submit" 
-                        disabled={isSubmitting}
-                      >
-                        {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                        {healthPlanId ? "Atualizar" : "Cadastrar"}
-                      </Button>
-                    </div>
+                      // Only render fields for required document types
+                      if (!currentDocType?.is_required) return null;
+                      
+                      return (
+                        <div 
+                          key={field.id} 
+                          className="space-y-4 p-4 border border-red-100 rounded-lg bg-red-50/30"
+                        >
+                          <TypedFormField
+                            control={form.control}
+                            name={`documents.${index}.type_id`}
+                            render={({ field }: any) => (
+                              <FormItem className="flex-1">
+                                <FormLabel className="flex items-center">
+                                  {currentDocType.name}
+                                  <span className="text-red-500 ml-1 font-bold">*</span>
+                                </FormLabel>
+                                
+                                {/* Hidden select that's disabled to prevent changes */}
+                                <div className="hidden">
+                                  <Select
+                                    value={field.value?.toString()}
+                                    onValueChange={() => {}}
+                                    disabled={true}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Selecione o tipo" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {documentTypes?.filter(dt => dt.is_required).map((type) => (
+                                        <SelectItem
+                                          key={type.id}
+                                          value={type.id.toString()}
+                                        >
+                                          {type.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                
+                                <FormMessage className={formErrorStyles} />
+                              </FormItem>
+                            )}
+                          />
+
+                          {hasExistingFile && (
+                            <div className="text-sm text-green-600 flex items-center gap-2 p-2 bg-green-50 rounded-md">
+                              <Check className="h-4 w-4" />
+                              Documento já enviado
+                            </div>
+                          )}
+
+                          <TypedFormField
+                            control={form.control}
+                            name={`documents.${index}.file`}
+                            render={({ field }: any) => (
+                              <FormItem>
+                                <FormLabel className="flex items-center">
+                                  Arquivo
+                                  {!hasExistingFile && <span className="text-red-500 ml-1 font-bold">*</span>}
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="file"
+                                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                                    onChange={(e) => handleDocumentChange(e, index)}
+                                  />
+                                </FormControl>
+                                <FormDescription>
+                                  {hasExistingFile ? 
+                                    "Você pode substituir o arquivo existente" : 
+                                    "Formatos aceitos: PDF, DOC, DOCX, JPG, PNG. Tamanho máximo: 10MB"}
+                                </FormDescription>
+                                <FormMessage className={formErrorStyles} />
+                              </FormItem>
+                            )}
+                          />
+
+                          <TypedFormField
+                            control={form.control}
+                            name={`documents.${index}.expiration_date`}
+                            render={({ field }: any) => (
+                              <FormItem>
+                                <FormLabel className="flex items-center">
+                                  Data de Expiração
+                                  {currentDocType?.expiration_alert_days && 
+                                    <span className="text-red-500 ml-1 font-bold">*</span>
+                                  }
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="date"
+                                    {...field}
+                                    value={field.value || ''}
+                                    min={new Date().toISOString().split('T')[0]}
+                                  />
+                                </FormControl>
+                                {currentDocType?.expiration_alert_days && (
+                                  <FormDescription>
+                                    Este documento requer alerta de expiração {currentDocType.expiration_alert_days} dias antes do vencimento
+                                  </FormDescription>
+                                )}
+                                <FormMessage className={formErrorStyles} />
+                              </FormItem>
+                            )}
+                          />
+
+                          <TypedFormField
+                            control={form.control}
+                            name={`documents.${index}.observation`}
+                            render={({ field }: any) => (
+                              <FormItem>
+                                <FormLabel>Observação</FormLabel>
+                                <FormControl>
+                                  <Textarea {...field} value={field.value || ''} />
+                                </FormControl>
+                                <FormMessage className={formErrorStyles} />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  {/* Add back the submit button */}
+                  <div className="flex justify-end space-x-4 mt-8 pt-4 border-t">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => handleNavigation('/health-plans')}
+                      disabled={isSubmitting}
+                    >
+                      Cancelar
+                    </Button>
+                    
+                    <Button 
+                      type="submit" 
+                      className="bg-primary hover:bg-primary/90"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      {healthPlanId ? "Atualizar" : "Cadastrar"}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

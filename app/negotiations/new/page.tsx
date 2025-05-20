@@ -73,6 +73,8 @@ import { useForm } from 'react-hook-form';
 import { Badge } from "@/components/ui/badge";
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Toaster } from '@/components/ui/toaster';
+import { getErrorMessage } from '../../services/types';
 
 interface OpcaoEntidade {
   id: number;
@@ -258,16 +260,22 @@ export default function PaginaCriarNegociacao() {
     setCarregando(true);
     try {
       const response = await negotiationService.createNegotiation(dadosNegociacao);
+      
       toast({
         title: "Sucesso",
         description: "Negociação criada com sucesso",
       });
+      
       router.push(`/negotiations/${response.data.id}`);
     } catch (error) {
       console.error('Erro ao criar negociação:', error);
+      
+      // Use translated error message
+      const errorMessage = getErrorMessage(error);
+      
       toast({
         title: "Erro",
-        description: "Falha ao criar negociação. Verifique os dados e tente novamente.",
+        description: errorMessage || "Falha ao criar negociação. Verifique os dados e tente novamente.",
         variant: "destructive"
       });
     } finally {
@@ -860,6 +868,8 @@ export default function PaginaCriarNegociacao() {
           </Form>
         </CardContent>
       </Card>
+      
+      <Toaster />
     </div>
   );
 } 

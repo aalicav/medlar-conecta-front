@@ -395,12 +395,8 @@ export const negotiationService = {
    * that is currently in a pending status.
    */
   resendNotifications: (id: number, status?: string) => {
-    // Use different endpoints based on negotiation status
-    if (status === 'submitted') {
-      return api.post(`${API_BASE_PATH}/${id}/resend-submitted-notifications`).then(response => response.data);
-    } else {
-      return api.post(`${API_BASE_PATH}/${id}/resend-notifications`).then(response => response.data);
-    }
+    // Use the only endpoint that exists in the backend
+    return api.post(`${API_BASE_PATH}/${id}/resend-notifications`).then(response => response.data);
   },
 
   /**

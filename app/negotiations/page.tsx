@@ -79,7 +79,9 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/components/ui/pagination';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
+import { Toaster } from '@/components/ui/toaster';
+import { getErrorMessage } from '../services/types';
 
 /**
  * Fluxo de status da negociação:
@@ -284,9 +286,15 @@ export default function PaginaNegociacoes() {
       buscarNegociacoes(paginacao.atual, paginacao.tamanhoPagina);
     } catch (error) {
       console.error(`Erro ao ${dialogoConfirmacao.acao} negociação:`, error);
+      
+      // Use translated error message
+      const errorMessage = getErrorMessage(error);
+      const actionVerb = dialogoConfirmacao.acao === 'approve' ? 'aprovar' : 
+                         dialogoConfirmacao.acao === 'reject' ? 'rejeitar' : 'cancelar';
+      
       toast({
         title: "Erro",
-        description: `Falha ao ${dialogoConfirmacao.acao} a negociação`,
+        description: errorMessage || `Falha ao ${actionVerb} a negociação`,
         variant: "destructive"
       });
     } finally {
@@ -319,6 +327,7 @@ export default function PaginaNegociacoes() {
     try {
       const negotiation = negociacoes.find(n => n.id === id);
       await negotiationService.resendNotifications(id, negotiation?.status);
+      
       toast({
         title: "Sucesso",
         description: "Notificações reenviadas com sucesso",
@@ -327,9 +336,13 @@ export default function PaginaNegociacoes() {
       buscarNegociacoes(paginacao.atual, paginacao.tamanhoPagina);
     } catch (error) {
       console.error('Erro ao reenviar notificações:', error);
+      
+      // Use the getErrorMessage helper to get a translated error message
+      const errorMessage = getErrorMessage(error);
+      
       toast({
         title: "Erro",
-        description: "Falha ao reenviar notificações",
+        description: errorMessage || "Falha ao reenviar notificações",
         variant: "destructive"
       });
     }
@@ -428,7 +441,8 @@ export default function PaginaNegociacoes() {
           )}
           
           {/* Submitted/Partially Approved - Enviar para aprovação interna */}
-          {(negociacao.status === 'submitted' || negociacao.status === 'partially_approved') && (
+          {(negociacao.status === 'submitted' || negociacao.status === 'partially_approved') && 
+           !['pending_approval', 'pending_director_approval'].includes(negociacao.current_approval_level || '') && (
             <DropdownMenuItem onClick={() => handleSubmitForFinalApproval(negociacao.id)}>
               Enviar para Aprovação Interna
             </DropdownMenuItem>
@@ -516,9 +530,13 @@ export default function PaginaNegociacoes() {
       buscarNegociacoes(paginacao.atual, paginacao.tamanhoPagina);
     } catch (error) {
       console.error('Erro ao enviar para aprovação final:', error);
+      
+      // Use translated error message
+      const errorMessage = getErrorMessage(error);
+      
       toast({
         title: "Erro",
-        description: "Falha ao enviar para aprovação final",
+        description: errorMessage || "Falha ao enviar para aprovação final",
         variant: "destructive"
       });
     }
@@ -729,6 +747,8 @@ export default function PaginaNegociacoes() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      
+      <Toaster />
     </div>
   );
 } 

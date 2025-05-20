@@ -229,6 +229,12 @@ export function Sidebar({ className }: SidebarProps) {
       roles: ["super_admin", "admin", "director"],
     },
     {
+      title: "Usuários",
+      href: "/admin/users",
+      icon: UserRound,
+      roles: ["super_admin", "admin", "director"],
+    },
+    {
       title: "WhatsApp",
       href: "/whatsapp",
       icon: MessageSquare,

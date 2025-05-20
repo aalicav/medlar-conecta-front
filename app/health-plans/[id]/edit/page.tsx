@@ -166,6 +166,12 @@ export default function EditHealthPlanPage() {
         <p className="text-muted-foreground">
           Atualize as informações do plano de saúde: {healthPlan.name}
         </p>
+        <div className="mt-2 p-4 bg-amber-50 border border-amber-200 rounded-md">
+          <p className="text-amber-800 text-sm">
+            <strong>Atenção:</strong> Ao editar um plano de saúde, ele precisará ser aprovado novamente
+            e o contrato deverá ser assinado novamente antes que solicitações possam ser criadas.
+          </p>
+        </div>
       </div>
 
       <HealthPlanForm 

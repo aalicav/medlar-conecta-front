@@ -3,6 +3,7 @@
 import { HealthPlanForm } from "@/components/forms/health-plan-form"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Building2, PlusCircle } from "lucide-react"
+import { Toaster } from "@/components/ui/toaster"
 
 export default function NewHealthPlanPage() {
   return (
@@ -16,11 +17,19 @@ export default function NewHealthPlanPage() {
           Preencha os dados do plano de saúde usando o formulário abaixo. Os campos marcados com * são obrigatórios.
           Use o botão de busca para completar o endereço automaticamente a partir do CEP.
         </p>
+        <div className="mt-2 p-4 bg-blue-50 border border-blue-200 rounded-md">
+          <p className="text-blue-800 text-sm">
+            <strong>Atenção:</strong> Novos planos de saúde precisam ser aprovados e ter o contrato assinado
+            antes que solicitações possam ser criadas.
+          </p>
+        </div>
       </div>
 
       <div className="bg-muted/30 rounded-lg p-6">
         <HealthPlanForm />
       </div>
+      
+      <Toaster />
     </div>
   )
 }

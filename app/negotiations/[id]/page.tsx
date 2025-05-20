@@ -98,6 +98,8 @@ import { RollbackStatusDialog } from '@/app/components/RollbackStatusDialog';
 import { NegotiationCycleDialog } from '@/app/components/NegotiationCycleDialog';
 import { NegotiationForkDialog } from '@/app/components/NegotiationForkDialog';
 import { ForkedNegotiationsList } from '@/app/components/ForkedNegotiationsList';
+import { Toaster } from '@/components/ui/toaster';
+import { getErrorMessage } from '../../services/types';
 
 // Updated NegotiationStatus type to include all status values
 type NegotiationStatus = 
@@ -364,15 +366,20 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     
     try {
       await negotiationService.resendNotifications(negotiation.id, negotiation.status);
+      
       toast({
         title: "Sucesso",
         description: "Notificações reenviadas com sucesso",
       });
     } catch (error) {
       console.error('Erro ao reenviar notificações:', error);
+      
+      // Use the getErrorMessage helper to get a translated error message
+      const errorMessage = getErrorMessage(error);
+      
       toast({
         title: "Erro",
-        description: "Falha ao reenviar notificações",
+        description: errorMessage || "Falha ao reenviar notificações",
         variant: "destructive"
       });
     }
@@ -421,7 +428,8 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
         
         {/* 2. Submitted → Pending: Depois que a entidade responde aos itens, 
             pode ser enviado para aprovação interna */}
-        {negociacao.status === 'submitted' && hasNoPendingItems(negociacao) && (
+        {negociacao.status === 'submitted' && hasNoPendingItems(negociacao) && 
+          !['pending_approval', 'pending_director_approval'].includes(negociacao.current_approval_level || '') && (
           <Button onClick={() => confirmAction('submit_for_approval')}>
             Enviar para Aprovação Interna
           </Button>
@@ -429,7 +437,8 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
         
         {/* 2b. Partially_approved → Pending: Negociação parcialmente aprovada 
              pode ser enviada para aprovação interna novamente */}
-        {negociacao.status === 'partially_approved' && (
+        {negociacao.status === 'partially_approved' && 
+          !['pending_approval', 'pending_director_approval'].includes(negociacao.current_approval_level || '') && (
           <Button onClick={() => confirmAction('submit_for_approval')}>
             Enviar para Aprovação Interna
           </Button>
@@ -613,13 +622,16 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     } catch (error: any) {
       console.error('Erro ao responder ao item:', error);
       
+      // Use the getErrorMessage helper to get a translated error message
+      const errorMessage = getErrorMessage(error);
+      
       // Mensagem de erro mais detalhada
-      const errorMessage = error.response?.data?.message || 
+      const displayMessage = errorMessage || 
         (counterOfferMode ? "Falha ao enviar contra-proposta" : "Falha ao enviar resposta");
       
       toast({
         title: "Erro",
-        description: errorMessage,
+        description: displayMessage,
         variant: "destructive"
       });
       
@@ -1361,7 +1373,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
       )}
 
       {/* Forked Negotiations Section */}
-      {negotiation && (negotiation.fork_count > 0 || negotiation.parent_negotiation_id) && (
+      {negotiation && ((negotiation.fork_count && negotiation.fork_count > 0) || negotiation.parent_negotiation_id) && (
         <div className="my-6">
           <ForkedNegotiationsList 
             parentNegotiation={negotiation} 
@@ -1369,6 +1381,8 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
           />
         </div>
       )}
+      
+      <Toaster />
     </div>
   );
 } 

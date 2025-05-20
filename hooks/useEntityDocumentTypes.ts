@@ -21,7 +21,6 @@ export function useEntityDocumentTypes(entityType: string) {
       const { data } = await api.get(`/entity-document-types`, {
         params: {
           entity_type: entityType,
-          is_active: true
         }
       });
       return data;
