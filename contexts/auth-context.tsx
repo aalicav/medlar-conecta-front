@@ -371,6 +371,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       case "professional":
         router.replace("/dashboard")
         break
+      case "network_manager":
+        router.replace("/dashboard")
+        break
       default:
         router.replace("/dashboard")
     }

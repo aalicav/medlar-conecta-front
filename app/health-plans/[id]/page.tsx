@@ -26,6 +26,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import api from "@/services/api-client"
+import { ConditionalRender } from "@/components/conditional-render"
 
 interface HealthPlan {
   id: number
@@ -720,12 +721,11 @@ export default function HealthPlanDetailsPage() {
               <CardDescription>Contratos associados ao plano de saúde</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <h3 className="text-lg font-medium">Contratos</h3>
-                <p className="text-sm text-muted-foreground">
-                  Aqui seriam exibidos os contratos associados a este plano de saúde.
-                </p>
-              </div>
+              <ConditionalRender hideOnContractData>
+                <div className="contract-details">
+                  {/* Informações de contratos */}
+                </div>
+              </ConditionalRender>
             </CardContent>
             <CardFooter>
               <Button>

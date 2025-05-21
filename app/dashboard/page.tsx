@@ -44,6 +44,7 @@ import ProfessionalDashboard from '@/app/components/dashboards/ProfessionalDashb
 import ClinicDashboard from '@/app/components/dashboards/ClinicDashboard';
 import { CardContent, CardDescription, CardHeader, CardTitle, Card as UICard } from '@/components/ui/card'
 import { TrendingUp, Clock } from 'lucide-react'
+import { ConditionalRender } from "@/components/conditional-render";
 
 const { Title, Text, Paragraph } = Typography;
 const { TabPane } = Tabs;
@@ -437,65 +438,43 @@ export default function DashboardHomepage() {
               </Col>
               
               <Col xs={24} md={8}>
-                <AntCard
-                  title={<span style={{ color: 'rgba(255, 255, 255, 0.85)' }}>Itens Pendentes</span>}
-                  loading={loading}
-                  className="dark-card"
-                >
-                  <Tabs 
-                    defaultActiveKey="1"
-                    items={[
-                      {
-                        key: '1',
-                        label: 'Contratos',
-                        children: pendingItems.contracts && pendingItems.contracts.length > 0 ? (
-                          <List
-                            size="small"
-                            dataSource={pendingItems.contracts}
-                            renderItem={item => (
-                              <List.Item>
-                                <List.Item.Meta
-                                  avatar={<FileTextOutlined style={{ color: '#1890ff' }} />}
-                                  title={<Link href={item.link} style={{ color: 'rgba(255, 255, 255, 0.85)' }}>{item.title}</Link>}
-                                  description={<span style={{ color: 'rgba(255, 255, 255, 0.65)' }}>{item.description}</span>}
-                                />
-                                <Tag color={item.priority === 'high' ? 'red' : 'blue'}>
-                                  {item.priority === 'high' ? 'Urgente' : 'Normal'}
-                                </Tag>
-                              </List.Item>
-                            )}
-                          />
-                        ) : (
-                          <Empty description="Nenhum contrato pendente" />
-                        )
-                      },
-                      {
-                        key: '2',
-                        label: 'Negociações',
-                        children: pendingItems.negotiations && pendingItems.negotiations.length > 0 ? (
-                          <List
-                            size="small"
-                            dataSource={pendingItems.negotiations}
-                            renderItem={item => (
-                              <List.Item>
-                                <List.Item.Meta
-                                  avatar={<AlertOutlined style={{ color: '#faad14' }} />}
-                                  title={<Link href={item.link} style={{ color: 'rgba(255, 255, 255, 0.85)' }}>{item.title}</Link>}
-                                  description={<span style={{ color: 'rgba(255, 255, 255, 0.65)' }}>{item.description}</span>}
-                                />
-                                <Tag color={item.priority === 'high' ? 'red' : 'blue'}>
-                                  {item.priority === 'high' ? 'Urgente' : 'Normal'}
-                                </Tag>
-                              </List.Item>
-                            )}
-                          />
-                        ) : (
-                          <Empty description="Nenhuma negociação pendente" />
-                        )
-                      }
-                    ]}
-                  />
-                </AntCard>
+                <ConditionalRender hideOnContractData>
+                  <AntCard
+                    title={<span style={{ color: 'rgba(255, 255, 255, 0.85)' }}>Contratos Pendentes</span>}
+                    loading={loading}
+                    className="dark-card"
+                  >
+                    <Tabs 
+                      defaultActiveKey="1"
+                      items={[
+                        {
+                          key: '1',
+                          label: 'Contratos',
+                          children: pendingItems.contracts && pendingItems.contracts.length > 0 ? (
+                            <List
+                              size="small"
+                              dataSource={pendingItems.contracts}
+                              renderItem={item => (
+                                <List.Item>
+                                  <List.Item.Meta
+                                    avatar={<FileTextOutlined style={{ color: '#1890ff' }} />}
+                                    title={<Link href={item.link} style={{ color: 'rgba(255, 255, 255, 0.85)' }}>{item.title}</Link>}
+                                    description={<span style={{ color: 'rgba(255, 255, 255, 0.65)' }}>{item.description}</span>}
+                                  />
+                                  <Tag color={item.priority === 'high' ? 'red' : 'blue'}>
+                                    {item.priority === 'high' ? 'Urgente' : 'Normal'}
+                                  </Tag>
+                                </List.Item>
+                              )}
+                            />
+                          ) : (
+                            <Empty description="Nenhum contrato pendente" />
+                          )
+                        },
+                      ]}
+                    />
+                  </AntCard>
+                </ConditionalRender>
               </Col>
             </Row>
           </>

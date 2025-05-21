@@ -10,6 +10,7 @@ import "./globals.css"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { UserGuide } from "@/components/user-guide"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -45,6 +46,7 @@ export default function RootLayout({
               {!isNoLayoutPage && token ? (
                 <MainLayout>
                   {children}
+                  <UserGuide />
                 </MainLayout>
               ) : (
                 <>{children}</>

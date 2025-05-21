@@ -16,6 +16,7 @@ import { DataTable } from "@/components/data-table/data-table"
 import { ColumnDef } from "@tanstack/react-table"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
+import { ConditionalRender } from "@/components/conditional-render"
 
 interface Professional {
   id: number

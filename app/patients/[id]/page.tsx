@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "@/components/ui/use-toast"
-import { Loader2, Edit, ArrowLeft, Trash2, Phone, Mail, CalendarIcon, MapPin, CreditCard, List } from "lucide-react"
+import { Loader2, Edit, ArrowLeft, Trash2, Phone, Mail, CalendarIcon, MapPin, CreditCard, List, ShieldAlert } from "lucide-react"
 import api from "@/services/api-client"
 import { maskCPF, maskPhone, maskCEP } from "@/components/utils/masks"
 import { formatDate } from "@/lib/utils"
 import { fetchResourceById } from "@/services/resource-service"
+import { ConditionalRender } from "@/components/conditional-render"
+import { useAuth } from "@/contexts/auth-context"
 
 interface Patient {
   id: number
@@ -44,6 +46,8 @@ export default function PatientDetailsPage() {
   const router = useRouter()
   const params = useParams()
   const patientId = params.id as string
+  const { getUserRole } = useAuth()
+  const isNetworkManager = getUserRole() === 'network_manager'
   
   const [patient, setPatient] = useState<Patient | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -112,15 +116,19 @@ export default function PatientDetailsPage() {
             <Edit className="h-4 w-4 mr-2" />
             Editar
           </Button>
-          {patient.health_plan && (
-            <Button
-              variant="outline"
-              onClick={() => router.push(`/patients/${patient.id}/procedures`)}
-            >
-              <List className="h-4 w-4 mr-2" />
-              Procedimentos do Plano
-            </Button>
-          )}
+          
+          {/* Ocultar botão de procedimentos do plano para gerentes de rede */}
+          <ConditionalRender hideForRoles={['network_manager']}>
+            {patient.health_plan && (
+              <Button
+                variant="outline"
+                onClick={() => router.push(`/patients/${patient.id}/procedures`)}
+              >
+                <List className="h-4 w-4 mr-2" />
+                Procedimentos do Plano
+              </Button>
+            )}
+          </ConditionalRender>
         </div>
       </div>
       
@@ -204,40 +212,62 @@ export default function PatientDetailsPage() {
           </CardContent>
         </Card>
         
-        <Card>
-          <CardHeader>
-            <CardTitle>Plano de Saúde</CardTitle>
-            <CardDescription>Informações do plano</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {patient.health_plan ? (
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground">Plano</h3>
-                  <p className="font-medium">{patient.health_plan.name}</p>
-                </div>
-                
-                {patient.health_card_number && (
+        <ConditionalRender hideOnContractData>
+          <Card>
+            <CardHeader>
+              <CardTitle>Plano de Saúde</CardTitle>
+              <CardDescription>Informações do plano</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {patient.health_plan ? (
+                <div className="space-y-4">
                   <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Carteirinha</h3>
-                    <p className="flex items-center">
-                      <CreditCard className="h-4 w-4 mr-1 text-muted-foreground" />
-                      {patient.health_card_number}
-                    </p>
+                    <h3 className="text-sm font-medium text-muted-foreground">Plano</h3>
+                    <p className="font-medium">{patient.health_plan.name}</p>
                   </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-6">
-                <CreditCard className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
-                <p className="font-medium">Sem plano vinculado</p>
-                <p className="text-muted-foreground text-sm mt-1">
-                  Este paciente não possui plano de saúde associado
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  
+                  {patient.health_card_number && (
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground">Carteirinha</h3>
+                      <p className="flex items-center">
+                        <CreditCard className="h-4 w-4 mr-1 text-muted-foreground" />
+                        {patient.health_card_number}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-6">
+                  <CreditCard className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
+                  <p className="font-medium">Sem plano vinculado</p>
+                  <p className="text-muted-foreground text-sm mt-1">
+                    Este paciente não possui plano de saúde associado
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </ConditionalRender>
+        
+        {/* Informação alternativa para gerentes de rede */}
+        {isNetworkManager && (
+          <Card className="bg-muted">
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <ShieldAlert className="h-5 w-5 mr-2 text-amber-500" />
+                Acesso Restrito
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Informações detalhadas de plano de saúde e contratos não estão disponíveis para seu nível de acesso.
+              </p>
+              <p className="text-sm mt-2">
+                Entre em contato com o setor financeiro ou comercial para mais informações.
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )
