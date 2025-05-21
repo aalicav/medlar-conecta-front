@@ -6,19 +6,10 @@ import { useRouter } from 'next/navigation';
 import { getUsers, deleteUser, getRoles } from './userService';
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Pagination } from "./components/Pagination";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/components/ui/use-toast";
-import { Loader2, Search, Plus, Trash2, Edit, Eye, AlertCircle } from "lucide-react";
+import { Plus, Trash2, Edit, Eye, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,9 +21,20 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { DataTable } from "@/components/data-table/data-table";
+import type { ColumnDef, SortingState } from "@tanstack/react-table";
+
+// Define o tipo para os dados do usuário
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  roles: { id: number; name: string }[];
+  [key: string]: any;
+}
 
 export default function UsersAdminPage() {
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -41,22 +43,50 @@ export default function UsersAdminPage() {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
+  const [sorting, setSorting] = useState<SortingState>([]);
   const router = useRouter();
+
+  // Mapeamento de nomes técnicos para nomes amigáveis
+  const roleDisplayNames: Record<string, string> = {
+    'super_admin': 'Administrador Master',
+    'admin': 'Administrador',
+    'manager': 'Gerente',
+    'editor': 'Editor',
+    'user': 'Usuário Comum',
+    'consultant': 'Consultor',
+    'auditor': 'Auditor',
+    'analyst': 'Analista',
+    'supervisor': 'Supervisor',
+    'coordinator': 'Coordenador',
+    'support': 'Suporte',
+    // Adicione mais mapeamentos conforme necessário
+  };
+
+  // Função para obter o nome de exibição de uma role
+  const getRoleDisplayName = (roleName: string) => {
+    return roleDisplayNames[roleName] || roleName;
+  };
 
   // Função para buscar usuários com filtros
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const params = {
+      const params: Record<string, any> = {
         search: search || undefined,
         role: selectedRole || undefined,
         page,
         per_page: perPage
       };
       
+      // Adicionar parâmetros de ordenação
+      if (sorting.length > 0) {
+        params.sort_by = sorting[0].id;
+        params.sort_direction = sorting[0].desc ? 'desc' : 'asc';
+      }
+      
       const data = await getUsers(params);
-      setUsers(data.data?.data);
-      setTotalItems(data.total || data.data.length);
+      setUsers(data.data?.data || []);
+      setTotalItems(data.total || data.meta?.total || data.data?.length || 0);
     } catch (e) {
       setError('Erro ao carregar usuários');
       toast({
@@ -82,12 +112,41 @@ export default function UsersAdminPage() {
   useEffect(() => {
     fetchUsers();
     fetchRoles();
-  }, [page, perPage]);
+  }, [page, perPage, sorting]);
 
   // Quando os filtros mudam, voltamos para a página 1
   const handleFilter = () => {
     setPage(1);
     fetchUsers();
+  };
+
+  // Função para lidar com a alteração da role selecionada
+  const handleRoleChange = (value: string) => {
+    setSelectedRole(value);
+    setPage(1);
+    setTimeout(() => {
+      fetchUsers();
+    }, 0);
+  };
+
+  // Handler para alterações na paginação
+  const handlePaginationChange = (newPage: number, newPageSize: number) => {
+    setPage(newPage);
+    setPerPage(newPageSize);
+  };
+
+  // Handler para alterações na ordenação
+  const handleSortingChange = (newSorting: SortingState) => {
+    setSorting(newSorting);
+  };
+
+  // Handler para alterações no filtro da tabela
+  const handleFilterChange = (columnId: string, value: string) => {
+    if (columnId === 'name' || columnId === 'email') {
+      setSearch(value);
+      setPage(1);
+      fetchUsers();
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -109,6 +168,100 @@ export default function UsersAdminPage() {
 
   const totalPages = Math.ceil(totalItems / perPage);
 
+  // Definição das colunas da tabela
+  const columns: ColumnDef<User>[] = [
+    {
+      id: "name",
+      accessorKey: "name",
+      header: "Nome",
+      enableFiltering: true,
+      cell: ({ row }) => (
+        <div className="font-medium flex items-center gap-2">
+          <UserRound className="h-4 w-4 text-muted-foreground" />
+          {row.original.name}
+        </div>
+      ),
+    },
+    {
+      id: "email",
+      accessorKey: "email",
+      header: "E-mail",
+      enableFiltering: true,
+    },
+    {
+      id: "roles",
+      header: "Funções",
+      cell: ({ row }) => (
+        <div className="flex flex-wrap gap-1">
+          {row.original.roles && row.original.roles.length > 0 ? (
+            row.original.roles.map((role) => (
+              <Badge key={role.id} variant="outline" className="mr-1">
+                {getRoleDisplayName(role.name)}
+              </Badge>
+            ))
+          ) : (
+            <span className="text-muted-foreground text-sm">Nenhuma função</span>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: "actions",
+      header: "Ações",
+      cell: ({ row }) => (
+        <div className="flex justify-end items-center gap-2">
+          <Button 
+            size="sm" 
+            variant="ghost" 
+            className="h-8 w-8 p-0" 
+            onClick={() => router.push(`/admin/users/${row.original.id}`)}
+          >
+            <Eye className="h-4 w-4" />
+            <span className="sr-only">Detalhes</span>
+          </Button>
+          <Button 
+            size="sm" 
+            variant="ghost" 
+            className="h-8 w-8 p-0"
+            onClick={() => router.push(`/admin/users/${row.original.id}/edit`)}
+          >
+            <Edit className="h-4 w-4" />
+            <span className="sr-only">Editar</span>
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span className="sr-only">Excluir</span>
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Tem certeza que deseja excluir o usuário "{row.original.name}"? Esta ação não pode ser desfeita.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => handleDelete(row.original.id)}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Excluir
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="container py-6 space-y-6">
       <div className="flex justify-between items-center">
@@ -127,145 +280,37 @@ export default function UsersAdminPage() {
           <CardDescription>Lista de todos os usuários cadastrados no sistema.</CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Filtros */}
-          <div className="flex flex-wrap gap-4 mb-6">
-            <div className="flex-1 min-w-[200px]">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por nome ou email"
-                  className="pl-8"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleFilter()}
-                />
-              </div>
-            </div>
-            <div className="w-full sm:w-auto min-w-[200px]">
-              <Select value={selectedRole} onValueChange={(value) => {
-                setSelectedRole(value);
-                setPage(1);
-                fetchUsers();
-              }}>
+          {/* Filtro por role */}
+          <div className="mb-6">
+            <div className="w-full sm:w-[250px]">
+              <Select value={selectedRole} onValueChange={handleRoleChange}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Função / Role" />
+                  <SelectValue placeholder="Filtrar por função" />
                 </SelectTrigger>
                 <SelectContent>
                   {roles.map((role: any) => (
                     <SelectItem key={role.id} value={role.name}>
-                      {role.name}
+                      {getRoleDisplayName(role.name)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <Button variant="outline" onClick={handleFilter}>Filtrar</Button>
           </div>
 
-          {/* Tabela de usuários */}
-          {loading ? (
-            <div className="flex justify-center items-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : error ? (
-            <div className="flex justify-center items-center py-8 text-destructive gap-2">
-              <AlertCircle className="h-5 w-5" />
-              <span>{error}</span>
-            </div>
-          ) : (
-            <>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>E-mail</TableHead>
-                      <TableHead>Funções</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {users.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                          Nenhum usuário encontrado
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      users.map((user: any) => (
-                        <TableRow key={user.id}>
-                          <TableCell className="font-medium">{user.name}</TableCell>
-                          <TableCell>{user.email}</TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1">
-                              {user.roles?.map((role: any) => (
-                                <Badge key={role.id} variant="outline" className="mr-1">
-                                  {role.name}
-                                </Badge>
-                              ))}
-                              {(!user.roles || user.roles.length === 0) && (
-                                <span className="text-muted-foreground text-sm">Nenhuma função</span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end items-center gap-2">
-                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" 
-                                      onClick={() => router.push(`/admin/users/${user.id}`)}>
-                                <Eye className="h-4 w-4" />
-                                <span className="sr-only">Detalhes</span>
-                              </Button>
-                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0"
-                                      onClick={() => router.push(`/admin/users/${user.id}/edit`)}>
-                                <Edit className="h-4 w-4" />
-                                <span className="sr-only">Editar</span>
-                              </Button>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10">
-                                    <Trash2 className="h-4 w-4" />
-                                    <span className="sr-only">Excluir</span>
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      Tem certeza que deseja excluir o usuário "{user.name}"? Esta ação não pode ser desfeita.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction
-                                      onClick={() => handleDelete(user.id)}
-                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                    >
-                                      Excluir
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {/* Paginação */}
-              {totalPages > 1 && (
-                <div className="flex justify-end mt-4">
-                  <Pagination
-                    currentPage={page}
-                    totalPages={totalPages}
-                    onPageChange={setPage}
-                  />
-                </div>
-              )}
-            </>
-          )}
+          {/* DataTable Component */}
+          <DataTable
+            columns={columns}
+            data={users}
+            onPaginationChange={handlePaginationChange}
+            onSortingChange={handleSortingChange}
+            onFilterChange={handleFilterChange}
+            currentPage={page}
+            pageSize={perPage}
+            pageCount={totalPages}
+            totalItems={totalItems}
+            isLoading={loading}
+          />
         </CardContent>
       </Card>
     </div>
