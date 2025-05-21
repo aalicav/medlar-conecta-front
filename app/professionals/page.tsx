@@ -230,13 +230,6 @@ function ProfessionalsContent() {
               Novo Profissional
             </Button>
           </ConditionalRender>
-          
-          <ConditionalRender requiredRoles={['super_admin', 'admin', 'director', 'operational', 'network_manager']}>
-            <Button onClick={() => router.push("/clinics/new")} className="flex items-center gap-1">
-              <PlusCircle className="h-4 w-4" />
-              Novo Estabelecimento
-            </Button>
-          </ConditionalRender>
         </div>
       </div>
 

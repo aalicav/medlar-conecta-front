@@ -252,7 +252,7 @@ export default function DashboardHomepage() {
               
               {/* Feature Cards */}
               <Col xs={24}>
-                <Title level={4} style={{ color: 'rgba(255, 255, 255, 0.85)' }}>Recursos do Sistema</Title>
+                <Title level={4} style={{ color: 'rgba(255, 255, 255, 0.95)' }}>Recursos do Sistema</Title>
                 <Row gutter={[16, 16]}>
                   {featureCards.map((feature, index) => (
                     <Col xs={24} sm={12} md={8} key={index}>
@@ -272,11 +272,11 @@ export default function DashboardHomepage() {
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                           <div style={{ display: 'flex', alignItems: 'center' }}>
                             {feature.icon}
-                            <Text strong style={{ marginLeft: 12, color: 'rgba(255, 255, 255, 0.85)' }}>{feature.title}</Text>
+                            <Text strong style={{ marginLeft: 12, color: 'rgba(255, 255, 255, 0.95)' }}>{feature.title}</Text>
                           </div>
                           {feature.isNew && <Tag color="red">Novo</Tag>}
                         </div>
-                        <Paragraph style={{ flex: 1, marginBottom: 12, color: 'rgba(255, 255, 255, 0.65)' }}>
+                        <Paragraph style={{ flex: 1, marginBottom: 12, color: 'rgba(255, 255, 255, 0.8)' }}>
                           {feature.description}
                         </Paragraph>
                         <Link href={feature.link} passHref>
@@ -305,10 +305,10 @@ export default function DashboardHomepage() {
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
                           <MedicineBoxOutlined style={{ fontSize: 24, color: '#fa8c16' }} />
-                          <Text strong style={{ marginLeft: 12, color: 'rgba(255, 255, 255, 0.85)' }}>Profissionais</Text>
+                          <Text strong style={{ marginLeft: 12, color: 'rgba(255, 255, 255, 0.95)' }}>Profissionais</Text>
                         </div>
                       </div>
-                      <Paragraph style={{ flex: 1, marginBottom: 12, color: 'rgba(255, 255, 255, 0.65)' }}>
+                      <Paragraph style={{ flex: 1, marginBottom: 12, color: 'rgba(255, 255, 255, 0.8)' }}>
                         Gerencie médicos, especialidades e contratos
                       </Paragraph>
                       <Link href="/professionals" passHref>
@@ -336,10 +336,10 @@ export default function DashboardHomepage() {
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
                           <BankOutlined style={{ fontSize: 24, color: '#13c2c2' }} />
-                          <Text strong style={{ marginLeft: 12, color: 'rgba(255, 255, 255, 0.85)' }}>Clínicas</Text>
+                          <Text strong style={{ marginLeft: 12, color: 'rgba(255, 255, 255, 0.95)' }}>Clínicas</Text>
                         </div>
                       </div>
-                      <Paragraph style={{ flex: 1, marginBottom: 12, color: 'rgba(255, 255, 255, 0.65)' }}>
+                      <Paragraph style={{ flex: 1, marginBottom: 12, color: 'rgba(255, 255, 255, 0.8)' }}>
                         Administre unidades, horários e serviços
                       </Paragraph>
                       <Link href="/clinics" passHref>
@@ -367,10 +367,10 @@ export default function DashboardHomepage() {
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
                           <TeamOutlined style={{ fontSize: 24, color: '#eb2f96' }} />
-                          <Text strong style={{ marginLeft: 12, color: 'rgba(255, 255, 255, 0.85)' }}>Pacientes</Text>
+                          <Text strong style={{ marginLeft: 12, color: 'rgba(255, 255, 255, 0.95)' }}>Pacientes</Text>
                         </div>
                       </div>
-                      <Paragraph style={{ flex: 1, marginBottom: 12, color: 'rgba(255, 255, 255, 0.65)' }}>
+                      <Paragraph style={{ flex: 1, marginBottom: 12, color: 'rgba(255, 255, 255, 0.8)' }}>
                         Cadastro e histórico de pacientes
                       </Paragraph>
                       <Link href="/patients" passHref>
@@ -388,7 +388,7 @@ export default function DashboardHomepage() {
                 <AntCard
                   title={
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: 'rgba(255, 255, 255, 0.85)' }}>Próximas Consultas</span>
+                      <span style={{ color: 'rgba(255, 255, 255, 0.95)' }}>Próximas Consultas</span>
                       <Link href="/appointments" passHref>
                         <Button type="link" size="small" style={{ color: '#1890ff' }}>Ver todas</Button>
                       </Link>
@@ -413,7 +413,7 @@ export default function DashboardHomepage() {
                             avatar={<CalendarOutlined style={{ fontSize: 24, color: '#1890ff' }} />}
                             title={
                               <div>
-                                <Text strong style={{ color: 'rgba(255, 255, 255, 0.85)' }}>{appointment.patient}</Text>
+                                <Text strong style={{ color: 'rgba(255, 255, 255, 0.95)' }}>{appointment.patient}</Text>
                                 <Tag color={appointment.status === 'confirmed' ? 'success' : 'warning'} style={{ marginLeft: 8 }}>
                                   {appointment.status === 'confirmed' ? 'Confirmado' : 'Pendente'}
                                 </Tag>
@@ -421,10 +421,10 @@ export default function DashboardHomepage() {
                             }
                             description={
                               <>
-                                <Text style={{ color: 'rgba(255, 255, 255, 0.65)' }}>{new Date(appointment.date).toLocaleDateString('pt-BR')}</Text>
-                                <Text style={{ marginLeft: 8, color: 'rgba(255, 255, 255, 0.65)' }}>{appointment.time}</Text>
-                                <Text style={{ marginLeft: 8, color: 'rgba(255, 255, 255, 0.65)' }}>•</Text>
-                                <Text style={{ marginLeft: 8, color: 'rgba(255, 255, 255, 0.65)' }}>{appointment.type}</Text>
+                                <Text style={{ color: 'rgba(255, 255, 255, 0.8)' }}>{new Date(appointment.date).toLocaleDateString('pt-BR')}</Text>
+                                <Text style={{ marginLeft: 8, color: 'rgba(255, 255, 255, 0.8)' }}>{appointment.time}</Text>
+                                <Text style={{ marginLeft: 8, color: 'rgba(255, 255, 255, 0.8)' }}>•</Text>
+                                <Text style={{ marginLeft: 8, color: 'rgba(255, 255, 255, 0.8)' }}>{appointment.type}</Text>
                               </>
                             }
                           />
@@ -440,7 +440,7 @@ export default function DashboardHomepage() {
               <Col xs={24} md={8}>
                 <ConditionalRender hideOnContractData>
                   <AntCard
-                    title={<span style={{ color: 'rgba(255, 255, 255, 0.85)' }}>Contratos Pendentes</span>}
+                    title={<span style={{ color: 'rgba(255, 255, 255, 0.95)' }}>Contratos Pendentes</span>}
                     loading={loading}
                     className="dark-card"
                   >
@@ -458,8 +458,8 @@ export default function DashboardHomepage() {
                                 <List.Item>
                                   <List.Item.Meta
                                     avatar={<FileTextOutlined style={{ color: '#1890ff' }} />}
-                                    title={<Link href={item.link} style={{ color: 'rgba(255, 255, 255, 0.85)' }}>{item.title}</Link>}
-                                    description={<span style={{ color: 'rgba(255, 255, 255, 0.65)' }}>{item.description}</span>}
+                                    title={<Link href={item.link} style={{ color: 'rgba(255, 255, 255, 0.95)' }}>{item.title}</Link>}
+                                    description={<span style={{ color: 'rgba(255, 255, 255, 0.8)' }}>{item.description}</span>}
                                   />
                                   <Tag color={item.priority === 'high' ? 'red' : 'blue'}>
                                     {item.priority === 'high' ? 'Urgente' : 'Normal'}
