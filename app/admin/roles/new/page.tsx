@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createRole, getPermissions } from '../roleService';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +20,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { ArrowLeft, Loader2, ShieldCheck } from 'lucide-react';
+import { createRole, getPermissions } from '../../users/userService';
 
 // Schema de validação para formulário de role
 const roleFormSchema = z.object({
@@ -28,7 +28,7 @@ const roleFormSchema = z.object({
     .refine((name) => !['super_admin', 'plan_admin', 'professional', 'clinic_admin'].includes(name.toLowerCase()), {
       message: 'Este nome de função é reservado para uso do sistema',
     }),
-  guard_name: z.string().default('api'),
+  guard_name: z.string(),
   permissions: z.array(z.string()).optional(),
 });
 
@@ -125,7 +125,7 @@ export default function NewRolePage() {
             </div>
           ) : (
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6">
                 <FormField
                   control={form.control}
                   name="name"

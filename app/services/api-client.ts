@@ -239,3 +239,5 @@ export const getErrorMessage = (error: any): string => {
   
   return translateErrorMessage(message);
 }; 
+
+export default apiClient;

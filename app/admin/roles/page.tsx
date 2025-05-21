@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
-import { getRoles, deleteRole } from './roleService';
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/components/ui/use-toast";
@@ -29,6 +28,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { deleteRole, getRoles } from '../users/userService';
 
 export default function RolesAdminPage() {
   const [roles, setRoles] = useState([]);
@@ -50,7 +50,7 @@ export default function RolesAdminPage() {
         per_page: perPage
       };
       
-      const data = await getRoles(params);
+      const data = await getRoles();
       setRoles(data.data);
       setTotalItems(data.total || data.data.length);
     } catch (e) {

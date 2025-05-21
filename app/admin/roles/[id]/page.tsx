@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getRole, deleteRole } from '../roleService';
 import { Button } from '@/components/ui/button';
 import { 
   Card, 
@@ -34,6 +33,7 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table";
+import { deleteRole, getRole } from '../../users/userService';
 
 type PageProps = {
   params: {

@@ -41,6 +41,44 @@ export const getRoles = async () => {
   return res.data;
 };
 
+// Obter uma role específica
+export const getRole = async (id: number) => {
+  const res = await apiClient.get(`/roles/${id}`);
+  return res.data;
+};
+
+// Criar nova role
+export const createRole = async (data: { 
+  name: string; 
+  guard_name?: string;
+  permissions?: string[];
+}) => {
+  const res = await apiClient.post('/roles', data);
+  return res.data;
+};
+
+// Atualizar role existente
+export const updateRole = async (id: number, data: {
+  name?: string;
+  guard_name?: string;
+  permissions?: string[];
+}) => {
+  const res = await apiClient.put(`/roles/${id}`, data);
+  return res.data;
+};
+
+// Excluir role
+export const deleteRole = async (id: number) => {
+  const res = await apiClient.delete(`/roles/${id}`);
+  return res.data;
+};
+
+// Sincronizar permissões com uma role
+export const syncRolePermissions = async (roleId: number, permissions: string[]) => {
+  const res = await apiClient.post(`/roles/${roleId}/permissions`, { permissions });
+  return res.data;
+};
+
 // Obter todas as permissões disponíveis
 export const getPermissions = async () => {
   const res = await apiClient.get('/permissions');
