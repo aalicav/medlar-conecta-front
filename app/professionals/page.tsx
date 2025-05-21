@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,7 +14,8 @@ import { ConditionalRender } from "@/components/conditional-render"
 import { getUsers } from "../admin/users/userService"
 import { fetchResource } from "@/services/resource-service"
 
-export default function ProfessionalsPage() {
+// Create a separate component for page content to use useSearchParams() inside Suspense
+function ProfessionalsContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const tab = searchParams.get('tab') || 'professionals'
@@ -322,5 +323,14 @@ export default function ProfessionalsPage() {
         </TabsContent>
       </Tabs>
     </div>
+  )
+}
+
+// Main component with Suspense
+export default function ProfessionalsPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-center">Carregando...</div>}>
+      <ProfessionalsContent />
+    </Suspense>
   )
 } 

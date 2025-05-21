@@ -378,8 +378,10 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [documentFiles, setDocumentFiles] = useState<(File | null)[]>([])
   
-  // Debug initialData
-  console.log("HealthPlanForm received initialData:", initialData);
+  // Debug initialData - add null check to avoid console errors
+  if (initialData) {
+    console.log("HealthPlanForm received initialData:", initialData);
+  }
 
   // Hook useToast
   const { toast } = useToast()
@@ -849,6 +851,41 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
             
             form.setValue('documents', formattedDocs);
           }
+          
+          // Mark as initialized
+          formInitializedRef.current = true;
+          return;
+        }
+        
+        // If no initialData is provided and we're creating a new health plan, use defaults
+        if (!healthPlanId) {
+          form.reset({
+            name: "",
+            cnpj: "",
+            municipal_registration: "",
+            email: "",
+            password: "",
+            ans_code: "",
+            description: "",
+            legal_representative_name: "",
+            legal_representative_cpf: "",
+            legal_representative_position: "",
+            legal_representative_email: "",
+            legal_representative_password: "",
+            legal_representative_password_confirmation: "",
+            operational_representative_name: "",
+            operational_representative_cpf: "",
+            operational_representative_position: "",
+            operational_representative_email: "",
+            operational_representative_password: "",
+            operational_representative_password_confirmation: "",
+            address: "",
+            city: "",
+            state: "",
+            postal_code: "",
+            phones: [{ number: "", type: "mobile" }],
+            documents: [],
+          });
           
           // Mark as initialized
           formInitializedRef.current = true;
