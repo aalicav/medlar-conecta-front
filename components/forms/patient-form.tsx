@@ -8,6 +8,7 @@ import * as z from "zod"
 import { toast, useToast } from "@/components/ui/use-toast"
 import api from "@/services/api-client"
 import { maskCPF, maskPhone, maskCEP, unmask } from "@/utils/masks"
+import estadosCidades from "@/hooks/estados-cidades.json"
 
 import { 
   Form, 
@@ -57,6 +58,9 @@ const patientSchema = z.object({
   city: z.string().optional(),
   state: z.string().optional(),
   postal_code: z.string().optional(),
+  responsible_name: z.string().optional(),
+  responsible_email: z.string().optional().or(z.literal('')),
+  responsible_phone: z.string().optional(),
   phones: z.array(
     z.object({
       number: z.string().min(8, "Número inválido"),
@@ -84,6 +88,9 @@ export interface PatientFormValues extends FieldValues {
   city?: string;
   state?: string;
   postal_code?: string;
+  responsible_name?: string;
+  responsible_email?: string;
+  responsible_phone?: string;
   phones?: PhoneField[];
 }
 
@@ -91,6 +98,13 @@ export interface PatientFormValues extends FieldValues {
 interface HealthPlan {
   id: number;
   name: string;
+}
+
+// Interface para Estado/UF
+interface Estado {
+  sigla: string;
+  nome: string;
+  cidades: string[];
 }
 
 interface PatientFormProps {
@@ -108,6 +122,8 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
   const [healthPlans, setHealthPlans] = useState<HealthPlan[]>([])
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
   const [selectedHealthPlanName, setSelectedHealthPlanName] = useState<string>("")
+  const [selectedState, setSelectedState] = useState<string>("")
+  const [availableCities, setAvailableCities] = useState<string[]>([])
   const { toast: useToastToast } = useToast()
   
   // Verificar se usuário tem permissão para gerenciar pacientes
@@ -128,6 +144,9 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
       city: "",
       state: "",
       postal_code: "",
+      responsible_name: "",
+      responsible_email: "",
+      responsible_phone: "",
       phones: [{ number: "", type: "mobile" }],
     },
     mode: "onSubmit"
@@ -148,8 +167,13 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
       }
 
       try {
-        const response = await fetchResource<HealthPlan>("health-plans", { per_page: 100 })
-        setHealthPlans(response.data)
+        setIsLoadingOptions(true)
+        const response = await fetchResource<any>("health-plans", { per_page: 100 })
+        if (response && response.data) {
+          // Corrigir tipo para Array de HealthPlan
+          const healthPlansData: HealthPlan[] = response.data;
+          setHealthPlans(healthPlansData)
+        }
       } catch (error) {
         console.error("Erro ao carregar planos de saúde:", error)
         toast({
@@ -157,11 +181,13 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
           description: "Não foi possível carregar a lista de planos de saúde",
           variant: "destructive"
         })
+      } finally {
+        setIsLoadingOptions(false)
       }
     }
     
     loadHealthPlans()
-  }, [isPlanAdmin])
+  }, [isPlanAdmin, toast])
   
   // Carregar dados do paciente para edição
   useEffect(() => {
@@ -184,6 +210,9 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
             city: patient.city || "",
             state: patient.state || "",
             postal_code: patient.postal_code ? maskCEP(patient.postal_code) : "",
+            responsible_name: patient.responsible_name || "",
+            responsible_email: patient.responsible_email || "",
+            responsible_phone: patient.responsible_phone ? maskPhone(patient.responsible_phone) : "",
             phones: patient.phones?.length ? patient.phones.map((phone: any) => ({
               number: maskPhone(phone.number),
               type: phone.type
@@ -228,6 +257,35 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
     }
   }, [healthPlanId])
   
+  // Atualizar cidades quando o estado for selecionado
+  useEffect(() => {
+    if (selectedState) {
+      const estado = estadosCidades.estados.find((e: Estado) => e.sigla === selectedState)
+      if (estado) {
+        setAvailableCities(estado.cidades)
+      } else {
+        setAvailableCities([])
+      }
+    } else {
+      setAvailableCities([])
+    }
+  }, [selectedState])
+
+  // Atualizar estado selecionado quando mudar no formulário
+  useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      if (name === 'state') {
+        setSelectedState(value.state as string)
+        // Limpar cidade se mudar o estado
+        if (value.state !== selectedState) {
+          form.setValue('city', '')
+        }
+      }
+    })
+    
+    return () => subscription.unsubscribe()
+  }, [form, selectedState])
+  
   // Handlers para máscaras de input
   const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -250,6 +308,12 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
     const value = e.target.value;
     const maskedValue = maskPhone(value);
     form.setValue(`phones.${index}.number`, maskedValue);
+  };
+
+  const handleResponsiblePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const maskedValue = maskPhone(value);
+    form.setValue("responsible_phone", maskedValue);
   };
   
   // Função para buscar endereço pelo CEP usando API ViaCEP
@@ -305,6 +369,7 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
         ...data,
         cpf: unmask(data.cpf),
         postal_code: data.postal_code ? unmask(data.postal_code) : undefined,
+        responsible_phone: data.responsible_phone ? unmask(data.responsible_phone) : undefined,
         phones: data.phones?.map(phone => ({
           ...phone,
           number: unmask(phone.number)
@@ -541,7 +606,15 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
                     <FormItem>
                       <FormLabel>Data de Nascimento*</FormLabel>
                       <FormControl>
-                        <DatePicker date={field.value} setDate={field.onChange} />
+                        <DatePicker 
+                          date={field.value 
+                            ? typeof field.value === 'string' 
+                              ? new Date(field.value) 
+                              : field.value as Date
+                            : null
+                          } 
+                          setDate={field.onChange} 
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -696,26 +769,15 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
                 
                 <FormField
                   control={form.control}
-                  name="city"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Cidade</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Nome da cidade" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
                   name="state"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Estado</FormLabel>
                       <Select
-                        onValueChange={field.onChange}
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                          setSelectedState(value);
+                        }}
                         value={field.value}
                       >
                         <FormControl>
@@ -724,9 +786,38 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {BRAZILIAN_STATES.map((state) => (
-                            <SelectItem key={state} value={state ?? 'unknown'}>
-                              {state}
+                          {estadosCidades.estados.map((estado: Estado) => (
+                            <SelectItem key={estado.sigla} value={estado.sigla}>
+                              {estado.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="city"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Cidade</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                        disabled={!selectedState}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder={selectedState ? "Selecione a cidade" : "Selecione um estado primeiro"} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {availableCities.map((cidade: string) => (
+                            <SelectItem key={cidade} value={cidade}>
+                              {cidade}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -817,6 +908,60 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
                   <Plus className="h-4 w-4 mr-2" />
                   Adicionar telefone
                 </Button>
+              </div>
+            </div>
+            
+            <div>
+              <h2 className="text-xl font-semibold mb-4">Dados do Responsável</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="responsible_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nome do Responsável</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Nome completo do responsável" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="responsible_phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Celular do Responsável</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="(00) 00000-0000" 
+                          value={field.value}
+                          onChange={(e) => {
+                            handleResponsiblePhoneChange(e);
+                            field.onChange(e);
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="responsible_email"
+                  render={({ field }) => (
+                    <FormItem className="sm:col-span-2">
+                      <FormLabel>Email do Responsável</FormLabel>
+                      <FormControl>
+                        <Input placeholder="email@exemplo.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
             </div>
             

@@ -6,7 +6,9 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "build-dev": "export NEXT_PUBLIC_CONFIG=dev && npm run build",
+    "build-prod": "export NEXT_PUBLIC_CONFIG=prod && npm run build"
   },
   "dependencies": {
     "@ant-design/icons": "^6.0.0",

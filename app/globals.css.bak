@@ -1,0 +1,226 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 212 100% 97%;
+    --foreground: 213 80% 20%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 213 80% 20%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 213 80% 20%;
+
+    --primary: 207 90% 54%;
+    --primary-foreground: 0 0% 100%;
+
+    --primary-light: 207 90% 64%;
+
+    --secondary: 207 85% 45%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 212 100% 95%;
+    --muted-foreground: 213 45% 45%;
+
+    --accent: 199 98% 48%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --info: 207 90% 54%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 213 40% 90%;
+    --input: 213 40% 90%;
+    --ring: 207 90% 54%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 223 47% 11%;
+    --foreground: 213 40% 98%;
+
+    --card: 223 47% 12%;
+    --card-foreground: 213 40% 98%;
+
+    --popover: 223 47% 12%;
+    --popover-foreground: 213 40% 98%;
+
+    --primary: 207 85% 54%;
+    --primary-foreground: 0 0% 100%;
+
+    --primary-light: 207 80% 65%;
+
+    --secondary: 207 80% 35%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 223 47% 20%;
+    --muted-foreground: 213 30% 75%;
+
+    --accent: 199 85% 42%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 70% 40%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --info: 207 85% 54%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 223 47% 20%;
+    --input: 223 47% 20%;
+    --ring: 207 85% 54%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Dark Theme Styles */
+.dark-card {
+  background-color: hsl(var(--card)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+
+.dark-card .ant-card-head {
+  border-bottom-color: hsl(var(--border)) !important;
+}
+
+.dark-card .ant-card-head-title {
+  color: hsl(var(--card-foreground)) !important;
+}
+
+.dark-card .ant-statistic-title {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+.dark-card .ant-statistic-content {
+  color: hsl(var(--card-foreground)) !important;
+}
+
+.dark-card .ant-list-item {
+  border-bottom-color: hsl(var(--border)) !important;
+}
+
+.dark-card .ant-empty-description {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+.dark-card .ant-tabs-tab {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+.dark-card .ant-tabs-tab-active {
+  color: hsl(var(--primary)) !important;
+}
+
+.dark-card .ant-tabs-ink-bar {
+  background-color: hsl(var(--primary)) !important;
+}
+
+.dark-card .ant-tabs-nav::before {
+  border-bottom-color: hsl(var(--border)) !important;
+}
+
+/* Dark theme for alerts */
+.ant-alert {
+  background-color: hsl(var(--card)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+
+.ant-alert-message {
+  color: hsl(var(--card-foreground)) !important;
+}
+
+.ant-alert-description {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+/* Dark theme for buttons */
+.ant-btn-default {
+  background-color: hsl(var(--card)) !important;
+  border-color: hsl(var(--border)) !important;
+  color: hsl(var(--card-foreground)) !important;
+}
+
+.ant-btn-default:hover {
+  border-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary)) !important;
+}
+
+/* Dark theme for links */
+.ant-btn-link {
+  color: hsl(var(--primary)) !important;
+}
+
+.ant-btn-link:hover {
+  color: hsl(var(--primary-light)) !important;
+}
+
+/* Dark theme for tags */
+.ant-tag {
+  border-color: transparent !important;
+}
+
+/* Dark theme for empty states */
+.ant-empty {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+/* Dark theme for list items */
+.ant-list-item-meta-title {
+  color: hsl(var(--card-foreground)) !important;
+}
+
+.ant-list-item-meta-description {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+/* Dark theme for tabs */
+.ant-tabs-nav {
+  margin-bottom: 16px !important;
+}
+
+.ant-tabs-tab-btn {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+.ant-tabs-tab-btn:hover {
+  color: hsl(var(--primary)) !important;
+}
+
+.ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: hsl(var(--primary)) !important;
+}
+
+/* Dark theme for icons */
+.anticon {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+/* Dark theme for hover states */
+.dark-card:hover {
+  border-color: hsl(var(--primary)) !important;
+  box-shadow: 0 0 8px hsl(var(--primary) / 0.2) !important;
+}

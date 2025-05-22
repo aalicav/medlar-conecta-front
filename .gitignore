@@ -6,6 +6,8 @@
 # next.js
 /.next/
 /.next copy/
+/.next-dev/
+/.next-prod/
 /out/
 
 # production
