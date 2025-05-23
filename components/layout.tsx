@@ -15,7 +15,7 @@ export function MainLayout({ children }: MainLayoutProps) {
       <div className="hidden md:block h-screen flex-shrink-0 border-r border-input shadow-sm">
         <div className="h-16 flex items-center justify-center border-b border-input bg-primary">
           <Image
-            src="/logo.png"
+            src="/conecta/logo.png"
             alt="Conecta Saúde"
             width={140}
             height={40}
@@ -46,7 +46,7 @@ export function MainLayout({ children }: MainLayoutProps) {
       >
         <div className="h-16 flex items-center justify-center border-b border-input bg-primary">
           <Image
-            src="/logo.png"
+            src="/conecta/logo.png"
             alt="Conecta Saúde"
             width={140}
             height={40}

@@ -51,7 +51,7 @@ export default function LoginPage() {
         <div className="mb-8 text-center">
           <div className="flex justify-center mb-4">
             <div className="h-20 w-20 rounded-full bg-white flex items-center justify-center shadow-lg">
-              <Image src="/logo.png" alt="Logo" width={80} height={80} />
+              <Image src="/conecta/logo.png" alt="Logo" width={80} height={80} />
             </div>
           </div>
           <h1 className="text-3xl font-bold text-white">Conecta Saúde</h1>
