@@ -4,6 +4,11 @@ import Link from "next/link"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { TrendingUp, Clock } from "lucide-react"
 
+export const metadata = {
+  title: "Medlar - Conecta Saúde",
+  description: "Sistema de retaguarda médica B2B que conecta planos de saúde, profissionais e clínicas",
+}
+
 export default async function Home() {
   const cookieStore = await cookies()
   const token = cookieStore.get("token")?.value
