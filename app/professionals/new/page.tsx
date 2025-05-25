@@ -1,21 +1,19 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Loader2, Building2, User, FileText, Phone, CheckCircle, AlertCircle } from "lucide-react"
+import { ArrowLeft, Loader2, AlertCircle, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ProfessionalForm } from "@/components/forms/professional-form"
 import { toast } from "@/components/ui/use-toast"
 import api from "@/services/api-client"
 import { unmask } from "@/utils/masks"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 
 export default function CreateProfessionalPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<string>("basic-info")
   const [showExitDialog, setShowExitDialog] = useState(false)
   const [navigationPath, setNavigationPath] = useState<string | null>(null)
   const [formRef, setFormRef] = useState<any>(null)
@@ -24,11 +22,6 @@ export default function CreateProfessionalPage() {
   const handleNavigation = (path: string) => {
     setNavigationPath(path)
     setShowExitDialog(true)
-  }
-
-  // Safe tab change handler
-  const handleTabChange = (tab: string) => {
-    setActiveTab(tab)
   }
 
   // Handle form submission
@@ -174,38 +167,20 @@ export default function CreateProfessionalPage() {
         </div>
       </div>
       
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-6 pointer-events-none">
-          <TabsTrigger value="basic-info" className="text-base flex items-center gap-2">
-            <Building2 className="h-4 w-4" /> Informações Básicas
-          </TabsTrigger>
-          <TabsTrigger value="additional-info" className="text-base flex items-center gap-2">
-            <User className="h-4 w-4" /> Informações Adicionais
-          </TabsTrigger>
-          <TabsTrigger value="documents" className="text-base flex items-center gap-2">
-            <FileText className="h-4 w-4" /> Documentos
-          </TabsTrigger>
-        </TabsList>
-        
-        <Card className="border-t-4 border-t-primary">
-          <TabsContent value={activeTab} className="m-0">
-            {isLoading ? (
-              <div className="flex justify-center items-center min-h-[400px]">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : (
-              <CardContent className="p-0">
-                <ProfessionalForm 
-                  onSubmit={handleSubmit} 
-                  activeTab={activeTab}
-                  onTabChange={handleTabChange}
-                  ref={setFormRef}
-                />
-              </CardContent>
-            )}
-          </TabsContent>
-        </Card>
-      </Tabs>
+      <Card>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="flex justify-center items-center min-h-[400px]">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <ProfessionalForm 
+              onSubmit={handleSubmit} 
+              ref={setFormRef}
+            />
+          )}
+        </CardContent>
+      </Card>
       
       {/* Exit dialog */}
       <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
