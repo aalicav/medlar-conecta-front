@@ -37,6 +37,7 @@ interface DataTableProps<TData, TValue> {
   pageSize?: number
   totalItems?: number
   isLoading?: boolean
+  pageSizeOptions?: number[]
 }
 
 export function DataTable<TData, TValue>({
@@ -50,6 +51,7 @@ export function DataTable<TData, TValue>({
   pageSize = 10,
   totalItems = 0,
   isLoading = false,
+  pageSizeOptions = [10, 20, 30, 50, 100],
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({})
@@ -202,12 +204,29 @@ export function DataTable<TData, TValue>({
         </Table>
       </div>
 
-      {/* Pagination */}
+      {/* Updated Pagination */}
       <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Mostrar</span>
+          <select
+            className="h-8 w-20 rounded-md border border-input bg-background px-2 py-1 text-sm"
+            value={pageSize}
+            onChange={(e) => onPaginationChange?.(1, Number(e.target.value))}
+          >
+            {pageSizeOptions.map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
+          <span className="text-sm text-muted-foreground">registros por página</span>
+        </div>
+
         <div className="text-sm text-muted-foreground">
           Mostrando {data.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} a{" "}
           {Math.min(currentPage * pageSize, totalItems)} de {totalItems} registros
         </div>
+
         <div className="flex items-center space-x-2">
           <Button
             variant="outline"

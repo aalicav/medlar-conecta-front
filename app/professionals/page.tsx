@@ -14,7 +14,19 @@ import { ConditionalRender } from "@/components/conditional-render"
 import { getUsers } from "../admin/users/userService"
 import { fetchResource } from "@/services/resource-service"
 
-// Add interfaces for type safety
+// Update interfaces for Laravel pagination
+interface SimplePaginationMeta {
+  current_page: number
+  last_page: number
+  per_page: number
+  total: number
+}
+
+interface ApiResponse<T> {
+  data: T[]
+  meta: SimplePaginationMeta
+}
+
 interface Professional {
   id: number
   name: string
@@ -42,6 +54,16 @@ interface TableRow {
   [key: string]: any
 }
 
+// Add types for pagination state
+interface PaginationState {
+  pageIndex: number
+  pageSize: number
+}
+
+interface TableState {
+  pagination: PaginationState
+}
+
 // Create a separate component for page content to use useSearchParams() inside Suspense
 function ProfessionalsContent() {
   const router = useRouter()
@@ -52,35 +74,43 @@ function ProfessionalsContent() {
 
   // Estados para profissionais
   const [professionals, setProfessionals] = useState<Professional[]>([])
-  const [totalProfessionals, setTotalProfessionals] = useState(0)
-  const [professionalsCurrentPage, setProfessionalsCurrentPage] = useState(1)
-  const [professionalsTotalPages, setProfessionalsTotalPages] = useState(1)
+  const [professionalsMeta, setProfessionalsMeta] = useState<SimplePaginationMeta | null>(null)
 
   // Estados para estabelecimentos/clínicas
   const [clinics, setClinics] = useState<Clinic[]>([])
-  const [totalClinics, setTotalClinics] = useState(0)
-  const [clinicsCurrentPage, setClinicsCurrentPage] = useState(1)
-  const [clinicsTotalPages, setClinicsTotalPages] = useState(1)
+  const [clinicsMeta, setClinicsMeta] = useState<SimplePaginationMeta | null>(null)
 
   useEffect(() => {
-    // Para carregar dados de ambas as abas
-    fetchProfessionals()
-    fetchClinics()
-  }, [professionalsCurrentPage, clinicsCurrentPage, searchTerm])
+    if (tab === 'professionals') {
+      fetchProfessionals(professionalsMeta?.current_page || 1)
+    } else {
+      fetchClinics(clinicsMeta?.current_page || 1)
+    }
+  }, [tab, searchTerm])
 
   // Função para buscar profissionais
-  const fetchProfessionals = async () => {
+  const fetchProfessionals = async (page = 1, perPage = 10) => {
     try {
       setLoading(true)
-      const response = await fetchResource<Professional>('professionals', {
-        page: professionalsCurrentPage,
-        search: searchTerm
+      const response = await fetchResource<ApiResponse<Professional>>('professionals', {
+        page,
+        search: searchTerm,
+        per_page: perPage
       })
       
-      if (response.data && response.meta) {
-        setProfessionals(response.data)
-        setTotalProfessionals(response.meta.total)
-        setProfessionalsTotalPages(response.meta.last_page)
+      if (response?.data) {
+        const professionals = Array.isArray(response.data) ? response.data : []
+        setProfessionals(professionals)
+      }
+      
+      if (response?.meta) {
+        const meta = {
+          current_page: response.meta.current_page,
+          last_page: response.meta.last_page,
+          per_page: response.meta.per_page,
+          total: response.meta.total
+        }
+        setProfessionalsMeta(meta)
       }
     } catch (error) {
       console.error("Error fetching professionals:", error)
@@ -90,18 +120,28 @@ function ProfessionalsContent() {
   }
 
   // Função para buscar estabelecimentos/clínicas
-  const fetchClinics = async () => {
+  const fetchClinics = async (page = 1, perPage = 10) => {
     try {
       setLoading(true)
-      const response = await fetchResource<Clinic>('clinics', {
-        page: clinicsCurrentPage,
-        search: searchTerm
+      const response = await fetchResource<ApiResponse<Clinic>>('clinics', {
+        page,
+        search: searchTerm,
+        per_page: perPage
       })
       
-      if (response.data && response.meta) {
-        setClinics(response.data)
-        setTotalClinics(response.meta.total)
-        setClinicsTotalPages(response.meta.last_page)
+      if (response?.data) {
+        const clinics = Array.isArray(response.data) ? response.data : []
+        setClinics(clinics)
+      }
+      
+      if (response?.meta) {
+        const meta = {
+          current_page: response.meta.current_page,
+          last_page: response.meta.last_page,
+          per_page: response.meta.per_page,
+          total: response.meta.total
+        }
+        setClinicsMeta(meta)
       }
     } catch (error) {
       console.error("Error fetching clinics:", error)
@@ -244,6 +284,25 @@ function ProfessionalsContent() {
     router.push(`/professionals?tab=${value}`)
   }
 
+  // Handler para mudança de página dos profissionais
+  const handleProfessionalsPageChange = (page: number) => {
+    fetchProfessionals(page)
+  }
+
+  // Handler para mudança de página das clínicas
+  const handleClinicsPageChange = (page: number) => {
+    fetchClinics(page)
+  }
+
+  // Adicionar handlers para mudança de tamanho da página
+  const handleProfessionalsPageSizeChange = (newSize: number) => {
+    fetchProfessionals(1, newSize)
+  }
+
+  const handleClinicsPageSizeChange = (newSize: number) => {
+    fetchClinics(1, newSize)
+  }
+
   // Limpar pesquisa
   const clearSearch = () => {
     setSearchTerm("")
@@ -309,17 +368,25 @@ function ProfessionalsContent() {
         <TabsContent value="professionals" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Profissionais ({totalProfessionals})</CardTitle>
+              <CardTitle>
+                Profissionais ({professionalsMeta?.total || 0})
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <DataTable
                 columns={professionalColumns}
                 data={professionals}
                 isLoading={loading}
-                pagination={{
-                  currentPage: professionalsCurrentPage,
-                  totalPages: professionalsTotalPages,
-                  onPageChange: setProfessionalsCurrentPage
+                manualPagination
+                pageCount={professionalsMeta?.last_page || 1}
+                pageIndex={(professionalsMeta?.current_page || 1) - 1}
+                pageSize={professionalsMeta?.per_page || 10}
+                onPaginationChange={(page: number, size: number) => {
+                  if (size !== professionalsMeta?.per_page) {
+                    handleProfessionalsPageSizeChange(size)
+                  } else {
+                    handleProfessionalsPageChange(page + 1)
+                  }
                 }}
               />
             </CardContent>
@@ -329,17 +396,25 @@ function ProfessionalsContent() {
         <TabsContent value="clinics" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Estabelecimentos ({totalClinics})</CardTitle>
+              <CardTitle>
+                Estabelecimentos ({clinicsMeta?.total || 0})
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <DataTable
                 columns={clinicColumns}
                 data={clinics}
                 isLoading={loading}
-                pagination={{
-                  currentPage: clinicsCurrentPage,
-                  totalPages: clinicsTotalPages,
-                  onPageChange: setClinicsCurrentPage
+                manualPagination
+                pageCount={clinicsMeta?.last_page || 1}
+                pageIndex={(clinicsMeta?.current_page || 1) - 1}
+                pageSize={clinicsMeta?.per_page || 10}
+                onPaginationChange={(page: number, size: number) => {
+                  if (size !== clinicsMeta?.per_page) {
+                    handleClinicsPageSizeChange(size)
+                  } else {
+                    handleClinicsPageChange(page + 1)
+                  }
                 }}
               />
             </CardContent>

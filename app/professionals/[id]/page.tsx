@@ -117,15 +117,50 @@ export default function ProfessionalDetailsPage({ params }: { params: { id: stri
     const fetchProfessional = async () => {
       try {
         setLoading(true)
-        const type = searchParams?.get('type') || 'clinic' // Default to clinic if not specified
+        const type = searchParams?.get('type') || 'clinic'
         const endpoint = type === 'clinic' ? 'clinics' : 'professionals'
-        const response = await fetchResourceById<{ data: Professional }>(endpoint, params.id)
+        const data = await fetchResourceById<{ data: Professional }>(endpoint, params.id)
         
-        if (response) {
-          setProfessional({
-            ...response,
-            documentType: type === 'clinic' ? 'cnpj' as const : 'cpf' as const
-          })
+        if (data) {
+          const professionalData: Professional = {
+            ...data,
+            documentType: 'cnpj' as const,
+            // Ensure all required fields are present with their correct types
+            id: data.id,
+            name: data.name,
+            cnpj: data.cnpj,
+            description: data.description,
+            phones: data.phones || [],
+            addresses: data.addresses || [],
+            cnes: data.cnes,
+            technical_director: data.technical_director,
+            technical_director_document: data.technical_director_document,
+            technical_director_professional_id: data.technical_director_professional_id,
+            parent_clinic_id: data.parent_clinic_id,
+            address: data.addresses?.[0]?.street || null,
+            city: data.addresses?.[0]?.city || null,
+            state: data.addresses?.[0]?.state || null,
+            postal_code: data.addresses?.[0]?.postal_code || null,
+            latitude: data.latitude,
+            longitude: data.longitude,
+            logo: data.logo,
+            status: data.status,
+            approved_at: data.approved_at,
+            has_signed_contract: data.has_signed_contract,
+            is_active: data.is_active,
+            created_at: data.created_at,
+            updated_at: data.updated_at,
+            documents: data.documents || [],
+            approver: data.approver,
+            contract: data.contract,
+            parent_clinic: data.parent_clinic,
+            pricing_contracts: data.pricing_contracts || [],
+            professionals: data.professionals || [],
+            professionals_count: data.professionals_count,
+            appointments_count: data.appointments_count,
+            branches_count: data.branches_count
+          }
+          setProfessional(professionalData)
         }
       } catch (error) {
         console.error("Error fetching data:", error)
@@ -745,9 +780,10 @@ export default function ProfessionalDetailsPage({ params }: { params: { id: stri
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         onSuccess={handleEditSuccess}
-        entityType={isClinic ? "clinic" : "professional"}
+        entityType="clinic"
         entityId={params.id}
-        title={`Editar ${isClinic ? "Clínica" : "Profissional"}`}
+        title="Editar Clínica"
+        entity={professional}
       />
     </div>
   )

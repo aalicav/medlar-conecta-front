@@ -128,12 +128,46 @@ export function EditModal({
       // Add method override for PUT request
       formData.append("_method", "PUT")
       
-      // Add professional_type based on documentType
-      formData.append('professional_type', data.documentType === "cpf" ? "individual" : "clinic")
+      // Compare with initial data to only send modified fields
+      const changedFields = new Set<string>()
       
-      // Add basic fields
-      Object.entries(data).forEach(([key, value]) => {
-        if (key !== 'documents' && key !== 'addresses' && value !== null && value !== undefined) {
+      // Compare basic fields
+      Object.keys(data).forEach(key => {
+        if (key !== 'documents' && key !== 'addresses') {
+          const initialValue = initialData[key]
+          const newValue = data[key]
+          
+          // Check if value has changed
+          if (initialValue !== newValue && newValue !== undefined && newValue !== null) {
+            changedFields.add(key)
+          }
+        }
+      })
+
+      // Compare addresses
+      if (data.addresses) {
+        const initialAddresses = initialData.addresses || []
+        const hasAddressChanges = data.addresses.some((addr: any, index: number) => {
+          const initialAddr = initialAddresses[index]
+          if (!initialAddr) return true // New address
+          
+          return Object.keys(addr).some(key => addr[key] !== initialAddr[key])
+        })
+        
+        if (hasAddressChanges) {
+          changedFields.add('addresses')
+        }
+      }
+
+      // Add professional_type if it's in changed fields
+      if (changedFields.has('documentType')) {
+        formData.append('professional_type', data.documentType === "cpf" ? "individual" : "clinic")
+      }
+      
+      // Add only changed basic fields
+      changedFields.forEach(key => {
+        const value = data[key]
+        if (value !== null && value !== undefined) {
           if (key === 'cpf' && typeof value === 'string') {
             formData.append(key, value.replace(/\D/g, ''))
           } else if (key === 'cnpj' && typeof value === 'string') {
@@ -146,18 +180,19 @@ export function EditModal({
         }
       })
 
-      // Add main address as legacy fields for backward compatibility
-      const mainAddress = data.addresses?.find((addr: any) => addr.is_main === true) || data.addresses?.[0]
-      if (mainAddress) {
-        const fullAddress = `${mainAddress.street}, ${mainAddress.number}${mainAddress.complement ? ' - ' + mainAddress.complement : ''}, ${mainAddress.district}`
-        formData.append('address', fullAddress)
-        formData.append('city', mainAddress.city)
-        formData.append('state', mainAddress.state)
-        formData.append('postal_code', mainAddress.postal_code.replace(/\D/g, ''))
-      }
+      // Add addresses only if they changed
+      if (changedFields.has('addresses') && data.addresses) {
+        // Add main address as legacy fields for backward compatibility
+        const mainAddress = data.addresses.find((addr: any) => addr.is_main === true) || data.addresses[0]
+        if (mainAddress) {
+          const fullAddress = `${mainAddress.street}, ${mainAddress.number}${mainAddress.complement ? ' - ' + mainAddress.complement : ''}, ${mainAddress.district}`
+          formData.append('address', fullAddress)
+          formData.append('city', mainAddress.city)
+          formData.append('state', mainAddress.state)
+          formData.append('postal_code', mainAddress.postal_code.replace(/\D/g, ''))
+        }
 
-      // Add addresses array
-      if (data.addresses) {
+        // Add addresses array
         data.addresses.forEach((address: any, index: number) => {
           Object.entries(address).forEach(([key, value]) => {
             if (key === 'postal_code') {
@@ -173,13 +208,24 @@ export function EditModal({
         })
       }
 
-      // Add documents if any new files were uploaded
+      // Add only new or modified documents
       if (data.documents) {
         let docCount = 0
         for (let i = 0; i < data.documents.length; i++) {
           const doc = data.documents[i]
-          if (doc.file instanceof File) {
-            formData.append(`documents[${docCount}][file]`, doc.file)
+          const initialDoc = initialData.documents?.[i]
+          
+          // Check if document was modified
+          const isModified = doc.file instanceof File || 
+            !initialDoc || 
+            doc.type_id !== initialDoc.type_id ||
+            doc.expiration_date !== initialDoc.expiration_date ||
+            doc.observation !== initialDoc.observation
+          
+          if (isModified) {
+            if (doc.file instanceof File) {
+              formData.append(`documents[${docCount}][file]`, doc.file)
+            }
             formData.append(`documents[${docCount}][type_id]`, String(doc.type_id))
             if (doc.expiration_date) {
               formData.append(`documents[${docCount}][expiration_date]`, doc.expiration_date)
@@ -192,27 +238,38 @@ export function EditModal({
         }
       }
 
-      // Send to appropriate endpoint
-      const endpoint = entityType === "professional" ? `/professionals/${entityId}` : `/clinics/${entityId}`
-      
-      const response = await api.post(endpoint, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data"
-        }
-      })
-      
-      // Show success toast
-      toast({
-        title: "Sucesso",
-        description: entityType === "professional"
-          ? "Profissional atualizado com sucesso"
-          : "Clínica atualizada com sucesso",
-        variant: "default"
-      })
-      
-      // Call success callback and close modal
-      onSuccess?.()
-      onClose()
+      // Only send request if there are changes
+      if (Array.from(formData.entries()).length > 1) { // > 1 because _method is always added
+        // Send to appropriate endpoint
+        const endpoint = entityType === "professional" ? `/professionals/${entityId}` : `/clinics/${entityId}`
+        
+        const response = await api.put(endpoint, formData, {
+          headers: {
+            "Content-Type": "multipart/form-data"
+          }
+        })
+        
+        // Show success toast
+        toast({
+          title: "Sucesso",
+          description: entityType === "professional"
+            ? "Profissional atualizado com sucesso"
+            : "Clínica atualizada com sucesso",
+          variant: "default"
+        })
+        
+        // Call success callback and close modal
+        onSuccess?.()
+        onClose()
+      } else {
+        // No changes were made
+        toast({
+          title: "Nenhuma alteração",
+          description: "Nenhuma alteração foi detectada nos dados",
+          variant: "default"
+        })
+        onClose()
+      }
       
     } catch (error: any) {
       console.error("Erro ao atualizar:", error)
