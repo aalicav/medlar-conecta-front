@@ -390,6 +390,7 @@ interface UnifiedFormProps {
   isClinicAdmin?: boolean
   clinicId?: string
   entityId?: string
+  isEdit?: boolean
 }
 
 // Add this helper function before the ProfessionalForm component
@@ -561,6 +562,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
   isClinicAdmin,
   clinicId,
   entityId,
+  isEdit,
 }: UnifiedFormProps, ref) {
   const { toast } = useToast()
   const router = useRouter()
@@ -1497,18 +1499,21 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
   // Atualizar o handleFormSubmit para usar a função correta
   const handleFormSubmit = async (data: FormValues) => {
     try {
-      if (entityId) {
-        await handleUpdateSubmit(data);
+      if (isEdit) {
+        await submitCallback(data);
       } else {
         await onSubmit(data);
       }
     } catch (error) {
       console.error("Erro ao processar formulário:", error);
-      showToast(toast, {
-        title: "Erro",
-        description: "Ocorreu um erro ao processar o formulário",
-        variant: "destructive"
-      });
+      // Don't show toast here if we're in edit mode, let the parent handle it
+      if (!isEdit) {
+        showToast(toast, {
+          title: "Erro",
+          description: "Ocorreu um erro ao processar o formulário",
+          variant: "destructive"
+        });
+      }
     }
   };
 
@@ -3126,16 +3131,20 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
 
                       <div className="flex justify-between space-x-4 mt-8 pt-4 border-t">
                         <div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                            onClick={() => router.push('/professionals')}
-                          disabled={loading}
-                            className="mr-2"
-                        >
-                            <ArrowLeft className="w-4 h-4 mr-2" />
-                            Voltar para lista
-                        </Button>
+                        {!isEdit && (
+                          <>
+                          <Button
+                            type="button"
+                            variant="outline"
+                              onClick={() => router.push('/professionals')}
+                            disabled={loading}
+                              className="mr-2"
+                          >
+                              <ArrowLeft className="w-4 h-4 mr-2" />
+                              Voltar para lista
+                          </Button>
+                          </>
+                        )}
                         
                           <Button
                             type="button"
@@ -3154,7 +3163,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                             className="min-w-[120px]"
                         >
                           {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                          {entityId ? "Atualizar" : "Cadastrar"}
+                          {isEdit ? "Salvar Alterações" : "Cadastrar"}
                         </Button>
                         </div>
                       </div>
@@ -3726,16 +3735,20 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
 
                     <div className="flex justify-between space-x-4 mt-8 pt-4 border-t">
                       <div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                          onClick={() => router.push('/professionals')}
-                        disabled={loading}
-                          className="mr-2"
-                      >
-                          <ArrowLeft className="w-4 h-4 mr-2" />
-                          Voltar para lista
-                      </Button>
+                      {!isEdit && (
+                        <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                            onClick={() => router.push('/professionals')}
+                          disabled={loading}
+                            className="mr-2"
+                        >
+                            <ArrowLeft className="w-4 h-4 mr-2" />
+                            Voltar para lista
+                        </Button>
+                        </>
+                      )}
                       
                         <Button
                           type="button"
@@ -3754,7 +3767,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                           className="min-w-[120px]"
                       >
                         {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                        {entityId ? "Atualizar" : "Cadastrar"}
+                        {isEdit ? "Salvar Alterações" : "Cadastrar"}
                       </Button>
                       </div>
                     </div>

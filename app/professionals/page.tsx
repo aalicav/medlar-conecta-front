@@ -14,22 +14,50 @@ import { ConditionalRender } from "@/components/conditional-render"
 import { getUsers } from "../admin/users/userService"
 import { fetchResource } from "@/services/resource-service"
 
+// Add interfaces for type safety
+interface Professional {
+  id: number
+  name: string
+  specialty?: string
+  council_type?: string
+  council_number?: string
+  council_state?: string
+  status: string
+  created_at: string
+}
+
+interface Clinic {
+  id: number
+  name: string
+  type?: string
+  cnpj: string
+  status: string
+  city: string
+  state: string
+}
+
+interface TableRow {
+  id: number
+  name: string
+  [key: string]: any
+}
+
 // Create a separate component for page content to use useSearchParams() inside Suspense
 function ProfessionalsContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const tab = searchParams.get('tab') || 'professionals'
+  const tab = searchParams?.get('tab') || 'professionals'
   const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
 
   // Estados para profissionais
-  const [professionals, setProfessionals] = useState([])
+  const [professionals, setProfessionals] = useState<Professional[]>([])
   const [totalProfessionals, setTotalProfessionals] = useState(0)
   const [professionalsCurrentPage, setProfessionalsCurrentPage] = useState(1)
   const [professionalsTotalPages, setProfessionalsTotalPages] = useState(1)
 
   // Estados para estabelecimentos/clínicas
-  const [clinics, setClinics] = useState([])
+  const [clinics, setClinics] = useState<Clinic[]>([])
   const [totalClinics, setTotalClinics] = useState(0)
   const [clinicsCurrentPage, setClinicsCurrentPage] = useState(1)
   const [clinicsTotalPages, setClinicsTotalPages] = useState(1)
@@ -49,9 +77,11 @@ function ProfessionalsContent() {
         search: searchTerm
       })
       
-      setProfessionals(response.data)
-      setTotalProfessionals(response.meta.total)
-      setProfessionalsTotalPages(response.meta.last_page)
+      if (response.data && response.meta) {
+        setProfessionals(response.data)
+        setTotalProfessionals(response.meta.total)
+        setProfessionalsTotalPages(response.meta.last_page)
+      }
     } catch (error) {
       console.error("Error fetching professionals:", error)
     } finally {
@@ -63,14 +93,16 @@ function ProfessionalsContent() {
   const fetchClinics = async () => {
     try {
       setLoading(true)
-      const response = await fetchResource<any>('clinics', {
+      const response = await fetchResource<Clinic>('clinics', {
         page: clinicsCurrentPage,
         search: searchTerm
       })
       
-      setClinics(response.data)
-      setTotalClinics(response.meta?.total ?? 0)
-      setClinicsTotalPages(response.meta?.last_page ?? 0)
+      if (response.data && response.meta) {
+        setClinics(response.data)
+        setTotalClinics(response.meta.total)
+        setClinicsTotalPages(response.meta.last_page)
+      }
     } catch (error) {
       console.error("Error fetching clinics:", error)
     } finally {
@@ -83,7 +115,7 @@ function ProfessionalsContent() {
     {
       accessorKey: "name",
       header: "Nome",
-      cell: ({ row }) => {
+      cell: ({ row }: { row: { original: Professional } }) => {
         const professional = row.original
         return (
           <div>
@@ -98,7 +130,7 @@ function ProfessionalsContent() {
     {
       accessorKey: "council_number",
       header: "Registro",
-      cell: ({ row }) => {
+      cell: ({ row }: { row: { original: Professional } }) => {
         const professional = row.original
         return (
           <div>
@@ -110,7 +142,7 @@ function ProfessionalsContent() {
     {
       accessorKey: "status",
       header: "Status",
-      cell: ({ row }) => {
+      cell: ({ row }: { row: { original: TableRow } }) => {
         const status = row.original.status
         
         switch (status) {
@@ -128,11 +160,11 @@ function ProfessionalsContent() {
     {
       accessorKey: "created_at",
       header: "Data de Cadastro",
-      cell: ({ row }) => formatDate(row.original.created_at)
+      cell: ({ row }: { row: { original: TableRow } }) => formatDate(row.original.created_at)
     },
     {
       id: "actions",
-      cell: ({ row }) => {
+      cell: ({ row }: { row: { original: Professional } }) => {
         const professional = row.original
         return (
           <Button 
@@ -151,7 +183,7 @@ function ProfessionalsContent() {
     {
       accessorKey: "name",
       header: "Nome",
-      cell: ({ row }) => {
+      cell: ({ row }: { row: { original: Clinic } }) => {
         const clinic = row.original
         return (
           <div>
@@ -166,12 +198,12 @@ function ProfessionalsContent() {
     {
       accessorKey: "cnpj",
       header: "CNPJ",
-      cell: ({ row }) => row.original.cnpj
+      cell: ({ row }: { row: { original: Clinic } }) => row.original.cnpj
     },
     {
       accessorKey: "status",
       header: "Status",
-      cell: ({ row }) => {
+      cell: ({ row }: { row: { original: TableRow } }) => {
         const status = row.original.status
         
         switch (status) {
@@ -189,16 +221,16 @@ function ProfessionalsContent() {
     {
       accessorKey: "city",
       header: "Cidade/UF",
-      cell: ({ row }) => `${row.original.city}/${row.original.state}`
+      cell: ({ row }: { row: { original: Clinic } }) => `${row.original.city}/${row.original.state}`
     },
     {
       id: "actions",
-      cell: ({ row }) => {
+      cell: ({ row }: { row: { original: Clinic } }) => {
         const clinic = row.original
         return (
           <Button 
             variant="ghost" 
-            onClick={() => router.push(`/clinics/${clinic.id}`)}
+            onClick={() => router.push(`/professionals/${clinic.id}?type=clinic`)}
           >
             Ver detalhes
           </Button>
@@ -208,7 +240,7 @@ function ProfessionalsContent() {
   ]
 
   // Handler para mudança de aba
-  const handleTabChange = (value) => {
+  const handleTabChange = (value: string) => {
     router.push(`/professionals?tab=${value}`)
   }
 
@@ -283,7 +315,7 @@ function ProfessionalsContent() {
               <DataTable
                 columns={professionalColumns}
                 data={professionals}
-                loading={loading}
+                isLoading={loading}
                 pagination={{
                   currentPage: professionalsCurrentPage,
                   totalPages: professionalsTotalPages,
@@ -303,7 +335,7 @@ function ProfessionalsContent() {
               <DataTable
                 columns={clinicColumns}
                 data={clinics}
-                loading={loading}
+                isLoading={loading}
                 pagination={{
                   currentPage: clinicsCurrentPage,
                   totalPages: clinicsTotalPages,
