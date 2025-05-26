@@ -7,7 +7,6 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   basePath: '/conecta',
-  distDir: process.env.NEXT_PUBLIC_CONFIG === 'prod' ? '.next-prod' : '.next-dev',
 }
 
 export default nextConfig
