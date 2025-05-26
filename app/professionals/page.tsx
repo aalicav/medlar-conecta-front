@@ -63,15 +63,14 @@ function ProfessionalsContent() {
   const fetchClinics = async () => {
     try {
       setLoading(true)
-      const response = await getUsers('clinics', {
+      const response = await fetchResource<any>('clinics', {
         page: clinicsCurrentPage,
-        limit: 10,
         search: searchTerm
       })
       
       setClinics(response.data)
-      setTotalClinics(response.meta.total)
-      setClinicsTotalPages(response.meta.last_page)
+      setTotalClinics(response.meta?.total ?? 0)
+      setClinicsTotalPages(response.meta?.last_page ?? 0)
     } catch (error) {
       console.error("Error fetching clinics:", error)
     } finally {

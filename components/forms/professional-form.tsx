@@ -1279,7 +1279,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
       }
 
       // Enviar requisição
-      const response = await api.post('/professionals', formData, {
+      const response = await api.post(documentType === 'cpf' ? '/professionals' : '/clinics', formData, {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'multipart/form-data'

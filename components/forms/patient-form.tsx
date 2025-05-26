@@ -27,6 +27,7 @@ import { Loader2, Plus, Trash } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { fetchResource, createResource } from "@/services/resource-service"
 import { DatePicker } from "@/components/ui/date-picker"
+import { differenceInYears, parseISO } from "date-fns"
 
 // Estados brasileiros
 const BRAZILIAN_STATES = [
@@ -67,6 +68,9 @@ const patientSchema = z.object({
       type: z.string().min(1, "Tipo obrigatório")
     })
   ).optional(),
+  secondary_contact_name: z.string().optional(),
+  secondary_contact_phone: z.string().optional(),
+  secondary_contact_relationship: z.string().optional(),
 })
 
 // Interface para Campos Field Array
@@ -92,6 +96,9 @@ export interface PatientFormValues extends FieldValues {
   responsible_email?: string;
   responsible_phone?: string;
   phones?: PhoneField[];
+  secondary_contact_name?: string;
+  secondary_contact_phone?: string;
+  secondary_contact_relationship?: string;
 }
 
 // Interface para plano de saúde
@@ -110,11 +117,12 @@ interface Estado {
 interface PatientFormProps {
   patientId?: string;
   onSuccess: (patient: any) => void;
+  onError?: (error: any) => void;
   onCancel: () => void;
   healthPlanId?: string;
 }
 
-export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: PatientFormProps) {
+export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPlanId }: PatientFormProps) {
   const router = useRouter()
   const { hasPermission, hasRole } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -125,6 +133,7 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
   const [selectedState, setSelectedState] = useState<string>("")
   const [availableCities, setAvailableCities] = useState<string[]>([])
   const { toast: useToastToast } = useToast()
+  const [showSecondaryContact, setShowSecondaryContact] = useState(false)
   
   // Verificar se usuário tem permissão para gerenciar pacientes
   const canManagePatients = hasPermission("manage patients")
@@ -148,6 +157,9 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
       responsible_email: "",
       responsible_phone: "",
       phones: [{ number: "", type: "mobile" }],
+      secondary_contact_name: "",
+      secondary_contact_phone: "",
+      secondary_contact_relationship: "",
     },
     mode: "onSubmit"
   })
@@ -198,10 +210,16 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
           const response = await api.get(`/patients/${patientId}`)
           const patient = response.data.data
           
+          // Verificar idade para mostrar campos de contato secundário
+          if (patient.birth_date) {
+            const age = differenceInYears(new Date(), parseISO(patient.birth_date))
+            setShowSecondaryContact(age < 18 || age >= 65)
+          }
+          
           // Preencher o formulário com os dados do paciente
           form.reset({
-            name: patient.name,
-            cpf: patient.cpf ? maskCPF(patient.cpf) : "",
+            ...patient,
+            cpf: maskCPF(patient.cpf),
             birth_date: patient.birth_date ? new Date(patient.birth_date).toISOString().split('T')[0] : "",
             gender: patient.gender || "male",
             health_plan_id: patient.health_plan_id ? String(patient.health_plan_id) : "",
@@ -217,6 +235,9 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
               number: maskPhone(phone.number),
               type: phone.type
             })) : [{ number: "", type: "mobile" }],
+            secondary_contact_name: patient.secondary_contact_name || "",
+            secondary_contact_phone: patient.secondary_contact_phone ? maskPhone(patient.secondary_contact_phone) : "",
+            secondary_contact_relationship: patient.secondary_contact_relationship || "",
           })
           
         } catch (error) {
@@ -285,6 +306,18 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
     
     return () => subscription.unsubscribe()
   }, [form, selectedState])
+  
+  // Atualizar campos de contato secundário quando a data de nascimento mudar
+  useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      if (name === "birth_date" && value.birth_date) {
+        const age = differenceInYears(new Date(), parseISO(value.birth_date))
+        setShowSecondaryContact(age < 18 || age >= 65)
+      }
+    })
+    
+    return () => subscription.unsubscribe()
+  }, [form])
   
   // Handlers para máscaras de input
   const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -377,6 +410,9 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
         // Converter strings vazias para null
         health_plan_id: data.health_plan_id || null,
         health_card_number: data.health_card_number || null,
+        secondary_contact_name: data.secondary_contact_name || null,
+        secondary_contact_phone: data.secondary_contact_phone ? unmask(data.secondary_contact_phone) : null,
+        secondary_contact_relationship: data.secondary_contact_relationship || null,
       }
       
       // Corrigir formato da data
@@ -964,6 +1000,63 @@ export function PatientForm({ patientId, onSuccess, onCancel, healthPlanId }: Pa
                 />
               </div>
             </div>
+            
+            {showSecondaryContact && (
+              <div className="space-y-4">
+                <h2 className="text-xl font-semibold mb-4">Contato Secundário</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="secondary_contact_name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nome do Contato</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Digite o nome do contato" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="secondary_contact_phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Telefone do Contato</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="(00) 00000-0000" 
+                            value={field.value}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              e.target.value = maskPhone(value)
+                              field.onChange(e)
+                            }}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="secondary_contact_relationship"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Relacionamento</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ex: Mãe, Pai, Filho" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+            )}
             
             <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-2">
               <Button
