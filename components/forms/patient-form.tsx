@@ -7,8 +7,9 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { toast, useToast } from "@/components/ui/use-toast"
 import api from "@/services/api-client"
-import { maskCPF, maskPhone, maskCEP, unmask } from "@/utils/masks"
+import { applyCPFMask, applyPhoneMask, applyCEPMask, unmask } from "@/utils/masks"
 import estadosCidades from "@/hooks/estados-cidades.json"
+import { format, differenceInYears, parseISO } from "date-fns"
 
 import { 
   Form, 
@@ -27,7 +28,6 @@ import { Loader2, Plus, Trash } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { fetchResource, createResource } from "@/services/resource-service"
 import { DatePicker } from "@/components/ui/date-picker"
-import { differenceInYears, parseISO } from "date-fns"
 
 // Estados brasileiros
 const BRAZILIAN_STATES = [
@@ -47,8 +47,16 @@ const PHONE_TYPES = [
 const patientSchema = z.object({
   name: z.string().min(3, "Nome deve ter no mínimo 3 caracteres"),
   cpf: z.string().min(11, "CPF inválido"),
-  birth_date: z.union([z.string(), z.instanceof(Date)]).refine(value => value !== "", {
-    message: "Data de nascimento é obrigatória"
+  email: z.string().email("Email inválido").optional(),
+  birth_date: z.date({
+    required_error: "Data de nascimento é obrigatória",
+    invalid_type_error: "Data de nascimento deve ser uma data válida"
+  }).refine((date) => {
+    const now = new Date();
+    const minDate = new Date(1900, 0, 1);
+    return date <= now && date >= minDate;
+  }, {
+    message: "Data de nascimento deve estar entre 01/01/1900 e hoje"
   }),
   gender: z.enum(["male", "female", "other"], {
     errorMap: () => ({ message: "Selecione um gênero válido" }),
@@ -80,10 +88,19 @@ interface PhoneField {
   type: string;
 }
 
+// Atualizar o tipo FormValues para garantir que phones seja sempre um array
+type FormValues = z.infer<typeof patientSchema> & {
+  phones: {
+    number: string;
+    type: string;
+  }[];
+};
+
 // Interface para o formulário
 export interface PatientFormValues extends FieldValues {
   name: string;
   cpf: string;
+  email: string;
   birth_date: string | Date;
   gender: "male" | "female" | "other";
   health_plan_id?: string;
@@ -145,9 +162,10 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
     defaultValues: {
       name: "",
       cpf: "",
+      email: "",
       birth_date: "",
       gender: "male",
-      health_plan_id: healthPlanId || "",
+      health_plan_id: "",
       health_card_number: "",
       address: "",
       city: "",
@@ -161,7 +179,7 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
       secondary_contact_phone: "",
       secondary_contact_relationship: "",
     },
-    mode: "onSubmit"
+    mode: "onBlur"
   })
   
   // Field arrays para telefones
@@ -212,31 +230,32 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
           
           // Verificar idade para mostrar campos de contato secundário
           if (patient.birth_date) {
-            const age = differenceInYears(new Date(), parseISO(patient.birth_date))
+            const birthDate = new Date(patient.birth_date)
+            const age = differenceInYears(new Date(), birthDate)
             setShowSecondaryContact(age < 18 || age >= 65)
           }
           
           // Preencher o formulário com os dados do paciente
           form.reset({
             ...patient,
-            cpf: maskCPF(patient.cpf),
-            birth_date: patient.birth_date ? new Date(patient.birth_date).toISOString().split('T')[0] : "",
+            cpf: applyCPFMask(patient.cpf),
+            birth_date: patient.birth_date ? new Date(patient.birth_date) : undefined,
             gender: patient.gender || "male",
             health_plan_id: patient.health_plan_id ? String(patient.health_plan_id) : "",
             health_card_number: patient.health_card_number || "",
             address: patient.address || "",
             city: patient.city || "",
             state: patient.state || "",
-            postal_code: patient.postal_code ? maskCEP(patient.postal_code) : "",
+            postal_code: patient.postal_code ? applyCEPMask(patient.postal_code) : "",
             responsible_name: patient.responsible_name || "",
             responsible_email: patient.responsible_email || "",
-            responsible_phone: patient.responsible_phone ? maskPhone(patient.responsible_phone) : "",
+            responsible_phone: patient.responsible_phone ? applyPhoneMask(patient.responsible_phone) : "",
             phones: patient.phones?.length ? patient.phones.map((phone: any) => ({
-              number: maskPhone(phone.number),
+              number: applyPhoneMask(phone.number),
               type: phone.type
             })) : [{ number: "", type: "mobile" }],
             secondary_contact_name: patient.secondary_contact_name || "",
-            secondary_contact_phone: patient.secondary_contact_phone ? maskPhone(patient.secondary_contact_phone) : "",
+            secondary_contact_phone: patient.secondary_contact_phone ? applyPhoneMask(patient.secondary_contact_phone) : "",
             secondary_contact_relationship: patient.secondary_contact_relationship || "",
           })
           
@@ -254,7 +273,7 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
       
       loadPatient()
     }
-  }, [patientId, form, useToastToast])
+  }, [patientId, form, toast])
   
   // Fetch health plan name when ID is provided via props
   useEffect(() => {
@@ -311,7 +330,8 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
   useEffect(() => {
     const subscription = form.watch((value, { name }) => {
       if (name === "birth_date" && value.birth_date) {
-        const age = differenceInYears(new Date(), parseISO(value.birth_date))
+        const birthDate = new Date(value.birth_date)
+        const age = differenceInYears(new Date(), birthDate)
         setShowSecondaryContact(age < 18 || age >= 65)
       }
     })
@@ -319,16 +339,15 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
     return () => subscription.unsubscribe()
   }, [form])
   
-  // Handlers para máscaras de input
+  // Atualizar a função handleCPFChange
   const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    const maskedValue = maskCPF(value);
-    form.setValue("cpf", maskedValue);
+    form.setValue("cpf", applyCPFMask(value), { shouldValidate: true });
   };
   
   const handleCEPChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    const maskedValue = maskCEP(value);
+    const maskedValue = applyCEPMask(value);
     form.setValue("postal_code", maskedValue);
     
     // Buscar endereço pelo CEP se tiver 8 dígitos
@@ -337,16 +356,22 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
     }
   };
   
+  // Atualizar a função handlePhoneChange
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
     const value = e.target.value;
-    const maskedValue = maskPhone(value);
-    form.setValue(`phones.${index}.number`, maskedValue);
+    form.setValue(`phones.${index}.number`, applyPhoneMask(value), { shouldValidate: true });
   };
 
+  // Atualizar a função handleResponsiblePhoneChange
   const handleResponsiblePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    const maskedValue = maskPhone(value);
-    form.setValue("responsible_phone", maskedValue);
+    form.setValue("responsible_phone", applyPhoneMask(value), { shouldValidate: true });
+  };
+
+  // Adicionar função para o telefone do contato secundário
+  const handleSecondaryContactPhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    form.setValue("secondary_contact_phone", applyPhoneMask(value), { shouldValidate: true });
   };
   
   // Função para buscar endereço pelo CEP usando API ViaCEP
@@ -383,136 +408,95 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
     }
   };
   
-  // Função para enviar dados ao backend
-  const onSubmit = async (data: PatientFormValues) => {
+  // Atualizar o onSubmit para usar onSuccess ao invés de router.push
+  const onSubmit = async (data: FormValues) => {
     if (!canManagePatients) {
       toast({
         title: "Permissão negada",
         description: "Você não tem permissão para gerenciar pacientes",
         variant: "destructive"
-      })
-      return
+      });
+      return;
     }
-    
-    setIsSubmitting(true)
-    
+
     try {
-      // Preparar dados para envio (remover máscaras)
-      const formData = {
-        ...data,
-        cpf: unmask(data.cpf),
-        postal_code: data.postal_code ? unmask(data.postal_code) : undefined,
-        responsible_phone: data.responsible_phone ? unmask(data.responsible_phone) : undefined,
-        phones: data.phones?.map(phone => ({
-          ...phone,
-          number: unmask(phone.number)
-        })),
-        // Converter strings vazias para null
-        health_plan_id: data.health_plan_id || null,
-        health_card_number: data.health_card_number || null,
-        secondary_contact_name: data.secondary_contact_name || null,
-        secondary_contact_phone: data.secondary_contact_phone ? unmask(data.secondary_contact_phone) : null,
-        secondary_contact_relationship: data.secondary_contact_relationship || null,
-      }
+      setIsSubmitting(true);
       
-      // Corrigir formato da data
-      if (formData.birth_date) {
-        // Se for um objeto Date, converter para string no formato ISO
-        if (formData.birth_date instanceof Date) {
-          formData.birth_date = formData.birth_date.toISOString().split('T')[0];
+      // Preparar dados para envio usando FormData
+      const formData = new FormData();
+      
+      // Adicionar campos básicos
+      Object.entries(data).forEach(([key, value]) => {
+        if (key !== 'phones' && value !== null && value !== undefined) {
+          formData.append(key, String(value));
         }
+      });
+
+      // Adicionar telefones
+      if (data.phones?.length) {
+        data.phones.forEach((phone, index) => {
+          formData.append(`phones[${index}][number]`, unmask(phone.number));
+          formData.append(`phones[${index}][type]`, phone.type);
+        });
       }
-      
+
+      // Adicionar campos específicos com unmask
+      if (data.cpf) {
+        formData.set('cpf', unmask(data.cpf));
+      }
+      if (data.responsible_phone) {
+        formData.set('responsible_phone', unmask(data.responsible_phone));
+      }
+      if (data.secondary_contact_phone) {
+        formData.set('secondary_contact_phone', unmask(data.secondary_contact_phone));
+      }
+      if (data.postal_code) {
+        formData.set('postal_code', unmask(data.postal_code));
+      }
+
+      if(data.birth_date) {
+        formData.set('birth_date', data.birth_date.toISOString());
+      }
+
+      if(healthPlanId) {
+        formData.set('health_plan_id', healthPlanId);
+      }
+
       let response;
-      
       if (patientId) {
-        // Atualizar paciente existente
         response = await api.put(`/patients/${patientId}`, formData);
-        
-        if (response.status === 200 || response.status === 201) {
-          toast({
-            title: "Paciente atualizado",
-            description: "O paciente foi atualizado com sucesso"
-          });
-          
-          // Chamar o callback de sucesso com os dados do paciente
-          const patientData = response.data.data || response.data;
-          console.log("Paciente atualizado:", patientData);
-          onSuccess(patientData);
-        } else {
-          throw new Error("Erro ao atualizar paciente");
-        }
       } else {
-        // Criar novo paciente
-        console.log("Enviando dados:", formData);
-        response = await createResource("patients", formData);
-        console.log("Resposta:", response);
+        response = await api.post('/patients', formData);
+      }
+
+      if (response.status === 200 || response.status === 201) {
+        toast({
+          title: patientId ? "Paciente atualizado" : "Paciente cadastrado",
+          description: patientId ? "O paciente foi atualizado com sucesso" : "O paciente foi cadastrado com sucesso",
+          variant: "success"
+        });
         
-        // Verificar se a resposta foi bem-sucedida
-        // createResource já retorna response.data que tem a estrutura ApiResponse
-        if (response && response.status === 'success') {
-          toast({
-            title: "Paciente criado",
-            description: "O paciente foi criado com sucesso"
-          });
-          
-          // Chamar o callback de sucesso com os dados do paciente
-          // Garantir que estamos passando o objeto completo do paciente
-          console.log("Paciente criado:", response.data);
-          onSuccess(response.data);
-        } else {
-          // Se não tiver mensagem específica, usar mensagem genérica
-          throw new Error("Erro ao criar paciente");
-        }
+        // Usar o callback onSuccess ao invés de router.push
+        const patientData = response.data.data || response.data;
+        onSuccess(patientData);
       }
     } catch (error: any) {
       console.error("Erro ao salvar paciente:", error);
+      const errorMsg = error.response?.data?.message || "Erro ao salvar o paciente";
+      toast({
+        title: "Erro",
+        description: errorMsg,
+        variant: "destructive"
+      });
       
-      // Verificar se é um erro de validação do backend
-      if (error.response?.data?.errors) {
-        const errors = error.response.data.errors;
-        const errorMessages = Object.entries(errors)
-          .map(([field, messages]) => {
-            const fieldName = {
-              name: "Nome",
-              cpf: "CPF",
-              birth_date: "Data de nascimento",
-              gender: "Gênero",
-              health_plan_id: "Plano de saúde",
-              health_card_number: "Número da carteirinha",
-              address: "Endereço",
-              city: "Cidade",
-              state: "Estado",
-              postal_code: "CEP",
-              phones: "Telefones"
-            }[field] || field;
-
-            return `${fieldName}: ${Array.isArray(messages) ? messages[0] : messages}`;
-          })
-          .join("\n");
-
-        toast({
-          title: "Erro de validação",
-          description: errorMessages,
-          variant: "destructive"
-        });
-      } else if (error.response?.data?.message) {
-        toast({
-          title: "Erro ao salvar paciente",
-          description: error.response.data.message,
-          variant: "destructive"
-        });
-      } else {
-        toast({
-          title: "Erro inesperado",
-          description: error.message || "Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente.",
-          variant: "destructive"
-        });
+      // Chamar onError se fornecido
+      if (onError) {
+        onError(error);
       }
     } finally {
       setIsSubmitting(false);
     }
-  }
+  };
   
   // Função para exibir erros de validação como toast
   const handleFormSubmit = async (e: React.FormEvent) => {
@@ -623,12 +607,27 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
                       <FormControl>
                         <Input 
                           placeholder="000.000.000-00" 
-                          value={field.value}
+                          {...field}
                           onChange={(e) => {
-                            handleCPFChange(e);
-                            field.onChange(e);
+                            const value = e.target.value;
+                            field.onChange(applyCPFMask(value));
                           }}
+                          maxLength={14}
                         />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="email@exemplo.com" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -641,17 +640,62 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Data de Nascimento*</FormLabel>
-                      <FormControl>
-                        <DatePicker 
-                          date={field.value 
-                            ? typeof field.value === 'string' 
-                              ? new Date(field.value) 
-                              : field.value as Date
-                            : null
-                          } 
-                          setDate={field.onChange} 
-                        />
-                      </FormControl>
+                      <div className="flex space-x-2">
+                        <FormControl>
+                          <Input
+                            type="text"
+                            placeholder="DD/MM/AAAA"
+                            value={field.value ? format(new Date(field.value), 'dd/MM/yyyy') : ''}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              // Permite digitar apenas números e /
+                              const cleaned = value.replace(/[^\d/]/g, '');
+                              
+                              // Adiciona / automaticamente
+                              let formatted = cleaned;
+                              if (cleaned.length >= 2 && cleaned.charAt(2) !== '/') {
+                                formatted = cleaned.slice(0, 2) + '/' + cleaned.slice(2);
+                              }
+                              if (cleaned.length >= 5 && cleaned.charAt(5) !== '/') {
+                                formatted = formatted.slice(0, 5) + '/' + formatted.slice(5);
+                              }
+                              
+                              // Limita o tamanho máximo
+                              formatted = formatted.slice(0, 10);
+                              
+                              // Tenta converter para data
+                              if (formatted.length === 10) {
+                                const [day, month, year] = formatted.split('/');
+                                const date = new Date(Number(year), Number(month) - 1, Number(day));
+                                
+                                // Verifica se é uma data válida
+                                if (!isNaN(date.getTime())) {
+                                  field.onChange(date);
+                                  // Verificar idade para mostrar campos de contato secundário
+                                  const age = differenceInYears(new Date(), date);
+                                  setShowSecondaryContact(age < 18 || age >= 65);
+                                }
+                              }
+                              
+                              e.target.value = formatted;
+                            }}
+                            maxLength={10}
+                          />
+                        </FormControl>
+                        <FormControl>
+                          <DatePicker 
+                            date={field.value ? new Date(field.value) : null} 
+                            setDate={(date: Date | null) => {
+                              field.onChange(date);
+                              // Verificar idade para mostrar campos de contato secundário
+                              if (date) {
+                                const age = differenceInYears(new Date(), date);
+                                setShowSecondaryContact(age < 18 || age >= 65);
+                              }
+                            }}
+                          />
+                        </FormControl>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -874,17 +918,18 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
                       <FormField
                         control={form.control}
                         name={`phones.${index}.number`}
-                        render={({ field: phoneField }) => (
+                        render={({ field }) => (
                           <FormItem>
                             <FormLabel>Número*</FormLabel>
                             <FormControl>
                               <Input 
                                 placeholder="(00) 00000-0000" 
-                                value={phoneField.value}
+                                {...field}
                                 onChange={(e) => {
-                                  handlePhoneChange(e, index);
-                                  phoneField.onChange(e);
+                                  const value = e.target.value;
+                                  field.onChange(applyPhoneMask(value));
                                 }}
+                                maxLength={15}
                               />
                             </FormControl>
                             <FormMessage />
@@ -947,60 +992,6 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
               </div>
             </div>
             
-            <div>
-              <h2 className="text-xl font-semibold mb-4">Dados do Responsável</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="responsible_name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nome do Responsável</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Nome completo do responsável" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="responsible_phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Celular do Responsável</FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder="(00) 00000-0000" 
-                          value={field.value}
-                          onChange={(e) => {
-                            handleResponsiblePhoneChange(e);
-                            field.onChange(e);
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="responsible_email"
-                  render={({ field }) => (
-                    <FormItem className="sm:col-span-2">
-                      <FormLabel>Email do Responsável</FormLabel>
-                      <FormControl>
-                        <Input placeholder="email@exemplo.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
-            
             {showSecondaryContact && (
               <div className="space-y-4">
                 <h2 className="text-xl font-semibold mb-4">Contato Secundário</h2>
@@ -1012,7 +1003,11 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
                       <FormItem>
                         <FormLabel>Nome do Contato</FormLabel>
                         <FormControl>
-                          <Input placeholder="Digite o nome do contato" {...field} />
+                          <Input 
+                            placeholder="Digite o nome do contato" 
+                            {...field} 
+                            value={field.value || ''}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -1028,12 +1023,13 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
                         <FormControl>
                           <Input 
                             placeholder="(00) 00000-0000" 
-                            value={field.value}
+                            {...field}
+                            value={field.value || ''}
                             onChange={(e) => {
-                              const value = e.target.value
-                              e.target.value = maskPhone(value)
-                              field.onChange(e)
+                              const value = e.target.value;
+                              field.onChange(applyPhoneMask(value));
                             }}
+                            maxLength={15}
                           />
                         </FormControl>
                         <FormMessage />
@@ -1048,7 +1044,11 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
                       <FormItem>
                         <FormLabel>Relacionamento</FormLabel>
                         <FormControl>
-                          <Input placeholder="Ex: Mãe, Pai, Filho" {...field} />
+                          <Input 
+                            placeholder="Ex: Mãe, Pai, Filho" 
+                            {...field}
+                            value={field.value || ''}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

@@ -683,30 +683,6 @@ export function SolicitationForm({
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="preferred_date_start"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Data Preferencial (Início)</FormLabel>
-                    <DatePicker date={field.value as Date | null} setDate={field.onChange} />
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="preferred_date_end"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Data Preferencial (Fim)</FormLabel>
-                    <DatePicker date={field.value as Date | null} setDate={field.onChange} />
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
               <div className="flex justify-end space-x-4">
                 <Button
                   type="button"

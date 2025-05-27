@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/contexts/auth-context"
-import { Loader2, Plus, Trash, SearchIcon, DollarSign, AlertCircle, CheckCircle, InfoIcon, Trash2, Building2, User, FileText, Phone, AlertTriangle, X, Check } from "lucide-react"
+import { Loader2, Plus, Trash, SearchIcon, DollarSign, AlertCircle, CheckCircle, InfoIcon, Trash2, Building2, User, FileText, Phone, AlertTriangle, X, Check, GitBranch } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -136,6 +136,8 @@ const formSchema = z.object({
   ans_code: z.string().min(1, "Código ANS é obrigatório"),
   description: z.string(),  
   logo: z.any().optional(), // Adicionar campo logo ao schema
+  parent_id: z.string().optional(), // Adicionar campo parent_id
+  
   // Representante Legal
   legal_representative_name: z.string().min(1, "Nome do representante legal é obrigatório"),
   legal_representative_cpf: z.string().min(11, "CPF inválido"),
@@ -213,6 +215,8 @@ interface TussProcedure {
 interface HealthPlanFormProps {
   healthPlanId?: number;
   initialData?: any;
+  isChildPlan?: boolean;
+  parentPlanId?: string;
 }
 
 // Adicionar um tradutor de mensagens de erro
@@ -370,7 +374,52 @@ type FieldRenderProps<T extends FieldPath<FormValues> = FieldPath<FormValues>> =
   };
 };
 
-export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProps) {
+// Adicione esta função de tradução de erros de validação
+const translateValidationError = (field: string, message: string): string => {
+  const fieldTranslations: Record<string, string> = {
+    name: "Nome",
+    cnpj: "CNPJ",
+    email: "E-mail",
+    ans_code: "Código ANS",
+    description: "Descrição",
+    address: "Endereço",
+    city: "Cidade",
+    state: "Estado",
+    postal_code: "CEP",
+    legal_representative_name: "Nome do Representante Legal",
+    legal_representative_cpf: "CPF do Representante Legal",
+    legal_representative_email: "E-mail do Representante Legal",
+    operational_representative_name: "Nome do Representante Operacional",
+    operational_representative_cpf: "CPF do Representante Operacional",
+    operational_representative_email: "E-mail do Representante Operacional"
+  };
+
+  const messageTranslations: Record<string, string> = {
+    "The name field is required": "O campo nome é obrigatório",
+    "The description field is required": "O campo descrição é obrigatório",
+    "The cnpj field is required": "O campo CNPJ é obrigatório",
+    "The email field is required": "O campo e-mail é obrigatório",
+    "The ans_code field is required": "O código ANS é obrigatório",
+    "validation.required": "Este campo é obrigatório",
+    "The selected documents.0.type is invalid": "O tipo do documento 1 é inválido",
+    "The selected documents.1.type is invalid": "O tipo do documento 2 é inválido",
+    "The selected documents.2.type is invalid": "O tipo do documento 3 é inválido",
+    "The selected documents.3.type is invalid": "O tipo do documento 4 é inválido",
+    "The selected documents.4.type is invalid": "O tipo do documento 5 é inválido",
+    "The selected documents.5.type is invalid": "O tipo do documento 6 é inválido",
+    "The selected documents.6.type is invalid": "O tipo do documento 7 é inválido",
+    "The selected documents.7.type is invalid": "O tipo do documento 8 é inválido",
+    "The selected documents.8.type is invalid": "O tipo do documento 9 é inválido",
+    "The selected documents.9.type is invalid": "O tipo do documento 10 é inválido"
+  };
+
+  const translatedField = fieldTranslations[field] || field;
+  const translatedMessage = messageTranslations[message] || message;
+
+  return `${translatedField}: ${translatedMessage}`;
+};
+
+export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false, parentPlanId }: HealthPlanFormProps) {
   const router = useRouter()
   const { hasPermission } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -386,17 +435,15 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
   // Hook useToast
   const { toast } = useToast()
   
-  // Mapear corretamente os tipos de documentos para os valores aceitos pela API
+  // Primeiro, atualize o mapeamento de tipos de documentos no início do arquivo
   const documentTypeApiMap: Record<number, string> = {
-    1: "contract",
-    2: "ans_certificate", 
-    3: "authorization",
-    4: "financial",
-    5: "legal",
-    6: "identification",
-    7: "agreement",
-    8: "technical",
-    9: "other"
+    1: "identification",
+    2: "certificate", 
+    3: "diploma",
+    4: "license",
+    5: "contract",
+    6: "authorization",
+    7: "other"
   };
   
   // Estados para TUSS e negociação
@@ -435,6 +482,7 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
       ans_code: "",
       description: "",
       logo: null,
+      parent_id: "",
       legal_representative_name: "",
       legal_representative_cpf: "",
       legal_representative_position: "",
@@ -622,7 +670,7 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
           
           formData.append(`new_documents[${newDocCount}][file]`, docFile);
           formData.append(`new_documents[${newDocCount}][type]`, type);
-          formData.append(`new_documents[${newDocCount}][description]`, typeName);
+          formData.append(`new_documents[${newDocCount}][description]`, docFile.name);
           formData.append(`new_documents[${newDocCount}][name]`, docFile.name);
           
           if (doc.expiration_date) {
@@ -1260,6 +1308,9 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
       // Definir o arquivo no formulário com cast explícito
       form.setValue(`documents.${index}.file` as any, file);
       
+      // Definir o nome do arquivo como descrição
+      form.setValue(`documents.${index}.description` as any, file.name);
+      
       // Limpar o file_url já que agora temos um novo arquivo
       form.setValue(`documents.${index}.file_url` as any, undefined);
       
@@ -1295,31 +1346,24 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
     try {
       setIsSubmitting(true);
       
-      // Validar documentos obrigatórios
-      if (!validateRequiredDocuments()) {
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Usar FormData para envio de arquivos
+      // Use o nome como descrição se a descrição estiver vazia
       const formData = new FormData();
       
       // Adicionar campos básicos
       Object.entries(data).forEach(([key, value]) => {
         if (key !== 'documents' && key !== 'phones' && key !== 'logo' && value !== null && value !== undefined) {
-          formData.append(key, String(value));
+          // Se o campo for description e estiver vazio, use o nome
+          if (key === 'description' && (!value || value.trim() === '')) {
+            formData.append(key, data.name);
+          } else {
+            formData.append(key, String(value));
+          }
         }
       });
 
-      // Adicionar logo como arquivo independente
+      // Adicionar logo
       if (logoFile instanceof File && logoFile.size > 0) {
-        try {
-          // Converter o arquivo para Blob antes de adicionar ao FormData
-          const logoBlob = await fileToBlob(logoFile);
-          formData.append('logo', logoBlob, logoFile.name);
-        } catch (logoError) {
-          console.error("Erro ao processar logo:", logoError);
-        }
+        formData.append('logo', logoFile);
       }
 
       // Adicionar telefones
@@ -1328,201 +1372,122 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
         formData.append(`phones[${index}][type]`, phone.type);
       });
 
-      // Abordagem diferente para PUT vs POST
-      if (healthPlanId) {
-        // PUT request - só enviar documentos novos
-        let newDocumentCount = 0;
-        
-        for (let index = 0; index < data.documents.length; index++) {
-          const doc = data.documents[index];
-          if (!doc.type_id) continue;
-          
-          // Obter o arquivo do array de documentFiles
-          const docFile = documentFiles[index];
-          
-          // Apenas enviar arquivos novos
-          if (docFile instanceof File && docFile.size > 0) {
-            try {
-              // Mapear o type_id para o valor aceito pela API
-              const docTypeValue = documentTypeApiMap[Number(doc.type_id)] || 'other';
-              const docTypeName = documentTypes.find(dt => dt.id === Number(doc.type_id))?.name || 'Documento';
-              
-              // Converter o arquivo para Blob
-              const docBlob = await fileToBlob(docFile);
-              
-              // Adicionar o novo arquivo ao FormData
-              const fieldPrefix = `new_documents[${newDocumentCount}]`;
-              formData.append(`${fieldPrefix}[type]`, docTypeValue);
-              formData.append(`${fieldPrefix}[description]`, docTypeName);
-              formData.append(`${fieldPrefix}[name]`, docFile.name);
-              formData.append(`${fieldPrefix}[file]`, docBlob, docFile.name);
-              
-              if (doc.expiration_date) {
-                formData.append(`${fieldPrefix}[expiration_date]`, doc.expiration_date);
-              }
-              
-              if (doc.observation) {
-                formData.append(`${fieldPrefix}[observation]`, doc.observation);
-              }
-              
-              newDocumentCount++;
-            } catch (docError) {
-              console.error(`Erro ao processar documento ${index}:`, docError);
-            }
-          }
-        }
-        
-        // Indicar quantos documentos novos estamos enviando
-        if (newDocumentCount > 0) {
-          formData.append('new_document_count', String(newDocumentCount));
-        }
-      } else {
-        // POST request - enviar todos os documentos
-        for (let index = 0; index < data.documents.length; index++) {
-          const doc = data.documents[index];
-          if (!doc.type_id) continue;
-          
-          // Obter o documento do array de documentFiles
-          const docFile = documentFiles[index];
-          
-          // Apenas processar documentos com arquivos
-          if (docFile instanceof File && docFile.size > 0) {
-            try {
-              // Mapear o type_id para o valor aceito pela API
-              const docTypeValue = documentTypeApiMap[Number(doc.type_id)] || 'other';
-              const docTypeName = documentTypes.find(dt => dt.id === Number(doc.type_id))?.name || 'Documento';
-              
-              // Converter o arquivo para Blob
-              const docBlob = await fileToBlob(docFile);
-              
-              // Adicionar o documento ao FormData
-              formData.append(`documents[${index}][type]`, docTypeValue);
-              formData.append(`documents[${index}][description]`, docTypeName);
-              formData.append(`documents[${index}][name]`, docFile.name);
-              formData.append(`documents[${index}][file]`, docBlob, docFile.name);
-              
-              if (doc.expiration_date) {
-                formData.append(`documents[${index}][expiration_date]`, doc.expiration_date);
-              }
-              
-              if (doc.observation) {
-                formData.append(`documents[${index}][observation]`, doc.observation);
-              }
-            } catch (docError) {
-              console.error(`Erro ao processar documento ${index}:`, docError);
-            }
-          }
-        }
-      }
+      // Adicionar documentos
+      let docCount = 0;
+      const processedTypeIds = new Set(); // Rastrear type_ids processados para evitar duplicatas
 
-      // Criar opções para a requisição
-      const requestOptions = {
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'multipart/form-data'
-        }
-      };
-
-      // Log para debug - mostrar todos os campos do FormData
-      console.log('==== CONTEÚDO FINAL DO FORMDATA ====');
-      for (let pair of formData.entries()) {
-        if (typeof pair[1] === 'object') {
-          if ('name' in pair[1] && 'type' in pair[1] && 'size' in pair[1]) {
-            console.log(`${pair[0]}: File: ${(pair[1] as any).name} (${(pair[1] as any).size} bytes, tipo: ${(pair[1] as any).type})`);
-          } else if ('size' in pair[1] && 'type' in pair[1]) {
-            console.log(`${pair[0]}: Blob: blob (${(pair[1] as any).size} bytes, tipo: ${(pair[1] as any).type})`);
-          } else {
-            console.log(`${pair[0]}: ${String(pair[1])}`);
+      for (let i = 0; i < documentFiles.length; i++) {
+        const docFile = documentFiles[i];
+        const docItem = data.documents[i];
+        
+        if (!docItem || !docItem.type_id) continue;
+        
+        // Pular se já processamos este type_id
+        if (processedTypeIds.has(docItem.type_id)) continue;
+        processedTypeIds.add(docItem.type_id);
+        
+        // Mapear o type_id para o valor aceito pela API
+        const docType = documentTypeApiMap[Number(docItem.type_id)] || 'other';
+        const typeName = documentTypes.find(dt => dt.id === Number(docItem.type_id))?.name || 'Documento';
+        
+        if (docFile instanceof File && docFile.size > 0) {
+          formData.append(`documents[${docCount}][file]`, docFile);
+          formData.append(`documents[${docCount}][type]`, docType);
+          formData.append(`documents[${docCount}][description]`, docFile.name);
+          formData.append(`documents[${docCount}][name]`, docFile.name);
+          
+          if (docItem.expiration_date) {
+            formData.append(`documents[${docCount}][expiration_date]`, docItem.expiration_date);
           }
-        } else {
-          console.log(`${pair[0]}: ${String(pair[1])}`);
+          
+          if (docItem.observation) {
+            formData.append(`documents[${docCount}][observation]`, docItem.observation);
+          }
+          
+          docCount++;
         }
       }
 
       // Enviar requisição para o backend
       let response;
       if (healthPlanId) {
-        response = await api.put(`/health-plans/${healthPlanId}`, formData, requestOptions);
+        response = await api.put(`/health-plans/${healthPlanId}`, formData, {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'multipart/form-data'
+          }
+        });
         showToast({
           title: "Sucesso",
           description: "Plano de saúde atualizado com sucesso",
           variant: "success"
         });
       } else {
-        response = await api.post('/health-plans', formData, requestOptions);
-        console.log("Resposta da API:", response.data);
+        response = await api.post('/health-plans', formData, {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'multipart/form-data'
+          }
+        });
         showToast({
           title: "Sucesso",
           description: "Plano de saúde cadastrado com sucesso",
           variant: "success"
         });
-        // Limpar dados do localStorage após envio bem-sucedido
         localStorage.removeItem(FORM_STORAGE_KEY);
       }
 
       router.push('/health-plans');
     } catch (error: any) {
       console.error("Erro ao enviar formulário:", error);
-      console.error("Detalhes da resposta:", error.response?.data);
       
-      // Processar erros de validação específicos
-      if (error.response?.data?.errors) {
-        const errorMessages: string[] = [];
+      if (error.response?.status === 422) {
         const errors = error.response.data.errors;
-        
-        // Formatação de mensagens de erro amigáveis
-        Object.keys(errors).forEach(field => {
-          // Formatar o nome do campo para exibição
-          let fieldName = field;
-          
-          // Melhorar exibição para campos de documentos
-          if (field.includes('documents.')) {
-            const match = field.match(/documents\.(\d+)\.(.+)/);
-            if (match) {
-              const index = parseInt(match[1]);
-              const subfield = match[2];
-              const subfieldDisplay = {
-                file: "Arquivo",
-                type: "Tipo", 
-                description: "Descrição"
-              }[subfield] || subfield;
-              
-              fieldName = `Documento ${index + 1} - ${subfieldDisplay}`;
-            }
-          } else {
-            // Melhorar nomes de outros campos
-            const fieldMapping: Record<string, string> = {
-              logo: "Logo",
-              name: "Nome",
-              cnpj: "CNPJ",
-              email: "Email",
-              ans_code: "Código ANS"
-            };
-            fieldName = fieldMapping[field] || field;
-          }
-          
-          // Adicionar mensagens traduzidas
-          errors[field].forEach((msg: string) => {
-            errorMessages.push(`${fieldName}: ${translateError(msg)}`);
-          });
+        const errorMessages = Object.entries(errors).map(([field, messages]) => {
+          const fieldTranslations: Record<string, string> = {
+            name: "Nome",
+            cnpj: "CNPJ",
+            email: "E-mail",
+            ans_code: "Código ANS",
+            description: "Descrição",
+            "documents.0.type": "Tipo do documento 1",
+            "documents.1.type": "Tipo do documento 2",
+            "documents.2.type": "Tipo do documento 3",
+            "documents.3.type": "Tipo do documento 4",
+            "documents.4.type": "Tipo do documento 5",
+            "documents.5.type": "Tipo do documento 6",
+            "documents.6.type": "Tipo do documento 7",
+            "documents.7.type": "Tipo do documento 8",
+            "documents.8.type": "Tipo do documento 9",
+            "documents.9.type": "Tipo do documento 10"
+          };
+
+          const messageTranslations: Record<string, string> = {
+            "The selected type is invalid.": "O tipo selecionado é inválido.",
+            "The type field is required.": "O tipo é obrigatório.",
+            "validation.required": "Este campo é obrigatório",
+            "The selected documents.0.type is invalid": "O tipo do documento 1 é inválido",
+            "The selected documents.1.type is invalid": "O tipo do documento 2 é inválido",
+            "The selected documents.2.type is invalid": "O tipo do documento 3 é inválido",
+            "The selected documents.3.type is invalid": "O tipo do documento 4 é inválido",
+            "The selected documents.4.type is invalid": "O tipo do documento 5 é inválido",
+            "The selected documents.5.type is invalid": "O tipo do documento 6 é inválido",
+            "The selected documents.6.type is invalid": "O tipo do documento 7 é inválido",
+            "The selected documents.7.type is invalid": "O tipo do documento 8 é inválido",
+            "The selected documents.8.type is invalid": "O tipo do documento 9 é inválido",
+            "The selected documents.9.type is invalid": "O tipo do documento 10 é inválido"
+          };
+
+          const fieldName = fieldTranslations[field] || field;
+          const message = Array.isArray(messages) ? messages[0] : messages;
+          const translatedMessage = messageTranslations[message as string] || message;
+
+          return `${fieldName}: ${translatedMessage}`;
         });
-        
-        // Mostrar todas as mensagens de erro
+
         showToast({
-          title: "Erro de validação",
-          description: errorMessages.join('. '),
-          variant: "destructive"
-        });
-      } else if (error.response?.data?.message) {
-        showToast({
-          title: "Erro",
-          description: translateError(error.response.data.message),
-          variant: "destructive"
-        });
-      } else if (error.message) {
-        showToast({
-          title: "Erro",
-          description: translateError(error.message),
+          title: "Erro de Validação",
+          description: errorMessages.join('\n'),
           variant: "destructive"
         });
       } else {
@@ -1537,170 +1502,125 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
     }
   };
 
-  // Replace the TypedFormField definition
-  const TypedFormField = FormField as any;
-
-  // Update the renderDocuments function with explicit types
-  const renderDocuments = () => {
-    return documentFields.map((field, index) => {
-      const currentTypeId = form.getValues(`documents.${index}.type_id`);
-      const currentDocType = documentTypes?.find(dt => dt.id === currentTypeId);
-      const hasExistingFile = !!form.getValues(`documents.${index}.file_url`);
-      
-      // Only render fields for required document types
-      if (!currentDocType?.is_required) return null;
-      
-      return (
-        <div 
-          key={field.id} 
-          className="space-y-4 p-4 border border-red-100 rounded-lg bg-red-50/30"
-        >
-          <TypedFormField
-            control={form.control}
-            name={`documents.${index}.type_id`}
-            render={({ field }: any) => (
-              <FormItem className="flex-1">
-                <FormLabel className="flex items-center">
-                  {currentDocType.name}
-                  <span className="text-red-500 ml-1 font-bold">*</span>
-                </FormLabel>
-                
-                {/* Hidden select that's disabled to prevent changes */}
-                <div className="hidden">
-                  <Select
-                    value={field.value?.toString()}
-                    onValueChange={() => {}}
-                    disabled={true}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {documentTypes?.filter(dt => dt.is_required).map((type) => (
-                        <SelectItem
-                          key={type.id}
-                          value={type.id.toString()}
-                        >
-                          {type.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <FormMessage className={formErrorStyles} />
-              </FormItem>
-            )}
-          />
-
-          {hasExistingFile && (
-            <div className="text-sm text-green-600 flex items-center gap-2 p-2 bg-green-50 rounded-md">
-              <Check className="h-4 w-4" />
-              Documento já enviado
-            </div>
-          )}
-
-          <TypedFormField
-            control={form.control}
-            name={`documents.${index}.file`}
-            render={({ field }: any) => (
-              <FormItem>
-                <FormLabel className="flex items-center">
-                  Arquivo
-                  {!hasExistingFile && <span className="text-red-500 ml-1 font-bold">*</span>}
-                </FormLabel>
-                <FormControl>
-                  <Input
-                    type="file"
-                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                    onChange={(e) => handleDocumentChange(e, index)}
-                  />
-                </FormControl>
-                <FormDescription>
-                  {hasExistingFile ? 
-                    "Você pode substituir o arquivo existente" : 
-                    "Formatos aceitos: PDF, DOC, DOCX, JPG, PNG. Tamanho máximo: 10MB"}
-                </FormDescription>
-                <FormMessage className={formErrorStyles} />
-              </FormItem>
-            )}
-          />
-
-          <TypedFormField
-            control={form.control}
-            name={`documents.${index}.expiration_date`}
-            render={({ field }: any) => (
-              <FormItem>
-                <FormLabel className="flex items-center">
-                  Data de Expiração
-                  {currentDocType?.expiration_alert_days && 
-                    <span className="text-red-500 ml-1 font-bold">*</span>
-                  }
-                </FormLabel>
-                <FormControl>
-                  <Input
-                    type="date"
-                    {...field}
-                    value={field.value || ''}
-                    min={new Date().toISOString().split('T')[0]}
-                  />
-                </FormControl>
-                {currentDocType?.expiration_alert_days && (
-                  <FormDescription>
-                    Este documento requer alerta de expiração {currentDocType.expiration_alert_days} dias antes do vencimento
-                  </FormDescription>
-                )}
-                <FormMessage className={formErrorStyles} />
-              </FormItem>
-            )}
-          />
-
-          <TypedFormField
-            control={form.control}
-            name={`documents.${index}.observation`}
-            render={({ field }: any) => (
-              <FormItem>
-                <FormLabel>Observação</FormLabel>
-                <FormControl>
-                  <Textarea {...field} value={field.value || ''} />
-                </FormControl>
-                <FormMessage className={formErrorStyles} />
-              </FormItem>
-            )}
-          />
-        </div>
-      );
-    });
-  };
-
-  // Separate useEffect to handle file_url in documents
-  useEffect(() => {
-    // Check if we have documentFields and the form is initialized
-    if (documentFields.length > 0) {
-      // Go through each document field
-      documentFields.forEach((field, index) => {
-        const docValue = form.getValues(`documents.${index}`);
+  // Render documents function
+  const renderDocuments = () => (
+    <>
+      {documentFields.map((field, index) => {
+        const currentTypeId = form.getValues(`documents.${index}.type_id`);
+        const currentDocType = documentTypes?.find(dt => dt.id === currentTypeId);
+        const hasExistingFile = !!form.getValues(`documents.${index}.file_url`);
         
-        // If the document has a file_url but no file, set the file field to null
-        if (docValue && docValue.file_url && !docValue.file) {
-          form.setValue(`documents.${index}.file` as any, null, { shouldValidate: false });
-        }
-      });
-    }
-  }, [documentFields, form]);
+        if (!currentDocType?.is_required) return null;
+        
+        return (
+          <div 
+            key={field.id} 
+            className="space-y-4 p-4 border border-red-100 rounded-lg bg-red-50/30"
+          >
+            <FormField
+              control={form.control}
+              name={`documents.${index}.type_id`}
+              render={({ field }) => (
+                <FormItem className="flex-1">
+                  <FormLabel className="flex items-center">
+                    {currentDocType.name}
+                    <span className="text-red-500 ml-1 font-bold">*</span>
+                  </FormLabel>
+                  <FormControl>
+                    <Input type="hidden" {...field} />
+                  </FormControl>
+                  <FormMessage className={formErrorStyles} />
+                </FormItem>
+              )}
+            />
+
+            {hasExistingFile && (
+              <div className="text-sm text-green-600 flex items-center gap-2 p-2 bg-green-50 rounded-md">
+                <Check className="h-4 w-4" />
+                Documento já enviado
+              </div>
+            )}
+
+            <FormField
+              control={form.control}
+              name={`documents.${index}.file`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center">
+                    Arquivo
+                    {!hasExistingFile && <span className="text-red-500 ml-1 font-bold">*</span>}
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                      onChange={(e) => handleDocumentChange(e, index)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {hasExistingFile ? 
+                      "Você pode substituir o arquivo existente" : 
+                      "Formatos aceitos: PDF, DOC, DOCX, JPG, PNG. Tamanho máximo: 10MB"}
+                  </FormDescription>
+                  <FormMessage className={formErrorStyles} />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name={`documents.${index}.expiration_date`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center">
+                    Data de Expiração
+                    {currentDocType?.expiration_alert_days && 
+                      <span className="text-red-500 ml-1 font-bold">*</span>
+                    }
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      type="date"
+                      {...field}
+                      value={field.value || ''}
+                      min={new Date().toISOString().split('T')[0]}
+                    />
+                  </FormControl>
+                  {currentDocType?.expiration_alert_days && (
+                    <FormDescription>
+                      Este documento requer alerta de expiração {currentDocType.expiration_alert_days} dias antes do vencimento
+                    </FormDescription>
+                  )}
+                  <FormMessage className={formErrorStyles} />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name={`documents.${index}.observation`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Observação</FormLabel>
+                  <FormControl>
+                    <Textarea {...field} value={field.value || ''} />
+                  </FormControl>
+                  <FormMessage className={formErrorStyles} />
+                </FormItem>
+              )}
+            />
+          </div>
+        );
+      })}
+    </>
+  );
 
   return (
     <div className="space-y-6">
       <Form {...form}>
-        <form 
-          onSubmit={form.handleSubmit(
-            data => handleFormSubmit(data as FormValues), 
-            handleFormSubmitError
-          )} 
-          className="space-y-8"
-        >
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 mb-6">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="basic-info" className="text-base flex items-center gap-2">
                 <Building2 className="h-4 w-4" /> Informações Básicas
               </TabsTrigger>
@@ -1712,6 +1632,19 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
               </TabsTrigger>
             </TabsList>
 
+            {/* Notice about child plan if applicable */}
+            {isChildPlan && parentPlanId && (
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-6">
+                <div className="flex items-center gap-2 text-blue-700">
+                  <GitBranch className="h-5 w-5" />
+                  <p className="text-sm font-medium">
+                    Você está criando um plano filho. Algumas configurações serão herdadas do plano pai.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Basic Info Tab */}
             <TabsContent value="basic-info">
               <Card className="border-t-4 border-t-primary">
                 <CardHeader className="bg-muted/50">
@@ -1731,10 +1664,10 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
                         onError={handleLogoError}
                       />
                     )}
-                    <TypedFormField
+                    <FormField
                       control={form.control}
                       name="logo"
-                      render={({ field }: any) => (
+                      render={({ field }) => (
                         <FormItem>
                           <FormLabel>Logo</FormLabel>
                           <FormControl>
@@ -1747,150 +1680,113 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
                           <FormDescription>
                             Tamanho máximo: 2MB
                           </FormDescription>
-                          <FormMessage className={formErrorStyles} />
+                          <FormMessage />
                         </FormItem>
                       )}
                     />
                   </div>
 
                   {/* Nome */}
-                  <TypedFormField
+                  <FormField
                     control={form.control}
                     name="name"
-                    render={({ field, fieldState }: any) => (
+                    render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Nome do Plano de Saúde</FormLabel>
+                        <FormLabel>Nome do Plano de Saúde<span className="text-red-500">*</span></FormLabel>
                         <FormControl>
-                          <Input 
-                            {...field} 
-                            className={fieldState.error ? "border-destructive focus:ring-destructive" : ""}
-                          />
+                          <Input {...field} placeholder="Digite o nome do plano" />
                         </FormControl>
-                        {fieldState.error ? (
-                          <div className="flex items-center mt-1.5 text-destructive font-medium text-sm">
-                            <AlertCircle className="h-4 w-4 mr-1.5" />
-                            <span>{fieldState.error.message}</span>
-                          </div>
-                        ) : (
-                          <FormMessage className={formErrorStyles} />
-                        )}
+                        <FormMessage />
                       </FormItem>
                     )}
                   />
 
                   {/* CNPJ */}
-                  <TypedFormField
+                  <FormField
                     control={form.control}
                     name="cnpj"
-                    render={({ field, fieldState }: any) => (
+                    render={({ field }) => (
                       <FormItem>
-                        <FormLabel>CNPJ</FormLabel>
+                        <FormLabel>CNPJ<span className="text-red-500">*</span></FormLabel>
                         <FormControl>
                           <Input
                             {...field}
-                            onChange={handleCNPJChange}
+                            placeholder="Digite o CNPJ"
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              field.onChange(applyCNPJMask(value));
+                            }}
                             maxLength={18}
-                            className={fieldState.error ? "border-destructive focus:ring-destructive" : ""}
                           />
                         </FormControl>
-                        {fieldState.error ? (
-                          <div className="flex items-center mt-1.5 text-destructive font-medium text-sm">
-                            <AlertCircle className="h-4 w-4 mr-1.5" />
-                            <span>{fieldState.error.message}</span>
-                          </div>
-                        ) : (
-                          <FormMessage className={formErrorStyles} />
-                        )}
+                        <FormMessage />
                       </FormItem>
                     )}
                   />
 
                   {/* Inscrição Municipal */}
-                  <TypedFormField
+                  <FormField
                     control={form.control}
                     name="municipal_registration"
-                    render={({ field }: any) => (
+                    render={({ field }) => (
                       <FormItem>
                         <FormLabel>Inscrição Municipal</FormLabel>
                         <FormControl>
                           <Input
                             {...field}
-                            onChange={handleMunicipalRegistrationChange}
+                            placeholder="Digite a inscrição municipal"
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              field.onChange(applyMunicipalRegistrationMask(value));
+                            }}
                           />
                         </FormControl>
-                        <FormMessage className={formErrorStyles} />
+                        <FormMessage />
                       </FormItem>
                     )}
                   />
 
                   {/* Email */}
-                  <TypedFormField
+                  <FormField
                     control={form.control}
                     name="email"
-                    render={({ field }: any) => (
+                    render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Email</FormLabel>
+                        <FormLabel>Email<span className="text-red-500">*</span></FormLabel>
                         <FormControl>
-                          <Input 
-                            {...field} 
-                            type="email" 
-                            className={formErrors.email ? "border-destructive focus:ring-destructive" : ""}
-                          />
+                          <Input {...field} type="email" placeholder="Digite o email" />
                         </FormControl>
-                        <FormMessage className={formErrorStyles} />
+                        <FormMessage />
                       </FormItem>
                     )}
                   />
 
-                  {/* Senha (opcional) */}
-                  {!healthPlanId && (
-                    <TypedFormField
-                      control={form.control}
-                      name="password"
-                      render={({ field }: any) => (
-                        <FormItem>
-                          <FormLabel>Senha</FormLabel>
-                          <FormControl>
-                            <Input {...field} type="password" />
-                          </FormControl>
-                          <FormMessage className={formErrorStyles} />
-                        </FormItem>
-                      )}
-                    />
-                  )}
-
                   {/* Código ANS */}
-                  <TypedFormField
+                  <FormField
                     control={form.control}
                     name="ans_code"
-                    render={({ field }: any) => (
+                    render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Código ANS</FormLabel>
+                        <FormLabel>Código ANS<span className="text-red-500">*</span></FormLabel>
                         <FormControl>
-                          <Input 
-                            {...field} 
-                            className={formErrors.ans_code ? "border-destructive focus:ring-destructive" : ""}
-                          />
+                          <Input {...field} placeholder="Digite o código ANS" />
                         </FormControl>
-                        <FormMessage className={formErrorStyles} />
+                        <FormMessage />
                       </FormItem>
                     )}
                   />
 
                   {/* Descrição */}
-                  <TypedFormField
+                  <FormField
                     control={form.control}
                     name="description"
-                    render={({ field }: any) => (
+                    render={({ field }) => (
                       <FormItem>
                         <FormLabel>Descrição</FormLabel>
                         <FormControl>
-                          <Textarea 
-                            {...field} 
-                            className={formErrors.description ? "border-destructive focus:ring-destructive" : ""}
-                          />
+                          <Textarea {...field} placeholder="Digite uma descrição" />
                         </FormControl>
-                        <FormMessage className={formErrorStyles} />
+                        <FormMessage />
                       </FormItem>
                     )}
                   />
@@ -1898,8 +1794,10 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
               </Card>
             </TabsContent>
 
+            {/* Additional Info Tab */}
             <TabsContent value="additional-info">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Representantes */}
                 <Card className="border-t-4 border-t-blue-500">
                   <CardHeader className="bg-muted/50">
                     <CardTitle className="flex items-center gap-2 text-lg">
@@ -1908,209 +1806,152 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-5 pt-6">
-                    {/* Representante Legal - conteúdo existente com mais espaçamento */}
-                    <div className="space-y-5 pb-4 border-b">
+                    {/* Representante Legal */}
+                    <div className="space-y-4">
                       <h3 className="text-lg font-medium flex items-center gap-2">
                         <Badge className="bg-blue-600">Legal</Badge> Representante Legal
                       </h3>
-                      <TypedFormField
+
+                      <FormField
                         control={form.control}
                         name="legal_representative_name"
-                        render={({ field }: any) => (
+                        render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Nome</FormLabel>
+                            <FormLabel>Nome<span className="text-red-500">*</span></FormLabel>
                             <FormControl>
-                              <Input 
-                                {...field} 
-                                className={formErrors.legal_representative_name ? "border-destructive focus:ring-destructive" : ""}
-                              />
+                              <Input {...field} placeholder="Nome do representante legal" />
                             </FormControl>
-                            <FormMessage className={formErrorStyles} />
+                            <FormMessage />
                           </FormItem>
                         )}
                       />
 
-                      <TypedFormField
+                      <FormField
                         control={form.control}
                         name="legal_representative_cpf"
-                        render={({ field }: any) => (
+                        render={({ field }) => (
                           <FormItem>
-                            <FormLabel>CPF</FormLabel>
+                            <FormLabel>CPF<span className="text-red-500">*</span></FormLabel>
                             <FormControl>
                               <Input
                                 {...field}
-                                onChange={(e) => handleCPFChange(e, "legal_representative_cpf")}
+                                placeholder="CPF do representante legal"
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  field.onChange(applyCPFMask(value));
+                                }}
                                 maxLength={14}
-                                className={formErrors.legal_representative_cpf ? "border-destructive focus:ring-destructive" : ""}
                               />
                             </FormControl>
-                            <FormMessage className={formErrorStyles} />
+                            <FormMessage />
                           </FormItem>
                         )}
                       />
 
-                      <TypedFormField
+                      <FormField
                         control={form.control}
                         name="legal_representative_position"
-                        render={({ field }: any) => (
+                        render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Cargo</FormLabel>
+                            <FormLabel>Cargo<span className="text-red-500">*</span></FormLabel>
                             <FormControl>
-                              <Input {...field} />
+                              <Input {...field} placeholder="Cargo do representante legal" />
                             </FormControl>
-                            <FormMessage className={formErrorStyles} />
+                            <FormMessage />
                           </FormItem>
                         )}
                       />
 
-                      <TypedFormField
+                      <FormField
                         control={form.control}
                         name="legal_representative_email"
-                        render={({ field }: any) => (
+                        render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Email</FormLabel>
+                            <FormLabel>Email<span className="text-red-500">*</span></FormLabel>
                             <FormControl>
-                              <Input {...field} type="email" />
+                              <Input {...field} type="email" placeholder="Email do representante legal" />
                             </FormControl>
-                            <FormMessage className={formErrorStyles} />
+                            <FormMessage />
                           </FormItem>
                         )}
                       />
-
-                      {!healthPlanId && (
-                        <>
-                          <TypedFormField
-                            control={form.control}
-                            name="legal_representative_password"
-                            render={({ field }: any) => (
-                              <FormItem>
-                                <FormLabel>Senha</FormLabel>
-                                <FormControl>
-                                  <Input {...field} type="password" />
-                                </FormControl>
-                                <FormMessage className={formErrorStyles} />
-                              </FormItem>
-                            )}
-                          />
-
-                          <TypedFormField
-                            control={form.control}
-                            name="legal_representative_password_confirmation"
-                            render={({ field }: any) => (
-                              <FormItem>
-                                <FormLabel>Confirmar Senha</FormLabel>
-                                <FormControl>
-                                  <Input {...field} type="password" />
-                                </FormControl>
-                                <FormMessage className={formErrorStyles} />
-                              </FormItem>
-                            )}
-                          />
-                        </>
-                      )}
                     </div>
 
-                    {/* Representante Operacional - conteúdo existente com mais espaçamento */}
-                    <div className="space-y-5 mt-6">
+                    {/* Representante Operacional */}
+                    <div className="space-y-4 mt-8 pt-4 border-t">
                       <h3 className="text-lg font-medium flex items-center gap-2">
                         <Badge className="bg-blue-600">Operacional</Badge> Representante Operacional
                       </h3>
-                      <TypedFormField
+
+                      <FormField
                         control={form.control}
                         name="operational_representative_name"
-                        render={({ field }: any) => (
+                        render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Nome</FormLabel>
+                            <FormLabel>Nome<span className="text-red-500">*</span></FormLabel>
                             <FormControl>
-                              <Input {...field} />
+                              <Input {...field} placeholder="Nome do representante operacional" />
                             </FormControl>
-                            <FormMessage className={formErrorStyles} />
+                            <FormMessage />
                           </FormItem>
                         )}
                       />
 
-                      <TypedFormField
+                      <FormField
                         control={form.control}
                         name="operational_representative_cpf"
-                        render={({ field }: any) => (
+                        render={({ field }) => (
                           <FormItem>
-                            <FormLabel>CPF</FormLabel>
+                            <FormLabel>CPF<span className="text-red-500">*</span></FormLabel>
                             <FormControl>
                               <Input
                                 {...field}
-                                onChange={(e) => handleCPFChange(e, "operational_representative_cpf")}
+                                placeholder="CPF do representante operacional"
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  field.onChange(applyCPFMask(value));
+                                }}
                                 maxLength={14}
                               />
                             </FormControl>
-                            <FormMessage className={formErrorStyles} />
+                            <FormMessage />
                           </FormItem>
                         )}
                       />
 
-                      <TypedFormField
+                      <FormField
                         control={form.control}
                         name="operational_representative_position"
-                        render={({ field }: any) => (
+                        render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Cargo</FormLabel>
+                            <FormLabel>Cargo<span className="text-red-500">*</span></FormLabel>
                             <FormControl>
-                              <Input {...field} />
+                              <Input {...field} placeholder="Cargo do representante operacional" />
                             </FormControl>
-                            <FormMessage className={formErrorStyles} />
+                            <FormMessage />
                           </FormItem>
                         )}
                       />
 
-                      <TypedFormField
+                      <FormField
                         control={form.control}
                         name="operational_representative_email"
-                        render={({ field }: any) => (
+                        render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Email</FormLabel>
+                            <FormLabel>Email<span className="text-red-500">*</span></FormLabel>
                             <FormControl>
-                              <Input {...field} type="email" />
+                              <Input {...field} type="email" placeholder="Email do representante operacional" />
                             </FormControl>
-                            <FormMessage className={formErrorStyles} />
+                            <FormMessage />
                           </FormItem>
                         )}
                       />
-
-                      {!healthPlanId && (
-                        <>
-                          <TypedFormField
-                            control={form.control}
-                            name="operational_representative_password"
-                            render={({ field }: any) => (
-                              <FormItem>
-                                <FormLabel>Senha</FormLabel>
-                                <FormControl>
-                                  <Input {...field} type="password" />
-                                </FormControl>
-                                <FormMessage className={formErrorStyles} />
-                              </FormItem>
-                            )}
-                          />
-
-                          <TypedFormField
-                            control={form.control}
-                            name="operational_representative_password_confirmation"
-                            render={({ field }: any) => (
-                              <FormItem>
-                                <FormLabel>Confirmar Senha</FormLabel>
-                                <FormControl>
-                                  <Input {...field} type="password" />
-                                </FormControl>
-                                <FormMessage className={formErrorStyles} />
-                              </FormItem>
-                            )}
-                          />
-                        </>
-                      )}
                     </div>
                   </CardContent>
                 </Card>
 
                 <div className="space-y-6">
+                  {/* Endereço */}
                   <Card className="border-t-4 border-t-green-500">
                     <CardHeader className="bg-muted/50">
                       <CardTitle className="flex items-center gap-2 text-lg">
@@ -2119,85 +1960,60 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-5 pt-6">
-                      {/* Campos de endereço existentes... */}
-                      <TypedFormField
+                      <FormField
                         control={form.control}
                         name="postal_code"
-                        render={({ field }: any) => (
+                        render={({ field }) => (
                           <FormItem>
-                            <FormLabel>CEP</FormLabel>
+                            <FormLabel>CEP<span className="text-red-500">*</span></FormLabel>
                             <FormControl>
                               <Input
                                 {...field}
-                                onChange={handleCEPChange}
+                                placeholder="Digite o CEP"
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  const maskedValue = applyCEPMask(value);
+                                  field.onChange(maskedValue);
+                                  
+                                  // Buscar endereço se CEP completo
+                                  if (unmask(maskedValue).length === 8) {
+                                    fetchAddressByCEP(unmask(maskedValue));
+                                  }
+                                }}
                                 maxLength={9}
-                                className={formErrors.postal_code ? "border-destructive focus:ring-destructive" : ""}
                               />
                             </FormControl>
-                            <FormMessage className={formErrorStyles} />
+                            <FormMessage />
                           </FormItem>
                         )}
                       />
 
-                      <TypedFormField
+                      <FormField
                         control={form.control}
                         name="address"
-                        render={({ field }: any) => (
+                        render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Endereço</FormLabel>
+                            <FormLabel>Endereço<span className="text-red-500">*</span></FormLabel>
                             <FormControl>
-                              <Input 
-                                {...field} 
-                                className={formErrors.address ? "border-destructive focus:ring-destructive" : ""}
-                              />
+                              <Input {...field} placeholder="Digite o endereço" />
                             </FormControl>
-                            <FormMessage className={formErrorStyles} />
+                            <FormMessage />
                           </FormItem>
                         )}
                       />
 
-                      <TypedFormField
-                        control={form.control}
-                        name="city"
-                        render={({ field }: any) => (
-                          <FormItem>
-                            <FormLabel>Cidade</FormLabel>
-                            <FormControl>
-                              <Select
-                                value={field.value}
-                                onValueChange={(value) => form.setValue("city" as any, value)}
-                                disabled={!form.getValues("state") || cidadesDoEstado.length === 0}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Selecione a cidade" />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-[300px]">
-                                  {cidadesDoEstado.map((cidade) => (
-                                    <SelectItem key={cidade} value={cidade}>
-                                      {cidade}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </FormControl>
-                            <FormMessage className={formErrorStyles} />
-                          </FormItem>
-                        )}
-                      />
-
-                      <TypedFormField
+                      <FormField
                         control={form.control}
                         name="state"
-                        render={({ field }: any) => (
+                        render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Estado</FormLabel>
+                            <FormLabel>Estado<span className="text-red-500">*</span></FormLabel>
                             <Select
                               value={field.value}
                               onValueChange={(value) => {
-                                form.setValue("state" as any, value);
+                                field.onChange(value);
+                                form.setValue("city", "");
                                 atualizarCidadesPorEstado(value);
-                                // Limpar campo cidade se mudar o estado
-                                form.setValue("city" as any, "");
                               }}
                             >
                               <SelectTrigger>
@@ -2211,13 +2027,41 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
                                 ))}
                               </SelectContent>
                             </Select>
-                            <FormMessage className={formErrorStyles} />
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="city"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Cidade<span className="text-red-500">*</span></FormLabel>
+                            <Select
+                              value={field.value}
+                              onValueChange={field.onChange}
+                              disabled={!form.getValues("state") || cidadesDoEstado.length === 0}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione a cidade" />
+                              </SelectTrigger>
+                              <SelectContent className="max-h-[300px]">
+                                {cidadesDoEstado.map((cidade) => (
+                                  <SelectItem key={cidade} value={cidade}>
+                                    {cidade}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
                           </FormItem>
                         )}
                       />
                     </CardContent>
                   </Card>
 
+                  {/* Telefones */}
                   <Card className="border-t-4 border-t-orange-500">
                     <CardHeader className="bg-muted/50">
                       <CardTitle className="flex items-center gap-2 text-lg">
@@ -2239,36 +2083,40 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
                           Adicionar Telefone
                         </Button>
                       </div>
+
                       {phoneFields.map((field, index) => (
                         <div key={field.id} className="flex items-end gap-4">
-                          <TypedFormField
+                          <FormField
                             control={form.control}
                             name={`phones.${index}.number`}
-                            render={({ field }: any) => (
+                            render={({ field }) => (
                               <FormItem className="flex-1">
                                 <FormLabel>Número</FormLabel>
                                 <FormControl>
                                   <Input
                                     {...field}
-                                    onChange={(e) => handlePhoneChange(e, index)}
+                                    placeholder="Digite o número"
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      field.onChange(applyPhoneMask(value));
+                                    }}
+                                    maxLength={15}
                                   />
                                 </FormControl>
-                                <FormMessage className={formErrorStyles} />
+                                <FormMessage />
                               </FormItem>
                             )}
                           />
 
-                          <TypedFormField
+                          <FormField
                             control={form.control}
                             name={`phones.${index}.type`}
-                            render={({ field }: any) => (
+                            render={({ field }) => (
                               <FormItem className="flex-1">
                                 <FormLabel>Tipo</FormLabel>
                                 <Select
                                   value={field.value}
-                                  onValueChange={(value) =>
-                                    form.setValue(`phones.${index}.type` as any, value as "mobile" | "landline" | "whatsapp" | "fax")
-                                  }
+                                  onValueChange={field.onChange}
                                 >
                                   <SelectTrigger>
                                     <SelectValue />
@@ -2281,7 +2129,7 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
                                     ))}
                                   </SelectContent>
                                 </Select>
-                                <FormMessage className={formErrorStyles} />
+                                <FormMessage />
                               </FormItem>
                             )}
                           />
@@ -2291,6 +2139,7 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
                             variant="ghost"
                             size="icon"
                             onClick={() => removePhone(index)}
+                            disabled={phoneFields.length <= 1}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -2302,6 +2151,7 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
               </div>
             </TabsContent>
 
+            {/* Documents Tab */}
             <TabsContent value="documents">
               <Card className="border-t-4 border-t-primary">
                 <CardHeader className="bg-muted/50">
@@ -2311,7 +2161,7 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6 pt-6">
-                  {/* Lista informativa de documentos exigidos */}
+                  {/* Required Documents List */}
                   <div className="bg-muted/30 p-4 rounded-lg mb-4">
                     <div className="text-sm text-muted-foreground mb-2">
                       Os seguintes documentos são obrigatórios para o cadastro do plano de saúde:
@@ -2332,201 +2182,50 @@ export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProp
                         ))}
                     </div>
                   </div>
-                  
-                  {/* Formulário de documentos */}
+
+                  {/* Document Form Fields */}
                   <div className="space-y-6">
-                    {documentFields.map((field, index) => {
-                      const currentTypeId = form.getValues(`documents.${index}.type_id`);
-                      const currentDocType = documentTypes?.find(dt => dt.id === currentTypeId);
-                      const hasExistingFile = !!form.getValues(`documents.${index}.file_url`);
-                      
-                      // Only render fields for required document types
-                      if (!currentDocType?.is_required) return null;
-                      
-                      return (
-                        <div 
-                          key={field.id} 
-                          className="space-y-4 p-4 border border-red-100 rounded-lg bg-red-50/30"
-                        >
-                          <TypedFormField
-                            control={form.control}
-                            name={`documents.${index}.type_id`}
-                            render={({ field }: any) => (
-                              <FormItem className="flex-1">
-                                <FormLabel className="flex items-center">
-                                  {currentDocType.name}
-                                  <span className="text-red-500 ml-1 font-bold">*</span>
-                                </FormLabel>
-                                
-                                {/* Hidden select that's disabled to prevent changes */}
-                                <div className="hidden">
-                                  <Select
-                                    value={field.value?.toString()}
-                                    onValueChange={() => {}}
-                                    disabled={true}
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Selecione o tipo" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {documentTypes?.filter(dt => dt.is_required).map((type) => (
-                                        <SelectItem
-                                          key={type.id}
-                                          value={type.id.toString()}
-                                        >
-                                          {type.name}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                
-                                <FormMessage className={formErrorStyles} />
-                              </FormItem>
-                            )}
-                          />
-
-                          {hasExistingFile && (
-                            <div className="text-sm text-green-600 flex items-center gap-2 p-2 bg-green-50 rounded-md">
-                              <Check className="h-4 w-4" />
-                              Documento já enviado
-                            </div>
-                          )}
-
-                          <TypedFormField
-                            control={form.control}
-                            name={`documents.${index}.file`}
-                            render={({ field }: any) => (
-                              <FormItem>
-                                <FormLabel className="flex items-center">
-                                  Arquivo
-                                  {!hasExistingFile && <span className="text-red-500 ml-1 font-bold">*</span>}
-                                </FormLabel>
-                                <FormControl>
-                                  <Input
-                                    type="file"
-                                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                                    onChange={(e) => handleDocumentChange(e, index)}
-                                  />
-                                </FormControl>
-                                <FormDescription>
-                                  {hasExistingFile ? 
-                                    "Você pode substituir o arquivo existente" : 
-                                    "Formatos aceitos: PDF, DOC, DOCX, JPG, PNG. Tamanho máximo: 10MB"}
-                                </FormDescription>
-                                <FormMessage className={formErrorStyles} />
-                              </FormItem>
-                            )}
-                          />
-
-                          <TypedFormField
-                            control={form.control}
-                            name={`documents.${index}.expiration_date`}
-                            render={({ field }: any) => (
-                              <FormItem>
-                                <FormLabel className="flex items-center">
-                                  Data de Expiração
-                                  {currentDocType?.expiration_alert_days && 
-                                    <span className="text-red-500 ml-1 font-bold">*</span>
-                                  }
-                                </FormLabel>
-                                <FormControl>
-                                  <Input
-                                    type="date"
-                                    {...field}
-                                    value={field.value || ''}
-                                    min={new Date().toISOString().split('T')[0]}
-                                  />
-                                </FormControl>
-                                {currentDocType?.expiration_alert_days && (
-                                  <FormDescription>
-                                    Este documento requer alerta de expiração {currentDocType.expiration_alert_days} dias antes do vencimento
-                                  </FormDescription>
-                                )}
-                                <FormMessage className={formErrorStyles} />
-                              </FormItem>
-                            )}
-                          />
-
-                          <TypedFormField
-                            control={form.control}
-                            name={`documents.${index}.observation`}
-                            render={({ field }: any) => (
-                              <FormItem>
-                                <FormLabel>Observação</FormLabel>
-                                <FormControl>
-                                  <Textarea {...field} value={field.value || ''} />
-                                </FormControl>
-                                <FormMessage className={formErrorStyles} />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                  
-                  {/* Add back the submit button */}
-                  <div className="flex justify-end space-x-4 mt-8 pt-4 border-t">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => handleNavigation('/health-plans')}
-                      disabled={isSubmitting}
-                    >
-                      Cancelar
-                    </Button>
-                    
-                    <Button 
-                      type="submit" 
-                      className="bg-primary hover:bg-primary/90"
-                      disabled={isSubmitting}
-                    >
-                      {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                      {healthPlanId ? "Atualizar" : "Cadastrar"}
-                    </Button>
+                    {renderDocuments()}
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
           </Tabs>
 
-          {/* Adicionar manipulador de erros global para capturar erros de validação */}
-          <div className="hidden">
-            {Object.keys(form.formState.errors).length > 0 && (
-              <div aria-hidden="true" role="alert" className="sr-only">
-                Formulário contém erros. Por favor, verifique os campos destacados.
-              </div>
-            )}
+          {/* Submit Buttons */}
+          <div className="flex justify-end space-x-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleNavigation('/health-plans')}
+              disabled={isSubmitting}
+            >
+              Cancelar
+            </Button>
+            
+            <Button 
+              type="submit"
+              disabled={isSubmitting}
+            >
+              {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {healthPlanId ? "Atualizar" : "Cadastrar"}
+            </Button>
           </div>
         </form>
       </Form>
-      
-      {/* Diálogo de confirmação para sair */}
+
       <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Deseja mesmo sair?</AlertDialogTitle>
             <AlertDialogDescription>
-              Você tem alterações não salvas no formulário. Se sair agora, as alterações ficarão salvas localmente para você continuar depois. Para limpar completamente as alterações, clique em "Limpar e sair".
+              Você tem alterações não salvas no formulário.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setShowExitDialog(false)}>
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={() => {
-              if (navigationPath) {
-                router.push(navigationPath);
-              } else {
-                router.back();
-              }
-              setShowExitDialog(false);
-            }}>
-              Manter dados e sair
-            </AlertDialogAction>
-            <AlertDialogAction onClick={handleConfirmExit} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Limpar e sair
+            <AlertDialogCancel>Continuar editando</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmExit}>
+              Descartar alterações
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
