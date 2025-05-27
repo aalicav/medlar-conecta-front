@@ -65,7 +65,7 @@ export default function ContractApprovalDetailPage() {
       return true;
     }
     
-    if (user.role === 'commercial' && contract.status === 'legal_review') {
+    if (user.role === 'commercial_manager' && contract.status === 'legal_review') {
       return true;
     }
     
@@ -89,7 +89,7 @@ export default function ContractApprovalDetailPage() {
       return "Análise Jurídica";
     }
     
-    if (user.role === 'commercial') {
+    if (user.role === 'commercial_manager') {
       return "Análise Comercial";
     }
     
@@ -122,7 +122,7 @@ export default function ContractApprovalDetailPage() {
           notes: notes.trim(),
           suggested_changes: suggestedChanges.trim() || undefined
         });
-      } else if (user?.role === 'commercial' || contract.status === 'legal_review') {
+      } else if (user?.role === 'commercial_manager' || contract.status === 'legal_review') {
         await submitCommercialReview(contract.id, {
           action: selectedAction,
           notes: notes.trim()

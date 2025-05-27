@@ -113,8 +113,8 @@ export default function DashboardHomepage() {
       setUserRole("admin")
     } else if (user.roles.some((role: any) => role.name === "director")) {
       setUserRole("director")
-    } else if (user.roles.some((role: any) => role.name === "commercial")) {
-      setUserRole("commercial")
+    } else if (user.roles.some((role: any) => role.name === "commercial_manager")) {
+      setUserRole("commercial_manager")
     } else if (user.roles.some((role: any) => role.name === "legal")) {
       setUserRole("legal")
     } else if (user.roles.some((role: any) => role.name === "operational")) {
@@ -167,7 +167,7 @@ export default function DashboardHomepage() {
           upcomingAppointments={upcomingAppointments}
           loading={loading}
         />;
-      case "commercial":
+      case "commercial_manager":
         return <CommercialDashboard 
           stats={stats} 
           pendingItems={pendingItems}

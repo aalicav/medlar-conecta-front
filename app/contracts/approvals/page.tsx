@@ -80,7 +80,7 @@ export default function ContractApprovalsPage() {
       return [
         { value: 'pending_approval', label: 'Aguardando Análise Jurídica' }
       ];
-    } else if (user?.role === 'commercial') {
+    } else if (user?.role === 'commercial_manager') {
       return [
         { value: 'pending_approval', label: 'Novos Contratos' },
         { value: 'legal_review', label: 'Aprovados pelo Jurídico' }

@@ -262,7 +262,7 @@ export default function PaginaNegociacoesExtemporaneas() {
   ];
   
   // Verifica se o usuário tem papel na equipe comercial
-  const isComercialTeam = user?.role === 'commercial' || user?.role === 'director' || 
+  const isComercialTeam = user?.role === 'commercial_manager' || user?.role === 'director' || 
                            user?.role === 'admin' || user?.role === 'super_admin';
   
   // Verifica se o usuário tem permissão para criar negociações

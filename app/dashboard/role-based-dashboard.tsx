@@ -86,7 +86,7 @@ export default function RoleBasedDashboard() {
         loading={loading}
       />
     );
-  } else if (hasRole(["commercial"])) {
+  } else if (hasRole(["commercial_manager"])) {
     return (
       <CommercialDashboard 
         stats={stats || {}} 

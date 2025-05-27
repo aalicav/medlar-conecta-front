@@ -57,7 +57,7 @@ const workflowSteps = [
     step: 'submission',
     label: 'Submissão',
     description: 'O contrato é elaborado pela equipe comercial e submetido para aprovação.',
-    role: 'commercial'
+    role: 'commercial_manager'
   },
   {
     step: 'legal_review',
@@ -69,7 +69,7 @@ const workflowSteps = [
     step: 'commercial_review',
     label: 'Liberação Comercial',
     description: 'A equipe comercial revisa o contrato após análise jurídica.',
-    role: 'commercial'
+    role: 'commercial_manager'
   },
   {
     step: 'director_approval',
@@ -167,7 +167,7 @@ export function ContractApprovalWorkflow({ contract, onContractUpdated }: Contra
     if (!step || !step.role) return '';
     
     const roleMap: Record<string, string> = {
-      'commercial': 'Equipe Comercial',
+      'commercial_manager': 'Equipe Comercial',
       'legal': 'Equipe Jurídica',
       'director': 'Direção'
     };
@@ -269,7 +269,7 @@ export function ContractApprovalWorkflow({ contract, onContractUpdated }: Contra
     
     const endpointMap: Record<string, string> = {
       'legal_review': `/api/contracts/${contractId}/legal-review`,
-      'commercial_review': `/api/contracts/${contractId}/commercial-review`,
+      'commercial_review': `/api/contracts/${contractId}/commercial_manager-review`,
       'director_approval': `/api/contracts/${contractId}/director-approval`
     };
     

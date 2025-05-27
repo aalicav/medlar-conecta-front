@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/contexts/auth-context"
-import { Loader2, Plus, Trash, SearchIcon, DollarSign, AlertCircle, CheckCircle, InfoIcon, Trash2, Building2, User, FileText, Phone, AlertTriangle, X, Check, GitBranch } from "lucide-react"
+import { Loader2, Plus, Trash, SearchIcon, DollarSign, AlertCircle, CheckCircle, InfoIcon, Trash2, Building2, User, FileText, Phone, AlertTriangle, X, Check, GitBranch, Save } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -126,71 +126,109 @@ const documentSchema = z.object({
   observation: z.string().optional()
 });
 
-// Atualizar o schema do formulário
-const formSchema = z.object({
-  name: z.string().min(1, "Nome é obrigatório"),
-  cnpj: z.string().min(14, "CNPJ inválido"),
-  municipal_registration: z.string().optional(),
-  email: z.string().email("E-mail inválido"),
-  password: z.string().optional(),
-  ans_code: z.string().min(1, "Código ANS é obrigatório"),
-  description: z.string(),  
-  logo: z.any().optional(), // Adicionar campo logo ao schema
-  parent_id: z.string().optional(), // Adicionar campo parent_id
-  
-  // Representante Legal
-  legal_representative_name: z.string().min(1, "Nome do representante legal é obrigatório"),
-  legal_representative_cpf: z.string().min(11, "CPF inválido"),
-  legal_representative_position: z.string().min(1, "Cargo do representante legal é obrigatório"),
-  legal_representative_email: z.string().email("E-mail do representante legal inválido"),
-  legal_representative_password: z.string().optional(),
-  legal_representative_password_confirmation: z.string().optional(),
-  
-  // Representante Operacional
-  operational_representative_name: z.string().min(1, "Nome do representante operacional é obrigatório"),
-  operational_representative_cpf: z.string().min(11, "CPF inválido"),
-  operational_representative_position: z.string().min(1, "Cargo do representante operacional é obrigatório"),
-  operational_representative_email: z.string().email("E-mail do representante operacional inválido"),
-  operational_representative_password: z.string().optional(),
-  operational_representative_password_confirmation: z.string().optional(),
-  
-  // Endereço
-  postal_code: z.string().min(8, "CEP inválido"),
-  address: z.string().min(1, "Endereço é obrigatório"),
-  city: z.string().min(1, "Cidade é obrigatória"),
-  state: z.string().min(2, "Estado é obrigatório"),
-  
-  // Arrays
-  phones: z.array(z.object({
-    number: z.string().min(1, "Número de telefone é obrigatório"),
-    type: z.enum(['mobile', 'landline', 'whatsapp', 'fax'], {
-      required_error: "Tipo de telefone é obrigatório"
-    })
-  })),
-  
-  documents: z.array(documentSchema)
-}).superRefine((data, ctx) => {
-  // Validar confirmação de senha do representante legal
-  if (data.legal_representative_password && data.legal_representative_password !== data.legal_representative_password_confirmation) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "As senhas não coincidem",
-      path: ["legal_representative_password_confirmation"]
-    });
-  }
-  
-  // Validar confirmação de senha do representante operacional
-  if (data.operational_representative_password && data.operational_representative_password !== data.operational_representative_password_confirmation) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "As senhas não coincidem",
-      path: ["operational_representative_password_confirmation"]
-    });
-  }
-});
+// Update the form schema to handle conditional fields
+type BaseFormFields = {
+  name: string;
+  email: string;
+  address: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  phones: {
+    number: string;
+    type: 'mobile' | 'landline' | 'whatsapp' | 'fax';
+  }[];
+  logo?: File | null;
+};
 
-// Atualizar o tipo FormValues
-type FormValues = z.infer<typeof formSchema>;
+type ParentFormFields = BaseFormFields & {
+  cnpj: string;
+  municipal_registration?: string;
+  password?: string;
+  ans_code: string;
+  description: string;
+  legal_representative_name: string;
+  legal_representative_cpf: string;
+  legal_representative_position: string;
+  legal_representative_email: string;
+  legal_representative_password?: string;
+  legal_representative_password_confirmation?: string;
+  operational_representative_name: string;
+  operational_representative_cpf: string;
+  operational_representative_position: string;
+  operational_representative_email: string;
+  operational_representative_password?: string;
+  operational_representative_password_confirmation?: string;
+  documents: {
+    type_id: number;
+    file: File | null;
+    file_url?: string;
+    expiration_date?: string;
+    observation?: string;
+  }[];
+};
+
+type FormValues = BaseFormFields | ParentFormFields;
+
+// Update the form schema based on isChildPlan
+const getFormSchema = (isChildPlan: boolean): z.ZodType<FormValues> => {
+  const baseSchema = {
+    name: z.string().min(1, "Nome é obrigatório"),
+    email: z.string().email("E-mail inválido"),
+    address: z.string().min(1, "Endereço é obrigatório"),
+    city: z.string().min(1, "Cidade é obrigatória"),
+    state: z.string().min(2, "Estado é obrigatório"),
+    postal_code: z.string().min(8, "CEP inválido"),
+    phones: z.array(z.object({
+      number: z.string().min(1, "Número de telefone é obrigatório"),
+      type: z.enum(['mobile', 'landline', 'whatsapp', 'fax'], {
+        required_error: "Tipo de telefone é obrigatório"
+      })
+    }))
+  };
+
+  if (!isChildPlan) {
+    return z.object({
+      ...baseSchema,
+      cnpj: z.string().min(14, "CNPJ inválido"),
+      municipal_registration: z.string().optional(),
+      password: z.string().optional(),
+      ans_code: z.string().min(1, "Código ANS é obrigatório"),
+      description: z.string(),
+      legal_representative_name: z.string().min(1, "Nome do representante legal é obrigatório"),
+      legal_representative_cpf: z.string().min(11, "CPF inválido"),
+      legal_representative_position: z.string().min(1, "Cargo do representante legal é obrigatório"),
+      legal_representative_email: z.string().email("E-mail do representante legal inválido"),
+      legal_representative_password: z.string().optional(),
+      legal_representative_password_confirmation: z.string().optional(),
+      operational_representative_name: z.string().min(1, "Nome do representante operacional é obrigatório"),
+      operational_representative_cpf: z.string().min(11, "CPF inválido"),
+      operational_representative_position: z.string().min(1, "Cargo do representante operacional é obrigatório"),
+      operational_representative_email: z.string().email("E-mail do representante operacional inválido"),
+      operational_representative_password: z.string().optional(),
+      operational_representative_password_confirmation: z.string().optional(),
+      documents: z.array(documentSchema)
+    }).superRefine((data, ctx) => {
+      if (data.legal_representative_password && data.legal_representative_password !== data.legal_representative_password_confirmation) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "As senhas não coincidem",
+          path: ["legal_representative_password_confirmation"]
+        });
+      }
+      
+      if (data.operational_representative_password && data.operational_representative_password !== data.operational_representative_password_confirmation) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "As senhas não coincidem",
+          path: ["operational_representative_password_confirmation"]
+        });
+      }
+    });
+  }
+
+  return z.object(baseSchema);
+};
 
 // Interfaces para Campos Field Array
 interface ProcedureField {
@@ -420,92 +458,143 @@ const translateValidationError = (field: string, message: string): string => {
 };
 
 export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false, parentPlanId }: HealthPlanFormProps) {
-  const router = useRouter()
-  const { hasPermission } = useAuth()
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [logoFile, setLogoFile] = useState<File | null>(null)
-  const [logoPreview, setLogoPreview] = useState<string | null>(null)
-  const [documentFiles, setDocumentFiles] = useState<(File | null)[]>([])
-  
-  // Debug initialData - add null check to avoid console errors
-  if (initialData) {
-    console.log("HealthPlanForm received initialData:", initialData);
-  }
-
-  // Hook useToast
-  const { toast } = useToast()
-  
-  // Primeiro, atualize o mapeamento de tipos de documentos no início do arquivo
-  const documentTypeApiMap: Record<number, string> = {
-    1: "identification",
-    2: "certificate", 
-    3: "diploma",
-    4: "license",
-    5: "contract",
-    6: "authorization",
-    7: "other"
-  };
-  
-  // Estados para TUSS e negociação
-  const [activeTab, setActiveTab] = useState<string>("basic-info")
-  const [tussProcedures, setTussProcedures] = useState<TussProcedure[]>([])
-  const [searchTerm, setSearchTerm] = useState("")
-  const [isSearching, setIsSearching] = useState(false)
-  const [showTussDialog, setShowTussDialog] = useState(false)
-
-  // Adicionar filtro de cidades
-  const [filteredCities, setFilteredCities] = useState<string[]>([]);
-  const [citySearchTerm, setCitySearchTerm] = useState("");
-
-  // Adicionar estado para armazenar as cidades do estado selecionado
-  const [cidadesDoEstado, setCidadesDoEstado] = useState<string[]>([]);
-  
-  // Estado para o diálogo de confirmação de saída
+  const router = useRouter();
+  const { hasPermission } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [documentFiles, setDocumentFiles] = useState<(File | null)[]>([]);
+  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState<string>("basic-info");
+  const [showTussDialog, setShowTussDialog] = useState(false);
   const [showExitDialog, setShowExitDialog] = useState(false);
   const [navigationPath, setNavigationPath] = useState<string | null>(null);
-
-  // Chave para o localStorage
+  const [cidadesDoEstado, setCidadesDoEstado] = useState<string[]>([]);
+  const [filteredCities, setFilteredCities] = useState<string[]>([]);
+  const [citySearchTerm, setCitySearchTerm] = useState<string>("");
   const FORM_STORAGE_KEY = `health-plan-form-${healthPlanId || 'new'}`;
+  const canCreateHealthPlan = hasPermission("create health plans");
 
-  // Verificar se usuário tem permissão para criar planos
-  const canCreateHealthPlan = hasPermission("create health plans")
-
-  // Inicializar formulário com o tipo inferido do Zod
+  // Initialize form with the correct schema based on isChildPlan
   const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(getFormSchema(isChildPlan)),
     defaultValues: {
-      name: "",
-      cnpj: "",
-      municipal_registration: "",
-      email: "",
-      password: "",
-      ans_code: "",
-      description: "",
-      logo: null,
-      parent_id: "",
-      legal_representative_name: "",
-      legal_representative_cpf: "",
-      legal_representative_position: "",
-      legal_representative_email: "",
-      legal_representative_password: "",
-      legal_representative_password_confirmation: "",
-      operational_representative_name: "",
-      operational_representative_cpf: "",
-      operational_representative_position: "",
-      operational_representative_email: "",
-      operational_representative_password: "",
-      operational_representative_password_confirmation: "",
-      address: "",
-      city: "",
-      state: "",
-      postal_code: "",
-      phones: [{ number: "", type: "mobile" }],
-      documents: [],
+      name: initialData?.name || "",
+      email: initialData?.email || "",
+      address: initialData?.address || "",
+      city: initialData?.city || "",
+      state: initialData?.state || "",
+      postal_code: initialData?.postal_code || "",
+      phones: initialData?.phones || [{ number: "", type: "mobile" }],
+      ...(isChildPlan ? {} : {
+        cnpj: initialData?.cnpj || "",
+        municipal_registration: initialData?.municipal_registration || "",
+        password: "",
+        ans_code: initialData?.ans_code || "",
+        description: initialData?.description || "",
+        legal_representative_name: initialData?.legal_representative_name || "",
+        legal_representative_cpf: initialData?.legal_representative_cpf || "",
+        legal_representative_position: initialData?.legal_representative_position || "",
+        legal_representative_email: initialData?.legal_representative_email || "",
+        legal_representative_password: "",
+        legal_representative_password_confirmation: "",
+        operational_representative_name: initialData?.operational_representative_name || "",
+        operational_representative_cpf: initialData?.operational_representative_cpf || "",
+        operational_representative_position: initialData?.operational_representative_position || "",
+        operational_representative_email: initialData?.operational_representative_email || "",
+        operational_representative_password: "",
+        operational_representative_password_confirmation: "",
+        documents: initialData?.documents || [],
+      })
     },
     mode: "onBlur",
     criteriaMode: "all",
     shouldFocusError: true
-  })
+  });
+
+  // Handle form submission
+  const onSubmit = async (formData: FormValues) => {
+    try {
+      setIsSubmitting(true);
+      
+      // Create FormData object
+      const data = new FormData();
+      
+      // Add basic fields
+      Object.entries(formData).forEach(([key, value]) => {
+        if (key !== 'phones' && key !== 'documents' && value !== undefined && value !== null) {
+          data.append(key, value.toString());
+        }
+      });
+      
+      // Add phones
+      formData.phones.forEach((phone, index) => {
+        data.append(`phones[${index}][number]`, phone.number);
+        data.append(`phones[${index}][type]`, phone.type);
+      });
+      
+      // Add documents for parent plans
+      if (!isChildPlan && 'documents' in formData) {
+        formData.documents.forEach((doc, index) => {
+          if (doc.file) {
+            data.append(`documents[${index}][file]`, doc.file);
+          }
+          if (doc.type_id) {
+            data.append(`documents[${index}][type_id]`, doc.type_id.toString());
+          }
+          if (doc.expiration_date) {
+            data.append(`documents[${index}][expiration_date]`, doc.expiration_date);
+          }
+          if (doc.observation) {
+            data.append(`documents[${index}][observation]`, doc.observation);
+          }
+        });
+      }
+      
+      // Add parent_id for child plans
+      if (isChildPlan && parentPlanId) {
+        data.append('parent_id', parentPlanId);
+      }
+      
+      // Add logo if present
+      if (logoFile) {
+        data.append('logo', logoFile);
+      }
+      
+      const response = await fetch(
+        healthPlanId 
+          ? `/api/health-plans/${healthPlanId}` 
+          : '/api/health-plans',
+        {
+          method: healthPlanId ? 'PUT' : 'POST',
+          body: data,
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error('Failed to save health plan');
+      }
+      
+      toast({
+        title: healthPlanId ? "Plano atualizado" : "Plano criado",
+        description: healthPlanId 
+          ? "O plano de saúde foi atualizado com sucesso"
+          : "O plano de saúde foi criado com sucesso",
+        variant: "success",
+      });
+      
+      router.push('/health-plans');
+    } catch (error) {
+      console.error('Error saving health plan:', error);
+      toast({
+        title: "Erro",
+        description: "Ocorreu um erro ao salvar o plano de saúde",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // Watch for form errors to debug
   const formErrors = form.formState.errors
@@ -633,8 +722,6 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
   const handleUpdateSubmit = async (data: FormValues) => {
     try {
       setIsSubmitting(true);
-
-      // Prepare basic data without documents
       const formData = new FormData();
       
       // Add basic fields
@@ -655,41 +742,41 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
         formData.append(`phones[${index}][type]`, phone.type);
       });
 
-      // Add only new documents
-      let newDocCount = 0;
-      
-      for (let i = 0; i < documentFiles.length; i++) {
-        const docFile = documentFiles[i];
-        // If it's a valid file, add it
-        if (docFile instanceof File && docFile.size > 0) {
-          const doc = data.documents[i];
-          if (!doc || !doc.type_id) continue;
-          
-          const type = documentTypeApiMap[Number(doc.type_id)] || 'other';
-          const typeName = documentTypes.find(dt => dt.id === Number(doc.type_id))?.name || 'Documento';
-          
-          formData.append(`new_documents[${newDocCount}][file]`, docFile);
-          formData.append(`new_documents[${newDocCount}][type]`, type);
-          formData.append(`new_documents[${newDocCount}][description]`, docFile.name);
-          formData.append(`new_documents[${newDocCount}][name]`, docFile.name);
-          
-          if (doc.expiration_date) {
-            formData.append(`new_documents[${newDocCount}][expiration_date]`, doc.expiration_date);
+      // Add only new documents if this is a parent plan
+      if ('documents' in data) {
+        let newDocCount = 0;
+        
+        for (let i = 0; i < documentFiles.length; i++) {
+          const docFile = documentFiles[i];
+          if (docFile instanceof File && docFile.size > 0) {
+            const doc = data.documents[i];
+            if (!doc || !doc.type_id) continue;
+            
+            const type = documentTypeApiMap[Number(doc.type_id)] || 'other';
+            const typeName = documentTypes.find(dt => dt.id === Number(doc.type_id))?.name || 'Documento';
+            
+            formData.append(`new_documents[${newDocCount}][file]`, docFile);
+            formData.append(`new_documents[${newDocCount}][type]`, type);
+            formData.append(`new_documents[${newDocCount}][description]`, docFile.name);
+            formData.append(`new_documents[${newDocCount}][name]`, docFile.name);
+            
+            if (doc.expiration_date) {
+              formData.append(`new_documents[${newDocCount}][expiration_date]`, doc.expiration_date);
+            }
+            
+            if (doc.observation) {
+              formData.append(`new_documents[${newDocCount}][observation]`, doc.observation);
+            }
+            
+            newDocCount++;
           }
-          
-          if (doc.observation) {
-            formData.append(`new_documents[${newDocCount}][observation]`, doc.observation);
-          }
-          
-          newDocCount++;
+        }
+        
+        if (newDocCount > 0) {
+          formData.append('new_document_count', String(newDocCount));
         }
       }
-      
-      // Add document counter
-      if (newDocCount > 0) {
-        formData.append('new_document_count', String(newDocCount));
-      }
-      
+
       // Send request
       const response = await api.put(`/health-plans/${healthPlanId}`, formData, {
         headers: {
@@ -720,17 +807,15 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
   };
 
   // Adjust the handleFormSubmit to use a different approach for updates
-  const handleFormSubmit = async (data: z.infer<typeof formSchema>) => {
+  const handleFormSubmit = async (formData: FormValues) => {
     try {
-      // Special handling for updates to bypass document validation
       if (healthPlanId) {
-        await handleUpdateSubmit(data as FormValues);
+        await handleUpdateSubmit(formData);
       } else {
-        // For new health plans, use standard validation
         if (!validateRequiredDocuments()) {
           return;
         }
-        await onSubmit(data);
+        await onSubmit(formData);
       }
     } catch (error) {
       showToast({
@@ -746,16 +831,17 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
     if (Object.keys(errors).length > 0) {
       let tabToFocus = "basic-info";
       
-      if (errors.name || errors.cnpj || errors.email || 
-          errors.ans_code || errors.description) {
+      if (errors.name || errors.email || 
+          errors.address || errors.city || errors.state || 
+          errors.postal_code || errors.phones) {
         tabToFocus = "basic-info";
       } 
-      else if (errors.legal_representative_name || errors.legal_representative_cpf || 
+      else if ('legal_representative_name' in errors || 'legal_representative_cpf' in errors || 
                errors.address || errors.city || errors.state || 
                errors.postal_code || errors.phones) {
         tabToFocus = "additional-info";
       } 
-      else if (errors.documents) {
+      else if ('documents' in errors) {
         tabToFocus = "documents";
       }
       
@@ -795,6 +881,7 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
   const atualizarCidadesPorEstado = useCallback((uf: string) => {
     if (!uf) {
       setCidadesDoEstado([]);
+      setFilteredCities([]);
       return;
     }
 
@@ -804,9 +891,12 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
     );
 
     if (estadoEncontrado) {
-      setCidadesDoEstado(estadoEncontrado.cidades);
+      const cidades = estadoEncontrado.cidades;
+      setCidadesDoEstado(cidades);
+      setFilteredCities(cidades); // Inicialmente, mostra todas as cidades
     } else {
       setCidadesDoEstado([]);
+      setFilteredCities([]);
     }
   }, []);
 
@@ -852,29 +942,32 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
           // Map the data to the form structure
           const formValues = {
             name: initialData.name || "",
-            cnpj: initialData.cnpj || "",
-            municipal_registration: initialData.municipal_registration || "",
             email: initialData.email || "",
-            ans_code: initialData.ans_code || "",
-            description: initialData.description || "",
-            
-            legal_representative_name: initialData.legal_representative_name || "",
-            legal_representative_cpf: initialData.legal_representative_cpf || "",
-            legal_representative_position: initialData.legal_representative_position || "",
-            legal_representative_email: initialData.legal_representative?.email || "",
-            
-            operational_representative_name: initialData.operational_representative_name || "",
-            operational_representative_cpf: initialData.operational_representative_cpf || "",
-            operational_representative_position: initialData.operational_representative_position || "",
-            operational_representative_email: initialData.operational_representative?.email || "",
-            
-            postal_code: initialData.postal_code || "",
             address: initialData.address || "",
             city: initialData.city || "",
             state: initialData.state || "",
-            
+            postal_code: initialData.postal_code || "",
             phones: Array.isArray(initialData.phones) ? initialData.phones : [],
-            documents: [],
+            ...(isChildPlan ? {} : {
+              cnpj: initialData.cnpj || "",
+              municipal_registration: initialData.municipal_registration || "",
+              password: initialData.password || "",
+              ans_code: initialData.ans_code || "",
+              description: initialData.description || "",
+              legal_representative_name: initialData.legal_representative_name || "",
+              legal_representative_cpf: initialData.legal_representative_cpf || "",
+              legal_representative_position: initialData.legal_representative_position || "",
+              legal_representative_email: initialData.legal_representative?.email || "",
+              legal_representative_password: initialData.legal_representative_password || "",
+              legal_representative_password_confirmation: initialData.legal_representative_password_confirmation || "",
+              operational_representative_name: initialData.operational_representative_name || "",
+              operational_representative_cpf: initialData.operational_representative_cpf || "",
+              operational_representative_position: initialData.operational_representative_position || "",
+              operational_representative_email: initialData.operational_representative?.email || "",
+              operational_representative_password: initialData.operational_representative_password || "",
+              operational_representative_password_confirmation: initialData.operational_representative_password_confirmation || "",
+              documents: [],
+            }),
           };
           
           form.reset(formValues);
@@ -909,30 +1002,32 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
         if (!healthPlanId) {
           form.reset({
             name: "",
-            cnpj: "",
-            municipal_registration: "",
             email: "",
-            password: "",
-            ans_code: "",
-            description: "",
-            legal_representative_name: "",
-            legal_representative_cpf: "",
-            legal_representative_position: "",
-            legal_representative_email: "",
-            legal_representative_password: "",
-            legal_representative_password_confirmation: "",
-            operational_representative_name: "",
-            operational_representative_cpf: "",
-            operational_representative_position: "",
-            operational_representative_email: "",
-            operational_representative_password: "",
-            operational_representative_password_confirmation: "",
             address: "",
             city: "",
             state: "",
             postal_code: "",
             phones: [{ number: "", type: "mobile" }],
-            documents: [],
+            ...(isChildPlan ? {} : {
+              cnpj: "",
+              municipal_registration: "",
+              password: "",
+              ans_code: "",
+              description: "",
+              legal_representative_name: "",
+              legal_representative_cpf: "",
+              legal_representative_position: "",
+              legal_representative_email: "",
+              legal_representative_password: "",
+              legal_representative_password_confirmation: "",
+              operational_representative_name: "",
+              operational_representative_cpf: "",
+              operational_representative_position: "",
+              operational_representative_email: "",
+              operational_representative_password: "",
+              operational_representative_password_confirmation: "",
+              documents: [],
+            }),
           });
           
           // Mark as initialized
@@ -948,29 +1043,32 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
           // Mapear os dados para o formulário
           form.reset({
             name: data.name || "",
-            cnpj: data.cnpj || "",
-            municipal_registration: data.municipal_registration || "",
             email: data.email || "",
-            ans_code: data.ans_code || "",
-            description: data.description || "",
-            
-            legal_representative_name: data.legal_representative_name || "",
-            legal_representative_cpf: data.legal_representative_cpf || "",
-            legal_representative_position: data.legal_representative_position || "",
-            legal_representative_email: data.legal_representative?.email || "",
-            
-            operational_representative_name: data.operational_representative_name || "",
-            operational_representative_cpf: data.operational_representative_cpf || "",
-            operational_representative_position: data.operational_representative_position || "",
-            operational_representative_email: data.operational_representative?.email || "",
-            
-            postal_code: data.postal_code || "",
             address: data.address || "",
             city: data.city || "",
             state: data.state || "",
-            
+            postal_code: data.postal_code || "",
             phones: data.phones || [],
-            documents: [],
+            ...(isChildPlan ? {} : {
+              cnpj: data.cnpj || "",
+              municipal_registration: data.municipal_registration || "",
+              password: data.password || "",
+              ans_code: data.ans_code || "",
+              description: data.description || "",
+              legal_representative_name: data.legal_representative_name || "",
+              legal_representative_cpf: data.legal_representative_cpf || "",
+              legal_representative_position: data.legal_representative_position || "",
+              legal_representative_email: data.legal_representative?.email || "",
+              legal_representative_password: data.legal_representative_password || "",
+              legal_representative_password_confirmation: data.legal_representative_password_confirmation || "",
+              operational_representative_name: data.operational_representative_name || "",
+              operational_representative_cpf: data.operational_representative_cpf || "",
+              operational_representative_position: data.operational_representative_position || "",
+              operational_representative_email: data.operational_representative?.email || "",
+              operational_representative_password: data.operational_representative_password || "",
+              operational_representative_password_confirmation: data.operational_representative_password_confirmation || "",
+              documents: [],
+            }),
           });
 
           // Atualizar o preview do logo se existir
@@ -1136,8 +1234,8 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
 
   // Atualizar a função filterCities para filtrar cidades do estado selecionado
   const filterCities = (searchTerm: string) => {
-    if (searchTerm.length < 2) {
-      setFilteredCities([]);
+    if (!searchTerm || searchTerm.length < 2) {
+      setFilteredCities(cidadesDoEstado); // Mostra todas as cidades se não houver busca
       return;
     }
     
@@ -1146,7 +1244,7 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
       cidade.toLowerCase().includes(searchTerm.toLowerCase())
     );
     
-    setFilteredCities(filtered.slice(0, 10));
+    setFilteredCities(filtered);
   };
 
   // Atualizar a função fetchAddressByCEP para usar as cidades do JSON
@@ -1341,167 +1439,6 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
     });
   };
 
-  // Atualizar o onSubmit para melhorar o mapeamento de documentos
-  const onSubmit = async (data: FormValues) => {
-    try {
-      setIsSubmitting(true);
-      
-      // Use o nome como descrição se a descrição estiver vazia
-      const formData = new FormData();
-      
-      // Adicionar campos básicos
-      Object.entries(data).forEach(([key, value]) => {
-        if (key !== 'documents' && key !== 'phones' && key !== 'logo' && value !== null && value !== undefined) {
-          // Se o campo for description e estiver vazio, use o nome
-          if (key === 'description' && (!value || value.trim() === '')) {
-            formData.append(key, data.name);
-          } else {
-            formData.append(key, String(value));
-          }
-        }
-      });
-
-      // Adicionar logo
-      if (logoFile instanceof File && logoFile.size > 0) {
-        formData.append('logo', logoFile);
-      }
-
-      // Adicionar telefones
-      data.phones.forEach((phone, index) => {
-        formData.append(`phones[${index}][number]`, phone.number);
-        formData.append(`phones[${index}][type]`, phone.type);
-      });
-
-      // Adicionar documentos
-      let docCount = 0;
-      const processedTypeIds = new Set(); // Rastrear type_ids processados para evitar duplicatas
-
-      for (let i = 0; i < documentFiles.length; i++) {
-        const docFile = documentFiles[i];
-        const docItem = data.documents[i];
-        
-        if (!docItem || !docItem.type_id) continue;
-        
-        // Pular se já processamos este type_id
-        if (processedTypeIds.has(docItem.type_id)) continue;
-        processedTypeIds.add(docItem.type_id);
-        
-        // Mapear o type_id para o valor aceito pela API
-        const docType = documentTypeApiMap[Number(docItem.type_id)] || 'other';
-        const typeName = documentTypes.find(dt => dt.id === Number(docItem.type_id))?.name || 'Documento';
-        
-        if (docFile instanceof File && docFile.size > 0) {
-          formData.append(`documents[${docCount}][file]`, docFile);
-          formData.append(`documents[${docCount}][type]`, docType);
-          formData.append(`documents[${docCount}][description]`, docFile.name);
-          formData.append(`documents[${docCount}][name]`, docFile.name);
-          
-          if (docItem.expiration_date) {
-            formData.append(`documents[${docCount}][expiration_date]`, docItem.expiration_date);
-          }
-          
-          if (docItem.observation) {
-            formData.append(`documents[${docCount}][observation]`, docItem.observation);
-          }
-          
-          docCount++;
-        }
-      }
-
-      // Enviar requisição para o backend
-      let response;
-      if (healthPlanId) {
-        response = await api.put(`/health-plans/${healthPlanId}`, formData, {
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'multipart/form-data'
-          }
-        });
-        showToast({
-          title: "Sucesso",
-          description: "Plano de saúde atualizado com sucesso",
-          variant: "success"
-        });
-      } else {
-        response = await api.post('/health-plans', formData, {
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'multipart/form-data'
-          }
-        });
-        showToast({
-          title: "Sucesso",
-          description: "Plano de saúde cadastrado com sucesso",
-          variant: "success"
-        });
-        localStorage.removeItem(FORM_STORAGE_KEY);
-      }
-
-      router.push('/health-plans');
-    } catch (error: any) {
-      console.error("Erro ao enviar formulário:", error);
-      
-      if (error.response?.status === 422) {
-        const errors = error.response.data.errors;
-        const errorMessages = Object.entries(errors).map(([field, messages]) => {
-          const fieldTranslations: Record<string, string> = {
-            name: "Nome",
-            cnpj: "CNPJ",
-            email: "E-mail",
-            ans_code: "Código ANS",
-            description: "Descrição",
-            "documents.0.type": "Tipo do documento 1",
-            "documents.1.type": "Tipo do documento 2",
-            "documents.2.type": "Tipo do documento 3",
-            "documents.3.type": "Tipo do documento 4",
-            "documents.4.type": "Tipo do documento 5",
-            "documents.5.type": "Tipo do documento 6",
-            "documents.6.type": "Tipo do documento 7",
-            "documents.7.type": "Tipo do documento 8",
-            "documents.8.type": "Tipo do documento 9",
-            "documents.9.type": "Tipo do documento 10"
-          };
-
-          const messageTranslations: Record<string, string> = {
-            "The selected type is invalid.": "O tipo selecionado é inválido.",
-            "The type field is required.": "O tipo é obrigatório.",
-            "validation.required": "Este campo é obrigatório",
-            "The selected documents.0.type is invalid": "O tipo do documento 1 é inválido",
-            "The selected documents.1.type is invalid": "O tipo do documento 2 é inválido",
-            "The selected documents.2.type is invalid": "O tipo do documento 3 é inválido",
-            "The selected documents.3.type is invalid": "O tipo do documento 4 é inválido",
-            "The selected documents.4.type is invalid": "O tipo do documento 5 é inválido",
-            "The selected documents.5.type is invalid": "O tipo do documento 6 é inválido",
-            "The selected documents.6.type is invalid": "O tipo do documento 7 é inválido",
-            "The selected documents.7.type is invalid": "O tipo do documento 8 é inválido",
-            "The selected documents.8.type is invalid": "O tipo do documento 9 é inválido",
-            "The selected documents.9.type is invalid": "O tipo do documento 10 é inválido"
-          };
-
-          const fieldName = fieldTranslations[field] || field;
-          const message = Array.isArray(messages) ? messages[0] : messages;
-          const translatedMessage = messageTranslations[message as string] || message;
-
-          return `${fieldName}: ${translatedMessage}`;
-        });
-
-        showToast({
-          title: "Erro de Validação",
-          description: errorMessages.join('\n'),
-          variant: "destructive"
-        });
-      } else {
-        showToast({
-          title: "Erro",
-          description: "Erro ao salvar o plano de saúde. Verifique os dados e tente novamente.",
-          variant: "destructive"
-        });
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   // Render documents function
   const renderDocuments = () => (
     <>
@@ -1615,6 +1552,22 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
     </>
   );
 
+  // Add missing type definitions and state
+  // const [cidadesDoEstado, setCidadesDoEstado] = useState<string[]>([]);
+
+  // Add documentTypeApiMap definition
+  const documentTypeApiMap: Record<number, string> = {
+    1: 'contract',
+    2: 'ans_certificate',
+    3: 'authorization',
+    4: 'financial',
+    5: 'legal',
+    6: 'identification',
+    7: 'agreement',
+    8: 'technical',
+    9: 'other'
+  };
+
   return (
     <div className="space-y-6">
       <Form {...form}>
@@ -1625,11 +1578,13 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
                 <Building2 className="h-4 w-4" /> Informações Básicas
               </TabsTrigger>
               <TabsTrigger value="additional-info" className="text-base flex items-center gap-2">
-                <User className="h-4 w-4" /> Informações Adicionais
+                <User className="h-4 w-4" /> {isChildPlan ? 'Endereço e Contatos' : 'Informações Adicionais'}
               </TabsTrigger>
-              <TabsTrigger value="documents" className="text-base flex items-center gap-2">
-                <FileText className="h-4 w-4" /> Documentos
-              </TabsTrigger>
+              {!isChildPlan && (
+                <TabsTrigger value="documents" className="text-base flex items-center gap-2">
+                  <FileText className="h-4 w-4" /> Documentos
+                </TabsTrigger>
+              )}
             </TabsList>
 
             {/* Notice about child plan if applicable */}
@@ -1701,51 +1656,6 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
                     )}
                   />
 
-                  {/* CNPJ */}
-                  <FormField
-                    control={form.control}
-                    name="cnpj"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>CNPJ<span className="text-red-500">*</span></FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            placeholder="Digite o CNPJ"
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              field.onChange(applyCNPJMask(value));
-                            }}
-                            maxLength={18}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* Inscrição Municipal */}
-                  <FormField
-                    control={form.control}
-                    name="municipal_registration"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Inscrição Municipal</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            placeholder="Digite a inscrição municipal"
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              field.onChange(applyMunicipalRegistrationMask(value));
-                            }}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
                   {/* Email */}
                   <FormField
                     control={form.control}
@@ -1761,35 +1671,85 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
                     )}
                   />
 
-                  {/* Código ANS */}
-                  <FormField
-                    control={form.control}
-                    name="ans_code"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Código ANS<span className="text-red-500">*</span></FormLabel>
-                        <FormControl>
-                          <Input {...field} placeholder="Digite o código ANS" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {/* Only show these fields for non-child plans */}
+                  {!isChildPlan && (
+                    <>
+                      {/* CNPJ */}
+                      <FormField
+                        control={form.control}
+                        name="cnpj"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>CNPJ<span className="text-red-500">*</span></FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                placeholder="Digite o CNPJ"
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  field.onChange(applyCNPJMask(value));
+                                }}
+                                maxLength={18}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                  {/* Descrição */}
-                  <FormField
-                    control={form.control}
-                    name="description"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Descrição</FormLabel>
-                        <FormControl>
-                          <Textarea {...field} placeholder="Digite uma descrição" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                      {/* Inscrição Municipal */}
+                      <FormField
+                        control={form.control}
+                        name="municipal_registration"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Inscrição Municipal</FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                placeholder="Digite a inscrição municipal"
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  field.onChange(applyMunicipalRegistrationMask(value));
+                                }}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Código ANS */}
+                      <FormField
+                        control={form.control}
+                        name="ans_code"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Código ANS<span className="text-red-500">*</span></FormLabel>
+                            <FormControl>
+                              <Input {...field} placeholder="Digite o código ANS" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Descrição */}
+                      <FormField
+                        control={form.control}
+                        name="description"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Descrição</FormLabel>
+                            <FormControl>
+                              <Textarea {...field} placeholder="Digite uma descrição" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -1797,158 +1757,160 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
             {/* Additional Info Tab */}
             <TabsContent value="additional-info">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Representantes */}
-                <Card className="border-t-4 border-t-blue-500">
-                  <CardHeader className="bg-muted/50">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <User className="h-5 w-5 text-blue-500" /> 
-                      Representantes
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-5 pt-6">
-                    {/* Representante Legal */}
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-medium flex items-center gap-2">
-                        <Badge className="bg-blue-600">Legal</Badge> Representante Legal
-                      </h3>
+                {/* Only show Representatives section for non-child plans */}
+                {!isChildPlan && (
+                  <Card className="border-t-4 border-t-blue-500">
+                    <CardHeader className="bg-muted/50">
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <User className="h-5 w-5 text-blue-500" /> 
+                        Representantes
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-5 pt-6">
+                      {/* Representante Legal */}
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-medium flex items-center gap-2">
+                          <Badge className="bg-blue-600">Legal</Badge> Representante Legal
+                        </h3>
 
-                      <FormField
-                        control={form.control}
-                        name="legal_representative_name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Nome<span className="text-red-500">*</span></FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="Nome do representante legal" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                        <FormField
+                          control={form.control}
+                          name="legal_representative_name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Nome<span className="text-red-500">*</span></FormLabel>
+                              <FormControl>
+                                <Input {...field} placeholder="Nome do representante legal" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
 
-                      <FormField
-                        control={form.control}
-                        name="legal_representative_cpf"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>CPF<span className="text-red-500">*</span></FormLabel>
-                            <FormControl>
-                              <Input
-                                {...field}
-                                placeholder="CPF do representante legal"
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  field.onChange(applyCPFMask(value));
-                                }}
-                                maxLength={14}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                        <FormField
+                          control={form.control}
+                          name="legal_representative_cpf"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>CPF<span className="text-red-500">*</span></FormLabel>
+                              <FormControl>
+                                <Input
+                                  {...field}
+                                  placeholder="CPF do representante legal"
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    field.onChange(applyCPFMask(value));
+                                  }}
+                                  maxLength={14}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
 
-                      <FormField
-                        control={form.control}
-                        name="legal_representative_position"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Cargo<span className="text-red-500">*</span></FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="Cargo do representante legal" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                        <FormField
+                          control={form.control}
+                          name="legal_representative_position"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Cargo<span className="text-red-500">*</span></FormLabel>
+                              <FormControl>
+                                <Input {...field} placeholder="Cargo do representante legal" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
 
-                      <FormField
-                        control={form.control}
-                        name="legal_representative_email"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Email<span className="text-red-500">*</span></FormLabel>
-                            <FormControl>
-                              <Input {...field} type="email" placeholder="Email do representante legal" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
+                        <FormField
+                          control={form.control}
+                          name="legal_representative_email"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Email<span className="text-red-500">*</span></FormLabel>
+                              <FormControl>
+                                <Input {...field} type="email" placeholder="Email do representante legal" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
 
-                    {/* Representante Operacional */}
-                    <div className="space-y-4 mt-8 pt-4 border-t">
-                      <h3 className="text-lg font-medium flex items-center gap-2">
-                        <Badge className="bg-blue-600">Operacional</Badge> Representante Operacional
-                      </h3>
+                      {/* Representante Operacional */}
+                      <div className="space-y-4 mt-8 pt-4 border-t">
+                        <h3 className="text-lg font-medium flex items-center gap-2">
+                          <Badge className="bg-blue-600">Operacional</Badge> Representante Operacional
+                        </h3>
 
-                      <FormField
-                        control={form.control}
-                        name="operational_representative_name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Nome<span className="text-red-500">*</span></FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="Nome do representante operacional" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                        <FormField
+                          control={form.control}
+                          name="operational_representative_name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Nome<span className="text-red-500">*</span></FormLabel>
+                              <FormControl>
+                                <Input {...field} placeholder="Nome do representante operacional" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
 
-                      <FormField
-                        control={form.control}
-                        name="operational_representative_cpf"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>CPF<span className="text-red-500">*</span></FormLabel>
-                            <FormControl>
-                              <Input
-                                {...field}
-                                placeholder="CPF do representante operacional"
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  field.onChange(applyCPFMask(value));
-                                }}
-                                maxLength={14}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                        <FormField
+                          control={form.control}
+                          name="operational_representative_cpf"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>CPF<span className="text-red-500">*</span></FormLabel>
+                              <FormControl>
+                                <Input
+                                  {...field}
+                                  placeholder="CPF do representante operacional"
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    field.onChange(applyCPFMask(value));
+                                  }}
+                                  maxLength={14}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
 
-                      <FormField
-                        control={form.control}
-                        name="operational_representative_position"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Cargo<span className="text-red-500">*</span></FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="Cargo do representante operacional" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                        <FormField
+                          control={form.control}
+                          name="operational_representative_position"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Cargo<span className="text-red-500">*</span></FormLabel>
+                              <FormControl>
+                                <Input {...field} placeholder="Cargo do representante operacional" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
 
-                      <FormField
-                        control={form.control}
-                        name="operational_representative_email"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Email<span className="text-red-500">*</span></FormLabel>
-                            <FormControl>
-                              <Input {...field} type="email" placeholder="Email do representante operacional" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
+                        <FormField
+                          control={form.control}
+                          name="operational_representative_email"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Email<span className="text-red-500">*</span></FormLabel>
+                              <FormControl>
+                                <Input {...field} type="email" placeholder="Email do representante operacional" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 <div className="space-y-6">
                   {/* Endereço */}
@@ -2047,7 +2009,7 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
                                 <SelectValue placeholder="Selecione a cidade" />
                               </SelectTrigger>
                               <SelectContent className="max-h-[300px]">
-                                {cidadesDoEstado.map((cidade) => (
+                                {filteredCities.map((cidade) => (
                                   <SelectItem key={cidade} value={cidade}>
                                     {cidade}
                                   </SelectItem>
@@ -2152,44 +2114,46 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
             </TabsContent>
 
             {/* Documents Tab */}
-            <TabsContent value="documents">
-              <Card className="border-t-4 border-t-primary">
-                <CardHeader className="bg-muted/50">
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-primary" /> 
-                    Documentos Exigidos
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6 pt-6">
-                  {/* Required Documents List */}
-                  <div className="bg-muted/30 p-4 rounded-lg mb-4">
-                    <div className="text-sm text-muted-foreground mb-2">
-                      Os seguintes documentos são obrigatórios para o cadastro do plano de saúde:
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {documentTypes
-                        ?.filter(type => type.is_required)
-                        .map(type => (
-                          <div key={type.id} className="flex items-start gap-2">
-                            <span className="text-red-500 font-bold">*</span>
-                            <div>
-                              <span className="font-medium">{type.name}</span>
-                              {type.description && (
-                                <p className="text-sm text-muted-foreground">{type.description}</p>
-                              )}
+            {!isChildPlan && (
+              <TabsContent value="documents">
+                <Card className="border-t-4 border-t-primary">
+                  <CardHeader className="bg-muted/50">
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-primary" /> 
+                      Documentos Exigidos
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6 pt-6">
+                    {/* Required Documents List */}
+                    <div className="bg-muted/30 p-4 rounded-lg mb-4">
+                      <div className="text-sm text-muted-foreground mb-2">
+                        Os seguintes documentos são obrigatórios para o cadastro do plano de saúde:
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {documentTypes
+                          ?.filter(type => type.is_required)
+                          .map(type => (
+                            <div key={type.id} className="flex items-start gap-2">
+                              <span className="text-red-500 font-bold">*</span>
+                              <div>
+                                <span className="font-medium">{type.name}</span>
+                                {type.description && (
+                                  <p className="text-sm text-muted-foreground">{type.description}</p>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Document Form Fields */}
-                  <div className="space-y-6">
-                    {renderDocuments()}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
+                    {/* Document Form Fields */}
+                    <div className="space-y-6">
+                      {renderDocuments()}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            )}
           </Tabs>
 
           {/* Submit Buttons */}
@@ -2197,18 +2161,23 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
             <Button
               type="button"
               variant="outline"
-              onClick={() => handleNavigation('/health-plans')}
+              onClick={() => router.push('/health-plans')}
               disabled={isSubmitting}
             >
               Cancelar
             </Button>
-            
-            <Button 
-              type="submit"
-              disabled={isSubmitting}
-            >
-              {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              {healthPlanId ? "Atualizar" : "Cadastrar"}
+            <Button type="submit" disabled={isSubmitting || !canCreateHealthPlan}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  {healthPlanId ? 'Atualizar' : 'Criar'} Plano
+                </>
+              )}
             </Button>
           </div>
         </form>

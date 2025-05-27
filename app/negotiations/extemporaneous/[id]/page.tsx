@@ -36,8 +36,8 @@ export default function ExtemporaneousNegotiationDetail() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Permissions check
-  const canApprove = hasRole(['commercial', 'director', 'admin', 'super_admin']);
-  const canAddendum = hasRole(['legal', 'commercial', 'admin', 'super_admin']);
+  const canApprove = hasRole(['commercial_manager', 'director', 'admin', 'super_admin']);
+  const canAddendum = hasRole(['legal', 'commercial_manager', 'admin', 'super_admin']);
   
   // Fetch negotiation details
   const fetchNegotiation = async () => {
@@ -104,9 +104,9 @@ export default function ExtemporaneousNegotiationDetail() {
         description: 'Negotiation approved successfully',
       });
       
-      // Send notification to Adla in the commercial team
+      // Send notification to Adla in the commercial_manager team
       try {
-        await notificationService.sendToRole('commercial', {
+        await notificationService.sendToRole('commercial_manager', {
           title: 'New Addendum Required',
           body: `An extemporaneous negotiation for contract #${negotiation.contract.contract_number} has been approved and requires a formal addendum.`,
           action_link: `/negotiations/extemporaneous/${negotiationId}`,

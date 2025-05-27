@@ -268,7 +268,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const requestPasswordReset = async (email: string) => {
     try {
       setIsLoading(true)
-      await axios.post(`${API_URL}/api/auth/password/reset-request`, { email });
+      await axios.post(`${API_URL}/auth/password/reset-request`, { email });
       
       toast({
         title: "Solicitação enviada",
@@ -294,7 +294,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         ? { email, reset_code: resetCode }
         : { email, token };
         
-      const response = await axios.post(`${API_URL}/api/auth/password/validate-token`, payload);
+      const response = await axios.post(`${API_URL}/auth/password/validate-token`, payload);
       return response.data.valid;
     } catch (error) {
       console.error('Token validation error:', error);
@@ -321,7 +321,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         ...(resetCode ? { reset_code: resetCode } : { token })
       };
       
-      await axios.post(`${API_URL}/api/auth/password/reset`, payload);
+      await axios.post(`${API_URL}/auth/password/reset`, payload);
       
       toast({
         title: "Senha redefinida com sucesso",
