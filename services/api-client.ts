@@ -61,7 +61,7 @@ const translateErrorMessage = (message: string): string => {
 
 // Create axios instance with base URL
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api",
+  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/conecta-backend/api",
   headers: {
     "Content-Type": "application/json",
     Accept: "application/json",

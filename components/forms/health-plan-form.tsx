@@ -561,17 +561,19 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
         data.append('logo', logoFile);
       }
       
-      const response = await fetch(
-        healthPlanId 
-          ? `/api/health-plans/${healthPlanId}` 
-          : '/api/health-plans',
-        {
-          method: healthPlanId ? 'PUT' : 'POST',
-          body: data,
+      const response = await (healthPlanId ? api.put(`/health-plans/${healthPlanId}`, data, {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'multipart/form-data'
         }
-      );
+      }) : api.post('/health-plans', data, {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'multipart/form-data'
+        }
+      }));
       
-      if (!response.ok) {
+      if (response.status !== 200) {
         throw new Error('Failed to save health plan');
       }
       
