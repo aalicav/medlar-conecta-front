@@ -350,7 +350,9 @@ export function SolicitationForm({
 
     // Load options
     fetchHealthPlans()
-    fetchInitialPatients()
+    if(healthPlanId){ 
+      fetchInitialPatients()
+    }
   }, [isPlanAdmin, healthPlanId, initialData?.patient_id, initialData?.health_plan_id, useToastToast])
 
   // If there's initialData for patient, fetch that specific patient

@@ -563,25 +563,6 @@ export default function SolicitationsPage() {
       enableSorting: true,
     },
     {
-      accessorKey: "priority",
-      header: "Prioridade",
-      cell: ({ row }) => getPriorityBadge(row.getValue("priority")),
-      enableSorting: true,
-    },
-    {
-      accessorKey: "preferred_date_start",
-      header: "Data Preferencial",
-      cell: ({ row }) => (
-        <div>
-          {formatDate(row.getValue("preferred_date_start"))}
-          <div className="text-xs text-muted-foreground">
-            até {formatDate(row.original.preferred_date_end)}
-          </div>
-        </div>
-      ),
-      enableSorting: true,
-    },
-    {
       accessorKey: "created_at",
       header: "Criado em",
       cell: ({ row }) => formatDate(row.getValue("created_at")),
