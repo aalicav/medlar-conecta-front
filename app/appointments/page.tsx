@@ -6,9 +6,21 @@ import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/data-table/data-table"
 import { Badge } from "@/components/ui/badge"
 import { fetchResource, type QueryParams } from "@/services/resource-service"
-import { Plus, FileText, Edit, CheckCircle, XCircle } from "lucide-react"
+import { Plus, FileText, Edit, CheckCircle, XCircle, Search, Calendar } from "lucide-react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { formatDateTime } from "@/lib/utils"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DatePicker } from "@/components/ui/date-picker"
+import { toast } from "@/components/ui/use-toast"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import api from "@/services/api-client"
 
 interface Appointment {
   id: number
@@ -31,6 +43,7 @@ export default function AppointmentsPage() {
   const router = useRouter()
   const [data, setData] = useState<Appointment[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isActionLoading, setIsActionLoading] = useState(false)
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize: 10,
@@ -42,6 +55,12 @@ export default function AppointmentsPage() {
     direction: "desc",
   })
   const [filters, setFilters] = useState<Record<string, string>>({})
+  const [dateFilters, setDateFilters] = useState({
+    scheduled_from: "",
+    scheduled_to: "",
+    created_from: "",
+    created_to: "",
+  })
 
   const fetchData = async () => {
     setIsLoading(true)
@@ -51,7 +70,8 @@ export default function AppointmentsPage() {
         per_page: pagination.pageSize,
         sort_by: sorting.column,
         sort_order: sorting.direction,
-        filters,
+        ...filters,
+        ...dateFilters
       }
 
       const response = await fetchResource<Appointment>("appointments", params)
@@ -64,6 +84,11 @@ export default function AppointmentsPage() {
       })
     } catch (error) {
       console.error("Error fetching appointments:", error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os agendamentos",
+        variant: "destructive"
+      })
     } finally {
       setIsLoading(false)
     }
@@ -72,7 +97,7 @@ export default function AppointmentsPage() {
   useEffect(() => {
     fetchData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagination.pageIndex, pagination.pageSize, sorting, filters])
+  }, [pagination.pageIndex, pagination.pageSize, sorting, filters, dateFilters])
 
   const handlePaginationChange = (page: number, pageSize: number) => {
     setPagination({
@@ -97,18 +122,127 @@ export default function AppointmentsPage() {
     })
   }
 
+  const handleDateFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setDateFilters((prev) => ({
+      ...prev,
+      [name]: value,
+    }))
+    setPagination({
+      ...pagination,
+      pageIndex: 0,
+    })
+  }
+
+  const clearFilters = () => {
+    setFilters({})
+    setDateFilters({
+      scheduled_from: "",
+      scheduled_to: "",
+      created_from: "",
+      created_to: "",
+    })
+  }
+
+  const handleConfirmAppointment = async (id: number) => {
+    setIsActionLoading(true)
+    try {
+      await api.post(`/appointments/${id}/confirm`)
+      toast({
+        title: "Sucesso",
+        description: "Agendamento confirmado com sucesso",
+      })
+      fetchData()
+    } catch (error) {
+      console.error("Error confirming appointment:", error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível confirmar o agendamento",
+        variant: "destructive"
+      })
+    } finally {
+      setIsActionLoading(false)
+    }
+  }
+
+  const handleCancelAppointment = async (id: number) => {
+    setIsActionLoading(true)
+    try {
+      await api.post(`/appointments/${id}/cancel`)
+      toast({
+        title: "Sucesso",
+        description: "Agendamento cancelado com sucesso",
+      })
+      fetchData()
+    } catch (error) {
+      console.error("Error cancelling appointment:", error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível cancelar o agendamento",
+        variant: "destructive"
+      })
+    } finally {
+      setIsActionLoading(false)
+    }
+  }
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
-        return <Badge variant="warning">Pendente</Badge>
+        return (
+          <Tooltip>
+            <TooltipTrigger>
+              <Badge variant="outline">Pendente</Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              Aguardando confirmação
+            </TooltipContent>
+          </Tooltip>
+        )
       case "confirmed":
-        return <Badge variant="success">Confirmado</Badge>
+        return (
+          <Tooltip>
+            <TooltipTrigger>
+              <Badge>Confirmado</Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              Agendamento confirmado
+            </TooltipContent>
+          </Tooltip>
+        )
       case "completed":
-        return <Badge variant="success">Concluído</Badge>
+        return (
+          <Tooltip>
+            <TooltipTrigger>
+              <Badge variant="secondary">Concluído</Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              Procedimento realizado
+            </TooltipContent>
+          </Tooltip>
+        )
       case "cancelled":
-        return <Badge variant="destructive">Cancelado</Badge>
+        return (
+          <Tooltip>
+            <TooltipTrigger>
+              <Badge variant="destructive">Cancelado</Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              Agendamento cancelado
+            </TooltipContent>
+          </Tooltip>
+        )
       case "missed":
-        return <Badge variant="destructive">Não Compareceu</Badge>
+        return (
+          <Tooltip>
+            <TooltipTrigger>
+              <Badge variant="destructive">Não Compareceu</Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              Paciente não compareceu
+            </TooltipContent>
+          </Tooltip>
+        )
       default:
         return <Badge>{status}</Badge>
     }
@@ -125,31 +259,52 @@ export default function AppointmentsPage() {
     {
       accessorKey: "patient_name",
       header: "Paciente",
+      cell: ({ row }) => (
+        <div className="max-w-[200px] truncate" title={row.getValue("patient_name")}>
+          {row.getValue("patient_name")}
+          <div className="text-xs text-muted-foreground">
+            {row.original.health_plan_name}
+          </div>
+        </div>
+      ),
       enableSorting: true,
       enableFiltering: true,
     },
     {
       accessorKey: "professional_name",
       header: "Profissional",
-      enableSorting: true,
-      enableFiltering: true,
-    },
-    {
-      accessorKey: "clinic_name",
-      header: "Clínica",
+      cell: ({ row }) => (
+        <div className="max-w-[200px] truncate" title={row.getValue("professional_name")}>
+          {row.getValue("professional_name")}
+          {row.original.clinic_name && (
+            <div className="text-xs text-muted-foreground">
+              {row.original.clinic_name}
+            </div>
+          )}
+        </div>
+      ),
       enableSorting: true,
       enableFiltering: true,
     },
     {
       accessorKey: "tuss_name",
       header: "Procedimento",
+      cell: ({ row }) => (
+        <div className="max-w-[200px] truncate" title={row.getValue("tuss_name")}>
+          {row.getValue("tuss_name")}
+        </div>
+      ),
       enableSorting: true,
       enableFiltering: true,
     },
     {
       accessorKey: "scheduled_for",
       header: "Data/Hora",
-      cell: ({ row }) => formatDateTime(row.getValue("scheduled_for")),
+      cell: ({ row }) => (
+        <div className="whitespace-nowrap">
+          {formatDateTime(row.getValue("scheduled_for"))}
+        </div>
+      ),
       enableSorting: true,
       enableFiltering: true,
     },
@@ -167,42 +322,68 @@ export default function AppointmentsPage() {
         const appointment = row.original
         return (
           <div className="flex items-center space-x-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => router.push(`/appointments/${appointment.id}`)}
-            >
-              <FileText className="h-4 w-4" />
-              <span className="sr-only">Ver detalhes</span>
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => router.push(`/appointments/${appointment.id}`)}
+                >
+                  <FileText className="h-4 w-4" />
+                  <span className="sr-only">Ver detalhes</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Ver detalhes</TooltipContent>
+            </Tooltip>
+
             {appointment.status === "pending" && (
               <>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => router.push(`/appointments/${appointment.id}/edit`)}
-                >
-                  <Edit className="h-4 w-4" />
-                  <span className="sr-only">Editar</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-success"
-                  onClick={() => console.log("Confirm appointment:", appointment.id)}
-                >
-                  <CheckCircle className="h-4 w-4" />
-                  <span className="sr-only">Confirmar</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-destructive"
-                  onClick={() => console.log("Cancel appointment:", appointment.id)}
-                >
-                  <XCircle className="h-4 w-4" />
-                  <span className="sr-only">Cancelar</span>
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => router.push(`/appointments/${appointment.id}/edit`)}
+                      disabled={isActionLoading}
+                    >
+                      <Edit className="h-4 w-4" />
+                      <span className="sr-only">Editar</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Editar agendamento</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-success"
+                      onClick={() => handleConfirmAppointment(appointment.id)}
+                      disabled={isActionLoading}
+                    >
+                      <CheckCircle className="h-4 w-4" />
+                      <span className="sr-only">Confirmar</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Confirmar agendamento</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive"
+                      onClick={() => handleCancelAppointment(appointment.id)}
+                      disabled={isActionLoading}
+                    >
+                      <XCircle className="h-4 w-4" />
+                      <span className="sr-only">Cancelar</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Cancelar agendamento</TooltipContent>
+                </Tooltip>
               </>
             )}
           </div>
@@ -223,6 +404,117 @@ export default function AppointmentsPage() {
           Novo Agendamento
         </Button>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Filtros</CardTitle>
+          <CardDescription>
+            Use os filtros abaixo para encontrar agendamentos específicos
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div>
+              <Label htmlFor="status-filter">Status</Label>
+              <Select 
+                onValueChange={(value) => handleFilterChange("status", value)}
+                value={filters.status || ""}
+              >
+                <SelectTrigger id="status-filter">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pendente</SelectItem>
+                  <SelectItem value="confirmed">Confirmado</SelectItem>
+                  <SelectItem value="completed">Concluído</SelectItem>
+                  <SelectItem value="cancelled">Cancelado</SelectItem>
+                  <SelectItem value="missed">Não Compareceu</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="patient-filter">Paciente</Label>
+              <Input
+                id="patient-filter"
+                placeholder="Nome do paciente"
+                value={filters.patient_name || ""}
+                onChange={(e) => handleFilterChange("patient_name", e.target.value)}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="professional-filter">Profissional</Label>
+              <Input
+                id="professional-filter"
+                placeholder="Nome do profissional"
+                value={filters.professional_name || ""}
+                onChange={(e) => handleFilterChange("professional_name", e.target.value)}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="clinic-filter">Clínica</Label>
+              <Input
+                id="clinic-filter"
+                placeholder="Nome da clínica"
+                value={filters.clinic_name || ""}
+                onChange={(e) => handleFilterChange("clinic_name", e.target.value)}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="scheduled-from">Data do Agendamento (início)</Label>
+              <Input
+                id="scheduled-from"
+                type="date"
+                name="scheduled_from"
+                value={dateFilters.scheduled_from}
+                onChange={handleDateFilterChange}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="scheduled-to">Data do Agendamento (fim)</Label>
+              <Input
+                id="scheduled-to"
+                type="date"
+                name="scheduled_to"
+                value={dateFilters.scheduled_to}
+                onChange={handleDateFilterChange}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="created-from">Data de Criação (início)</Label>
+              <Input
+                id="created-from"
+                type="date"
+                name="created_from"
+                value={dateFilters.created_from}
+                onChange={handleDateFilterChange}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="created-to">Data de Criação (fim)</Label>
+              <Input
+                id="created-to"
+                type="date"
+                name="created_to"
+                value={dateFilters.created_to}
+                onChange={handleDateFilterChange}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={clearFilters}>
+              Limpar Filtros
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <DataTable
         columns={columns}

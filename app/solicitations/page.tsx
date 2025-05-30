@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/data-table/data-table"
 import { Badge } from "@/components/ui/badge"
 import { fetchResource, type QueryParams, type SortOrder } from "@/services/resource-service"
-import { Plus, FileText, Edit, Calendar, AlertCircle, Loader2, MoreHorizontal, X, CalendarIcon } from "lucide-react"
+import { Plus, FileText, Edit, Calendar, AlertCircle, Loader2, MoreHorizontal, X, CalendarIcon, RefreshCw } from "lucide-react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { formatDate, formatCurrency, cn } from "@/lib/utils"
 import { 
@@ -59,6 +59,12 @@ import * as z from "zod"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { useAuth } from "@/contexts/auth-context"
 
 interface Solicitation {
   id: number
@@ -178,8 +184,10 @@ interface Professional {
 
 export default function SolicitationsPage() {
   const router = useRouter()
+  const { user, hasRole } = useAuth()
   const [data, setData] = useState<Solicitation[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isProcessingPending, setIsProcessingPending] = useState(false)
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize: 10,
@@ -285,6 +293,30 @@ export default function SolicitationsPage() {
     })
   }
 
+  const handleProcessPendingSolicitations = async () => {
+    try {
+      setIsProcessingPending(true)
+      const response = await api.post('/solicitations/process-pending')
+      
+      toast({
+        title: "Processamento iniciado",
+        description: "O processamento das solicitações pendentes foi iniciado com sucesso.",
+      })
+      
+      // Refresh the list after processing
+      fetchData()
+    } catch (error) {
+      console.error("Error processing pending solicitations:", error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível processar as solicitações pendentes.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsProcessingPending(false)
+    }
+  }
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
@@ -298,7 +330,19 @@ export default function SolicitationsPage() {
       case "cancelled":
         return <Badge variant="destructive">Cancelada</Badge>
       case "failed":
-        return <Badge variant="destructive">Falha</Badge>
+        return (
+          <div className="flex items-center gap-1">
+            <Badge variant="destructive">Falha</Badge>
+            <Tooltip>
+              <TooltipTrigger>
+                <AlertCircle className="h-4 w-4 text-destructive" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Falha no agendamento automático</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        )
       default:
         return <Badge>{status}</Badge>
     }
@@ -598,10 +642,26 @@ export default function SolicitationsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Solicitações</h1>
           <p className="text-muted-foreground">Gerencie as solicitações de procedimentos médicos</p>
         </div>
-        <Button onClick={() => router.push("/solicitations/new")}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nova Solicitação
-        </Button>
+        <div className="flex gap-2">
+          {(hasRole('network_manager') || hasRole('super_admin')) && (
+            <Button 
+              variant="outline"
+              onClick={handleProcessPendingSolicitations}
+              disabled={isProcessingPending}
+            >
+              {isProcessingPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              Processar Pendentes
+            </Button>
+          )}
+          <Button onClick={() => router.push("/solicitations/new")}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nova Solicitação
+          </Button>
+        </div>
       </div>
 
       <Card>

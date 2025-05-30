@@ -153,7 +153,6 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
   const [showSecondaryContact, setShowSecondaryContact] = useState(false)
   
   // Verificar se usuário tem permissão para gerenciar pacientes
-  const canManagePatients = hasPermission("manage patients")
   const isPlanAdmin = hasRole("plan_admin")
   
   // Inicializar formulário
@@ -410,15 +409,6 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
   
   // Atualizar o onSubmit para usar onSuccess ao invés de router.push
   const onSubmit = async (data: FormValues) => {
-    if (!canManagePatients) {
-      toast({
-        title: "Permissão negada",
-        description: "Você não tem permissão para gerenciar pacientes",
-        variant: "destructive"
-      });
-      return;
-    }
-
     try {
       setIsSubmitting(true);
       
@@ -1070,7 +1060,7 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
               
               <Button 
                 type="submit" 
-                disabled={isSubmitting || !canManagePatients}
+                disabled={isSubmitting}
               >
                 {isSubmitting ? (
                   <>

@@ -10,7 +10,7 @@ import { toast } from "@/components/ui/use-toast"
 import { 
   Loader2, Edit, ArrowLeft, Calendar, MapPin, 
   AlertCircle, Clock, User, Building, FileText, 
-  AlertTriangle, CheckCircle, XCircle, RefreshCw
+  AlertTriangle, CheckCircle, XCircle, RefreshCw, X
 } from "lucide-react"
 import api from "@/services/api-client"
 import { formatDate } from "@/lib/utils"
@@ -75,12 +75,14 @@ interface Solicitation {
   is_active: boolean
   days_remaining: number
   is_expired: boolean
+  scheduling_failure_reason?: string
+  scheduling_attempts?: number
 }
 
 export default function SolicitationDetailsPage() {
   const router = useRouter()
   const params = useParams()
-  const solicitationId = params.id as string
+  const solicitationId = params?.id ? String(params.id) : ''
   
   const [solicitation, setSolicitation] = useState<Solicitation | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -89,6 +91,11 @@ export default function SolicitationDetailsPage() {
   const [isActionLoading, setIsActionLoading] = useState(false)
   
   const fetchSolicitation = async () => {
+    if (!solicitationId) {
+      router.push('/solicitations')
+      return
+    }
+
     setIsLoading(true)
     try {
       const response = await api.get(`/solicitations/${solicitationId}`)
@@ -167,22 +174,22 @@ export default function SolicitationDetailsPage() {
     }
   }
   
-  const handleForceSchedule = async () => {
+  const handleRetryScheduling = async () => {
     setIsActionLoading(true)
     try {
       await api.post(`/solicitations/${solicitationId}/force-schedule`)
       
       toast({
         title: "Sucesso",
-        description: "Solicitação enviada para agendamento",
+        description: "Solicitação enviada para agendamento automático",
       })
       
       fetchSolicitation()
     } catch (error) {
-      console.error("Error forcing schedule:", error)
+      console.error("Error retrying scheduling:", error)
       toast({
         title: "Erro",
-        description: "Não foi possível agendar a solicitação",
+        description: "Não foi possível reenviar a solicitação para agendamento",
         variant: "destructive"
       })
     } finally {
@@ -285,229 +292,173 @@ export default function SolicitationDetailsPage() {
         </div>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="md:col-span-2">
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
+        <Card>
           <CardHeader>
-            <CardTitle>Detalhes da Solicitação</CardTitle>
-            <CardDescription>Informações do procedimento solicitado</CardDescription>
+            <CardTitle>Status da Solicitação</CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground">Procedimento TUSS</h3>
-              <p>{solicitation.tuss.code} - {solicitation.tuss.name}</p>
-            </div>
-            
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground">Prioridade</h3>
-              <p>{getPriorityBadge(solicitation.priority)}</p>
-            </div>
-            
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground">Data Preferencial (Início)</h3>
-              <p className="flex items-center">
-                <Calendar className="h-4 w-4 mr-1 text-muted-foreground" />
-                {formatDate(solicitation.preferred_date_start)}
-              </p>
-            </div>
-            
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground">Data Preferencial (Fim)</h3>
-              <p className="flex items-center">
-                <Calendar className="h-4 w-4 mr-1 text-muted-foreground" />
-                {formatDate(solicitation.preferred_date_end)}
-              </p>
-            </div>
-            
-            {solicitation.is_active && (
+          <CardContent>
+            <div className="space-y-4">
               <div>
-                <h3 className="text-sm font-medium text-muted-foreground">Prazo Restante</h3>
-                <p className="flex items-center">
-                  <Clock className="h-4 w-4 mr-1 text-muted-foreground" />
-                  {solicitation.days_remaining > 0 
-                    ? `${solicitation.days_remaining} dias` 
-                    : "Expirado"}
-                </p>
+                <Label>Status Atual</Label>
+                <div className="mt-1">{getStatusBadge(solicitation.status)}</div>
               </div>
-            )}
-            
-            <div className="sm:col-span-2">
-              <h3 className="text-sm font-medium text-muted-foreground">Observações</h3>
-              <p className="mt-1">{solicitation.notes || "Sem observações"}</p>
-            </div>
-            
-            {(solicitation.preferred_location_lat && solicitation.preferred_location_lng) && (
-              <div className="sm:col-span-2">
-                <h3 className="text-sm font-medium text-muted-foreground">Localização Preferencial</h3>
-                <p className="flex items-center mt-1">
-                  <MapPin className="h-4 w-4 mr-1 text-muted-foreground" />
-                  Latitude: {solicitation.preferred_location_lat}, Longitude: {solicitation.preferred_location_lng}
-                  {solicitation.max_distance_km && (
-                    <span className="ml-2 text-muted-foreground">
-                      (Raio máximo: {solicitation.max_distance_km} km)
-                    </span>
-                  )}
-                </p>
-              </div>
-            )}
-            
-            {solicitation.status === "cancelled" && (
-              <div className="sm:col-span-2">
-                <h3 className="text-sm font-medium text-muted-foreground">Motivo do Cancelamento</h3>
-                <p className="mt-1 flex items-start">
-                  <XCircle className="h-4 w-4 mr-1 mt-1 text-destructive" />
-                  <span>{solicitation.cancel_reason || "Sem motivo registrado"}</span>
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Cancelada em {solicitation.cancelled_at ? formatDate(solicitation.cancelled_at) : 'N/A'}
-                </p>
-              </div>
-            )}
-            
-            {solicitation.status === "completed" && (
-              <div className="sm:col-span-2">
-                <h3 className="text-sm font-medium text-muted-foreground">Concluída em</h3>
-                <p className="mt-1 flex items-center">
-                  <CheckCircle className="h-4 w-4 mr-1 text-green-500" />
-                  <span>{solicitation.completed_at ? formatDate(solicitation.completed_at) : 'N/A'}</span>
-                </p>
-              </div>
-            )}
-          </CardContent>
-          
-          <CardFooter className="flex justify-between pt-6 border-t">
-            <div className="flex space-x-2">
-              {canCancel && (
-                <Button variant="destructive" onClick={() => setIsCancelDialogOpen(true)}>
-                  <XCircle className="h-4 w-4 mr-2" />
-                  Cancelar Solicitação
-                </Button>
-              )}
-            </div>
-            
-            <div className="flex space-x-2">
-              {canComplete && (
-                <Button variant="default" onClick={handleComplete} disabled={isActionLoading}>
-                  {isActionLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-2" />}
-                  Marcar como Concluída
-                </Button>
+              
+              {solicitation.status === "failed" && (
+                <div>
+                  <Label>Motivo da Falha</Label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {solicitation.scheduling_failure_reason || "Não foi possível realizar o agendamento automático"}
+                  </p>
+                </div>
               )}
               
-              {canRetry && (
-                <Button variant="outline" onClick={handleForceSchedule} disabled={isActionLoading}>
-                  {isActionLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                  Tentar Agendar
-                </Button>
+              {solicitation.status === "cancelled" && solicitation.cancel_reason && (
+                <div>
+                  <Label>Motivo do Cancelamento</Label>
+                  <p className="text-sm text-muted-foreground mt-1">{solicitation.cancel_reason}</p>
+                </div>
               )}
+              
+              <div className="flex justify-end space-x-2">
+                {canCancel && (
+                  <Button variant="outline" onClick={() => setIsCancelDialogOpen(true)} disabled={isActionLoading}>
+                    {isActionLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <X className="h-4 w-4 mr-2" />}
+                    Cancelar
+                  </Button>
+                )}
+                
+                {canComplete && (
+                  <Button variant="outline" onClick={handleComplete} disabled={isActionLoading}>
+                    {isActionLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+                    Concluir
+                  </Button>
+                )}
+                
+                {canRetry && (
+                  <Button variant="outline" onClick={handleRetryScheduling} disabled={isActionLoading}>
+                    {isActionLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                    Tentar Novamente
+                  </Button>
+                )}
+              </div>
             </div>
-          </CardFooter>
+          </CardContent>
         </Card>
-        
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Informações do Paciente</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center mb-4">
-                <User className="h-5 w-5 mr-2 text-muted-foreground" />
-                <span className="font-medium">{solicitation.patient.name}</span>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Informações do Paciente</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div>
+                <Label>Nome</Label>
+                <p className="text-sm text-muted-foreground">{solicitation.patient.name}</p>
               </div>
-              <Button 
-                variant="outline" 
-                className="w-full" 
-                onClick={() => router.push(`/patients/${solicitation.patient.id}`)}
-              >
-                Ver Detalhes do Paciente
-              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Plano de Saúde</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div>
+                <Label>Nome do Plano</Label>
+                <p className="text-sm text-muted-foreground">{solicitation.health_plan.name}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Procedimento</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div>
+                <Label>Código TUSS</Label>
+                <p className="text-sm text-muted-foreground">{solicitation.tuss.code}</p>
+              </div>
+              <div>
+                <Label>Descrição</Label>
+                <p className="text-sm text-muted-foreground">{solicitation.tuss.name}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {solicitation.status === "failed" && (
+          <Card className="col-span-full">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-destructive">
+                <AlertCircle className="h-5 w-5" />
+                Falha no Agendamento Automático
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Motivo da Falha</Label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {solicitation.scheduling_failure_reason || "Não foi possível realizar o agendamento automático"}
+                </p>
+              </div>
+              {solicitation.scheduling_attempts && (
+                <div>
+                  <Label>Tentativas de Agendamento</Label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {solicitation.scheduling_attempts} tentativa(s)
+                  </p>
+                </div>
+              )}
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  onClick={handleRetryScheduling}
+                  disabled={isActionLoading}
+                >
+                  {isActionLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                  )}
+                  Tentar Novamente
+                </Button>
+              </div>
             </CardContent>
           </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>Plano de Saúde</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center mb-4">
-                <Building className="h-5 w-5 mr-2 text-muted-foreground" />
-                <span className="font-medium">{solicitation.health_plan.name}</span>
-              </div>
-              <Button 
-                variant="outline" 
-                className="w-full" 
-                onClick={() => router.push(`/health-plans/${solicitation.health_plan.id}`)}
-              >
-                Ver Detalhes do Plano
-              </Button>
-            </CardContent>
-          </Card>
-          
-          {solicitation.appointments && solicitation.appointments.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Agendamentos</CardTitle>
-                <CardDescription>{solicitation.appointments.length} agendamento(s)</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {solicitation.appointments.map((appointment) => (
-                  <div key={appointment.id} className="border rounded-lg p-3">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <p className="font-medium">Agendamento #{appointment.id}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {formatDate(appointment.scheduled_date)}
-                        </p>
-                      </div>
-                      <Badge>{appointment.status}</Badge>
-                    </div>
-                    <div className="mt-2">
-                      <p className="text-sm">
-                        <span className="text-muted-foreground">Provedor:</span> {appointment.provider.name}
-                      </p>
-                    </div>
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      className="mt-3 w-full"
-                      onClick={() => router.push(`/appointments/${appointment.id}`)}
-                    >
-                      Ver Detalhes
-                    </Button>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-        </div>
+        )}
       </div>
-      
+
       <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Cancelar Solicitação</DialogTitle>
             <DialogDescription>
-              Informe o motivo do cancelamento desta solicitação. Esta ação não pode ser desfeita.
+              Tem certeza que deseja cancelar esta solicitação? Esta ação não pode ser desfeita.
             </DialogDescription>
           </DialogHeader>
-          
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="cancel-reason">Motivo do Cancelamento</Label>
               <Textarea
                 id="cancel-reason"
-                placeholder="Informe o motivo do cancelamento"
                 value={cancelReason}
                 onChange={(e) => setCancelReason(e.target.value)}
-                rows={4}
+                placeholder="Digite o motivo do cancelamento"
               />
             </div>
           </div>
-          
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCancelDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsCancelDialogOpen(false)} disabled={isActionLoading}>
               Cancelar
             </Button>
             <Button variant="destructive" onClick={handleCancel} disabled={isActionLoading}>
-              {isActionLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              {isActionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Confirmar Cancelamento
             </Button>
           </DialogFooter>
