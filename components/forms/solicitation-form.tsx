@@ -335,7 +335,7 @@ export function SolicitationForm({
 
     // On initial load, get the top patients if we don't have initialData
     const fetchInitialPatients = async () => {
-      if (initialData?.patient_id && initialData?.health_plan_id) {
+      if (initialData?.patient_id  && initialData?.health_plan_id) {
         // If we have initialData with patient and health plan, fetch patients for that health plan
         fetchPatientsForHealthPlan(initialData.health_plan_id)
       } else if (isPlanAdmin && healthPlanId) {
