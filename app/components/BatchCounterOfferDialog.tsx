@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, TrendingUp, DollarSign, Copy, Percent } from 'lucide-react';
-import { NegotiationItem, negotiationService } from '@/app/services/negotiationService';
+import { NegotiationItem, negotiationService } from '@/services/negotiationService';
 import { useToast } from '@/components/ui/use-toast';
 
 interface BatchCounterOfferDialogProps {

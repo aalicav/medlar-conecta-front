@@ -325,19 +325,6 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
     return () => subscription.unsubscribe()
   }, [form, selectedState])
   
-  // Atualizar campos de contato secundário quando a data de nascimento mudar
-  useEffect(() => {
-    const subscription = form.watch((value, { name }) => {
-      if (name === "birth_date" && value.birth_date) {
-        const birthDate = new Date(value.birth_date)
-        const age = differenceInYears(new Date(), birthDate)
-        setShowSecondaryContact(age < 18 || age >= 65)
-      }
-    })
-    
-    return () => subscription.unsubscribe()
-  }, [form])
-  
   // Atualizar a função handleCPFChange
   const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -638,36 +625,33 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
                             value={field.value ? format(new Date(field.value), 'dd/MM/yyyy') : ''}
                             onChange={(e) => {
                               const value = e.target.value;
-                              // Permite digitar apenas números e /
-                              const cleaned = value.replace(/[^\d/]/g, '');
+                              // Remove caracteres não numéricos
+                              const cleaned = value.replace(/\D/g, '');
                               
-                              // Adiciona / automaticamente
+                              // Formata a data automaticamente
                               let formatted = cleaned;
-                              if (cleaned.length >= 2 && cleaned.charAt(2) !== '/') {
+                              if (cleaned.length >= 2) {
                                 formatted = cleaned.slice(0, 2) + '/' + cleaned.slice(2);
                               }
-                              if (cleaned.length >= 5 && cleaned.charAt(5) !== '/') {
+                              if (cleaned.length >= 4) {
                                 formatted = formatted.slice(0, 5) + '/' + formatted.slice(5);
                               }
                               
-                              // Limita o tamanho máximo
-                              formatted = formatted.slice(0, 10);
+                              // Atualiza o valor do input
+                              e.target.value = formatted;
                               
-                              // Tenta converter para data
-                              if (formatted.length === 10) {
-                                const [day, month, year] = formatted.split('/');
-                                const date = new Date(Number(year), Number(month) - 1, Number(day));
+                              // Se tiver 8 dígitos, tenta converter para data
+                              if (cleaned.length === 8) {
+                                const day = parseInt(cleaned.slice(0, 2));
+                                const month = parseInt(cleaned.slice(2, 4)) - 1;
+                                const year = parseInt(cleaned.slice(4, 8));
+                                const date = new Date(year, month, day);
                                 
                                 // Verifica se é uma data válida
                                 if (!isNaN(date.getTime())) {
                                   field.onChange(date);
-                                  // Verificar idade para mostrar campos de contato secundário
-                                  const age = differenceInYears(new Date(), date);
-                                  setShowSecondaryContact(age < 18 || age >= 65);
                                 }
                               }
-                              
-                              e.target.value = formatted;
                             }}
                             maxLength={10}
                           />
@@ -677,11 +661,6 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
                             date={field.value ? new Date(field.value) : null} 
                             setDate={(date: Date | null) => {
                               field.onChange(date);
-                              // Verificar idade para mostrar campos de contato secundário
-                              if (date) {
-                                const age = differenceInYears(new Date(), date);
-                                setShowSecondaryContact(age < 18 || age >= 65);
-                              }
                             }}
                           />
                         </FormControl>
@@ -982,71 +961,69 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
               </div>
             </div>
             
-            {showSecondaryContact && (
-              <div className="space-y-4">
-                <h2 className="text-xl font-semibold mb-4">Contato Secundário</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="secondary_contact_name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nome do Contato</FormLabel>
-                        <FormControl>
-                          <Input 
-                            placeholder="Digite o nome do contato" 
-                            {...field} 
-                            value={field.value || ''}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={form.control}
-                    name="secondary_contact_phone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Telefone do Contato</FormLabel>
-                        <FormControl>
-                          <Input 
-                            placeholder="(00) 00000-0000" 
-                            {...field}
-                            value={field.value || ''}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              field.onChange(applyPhoneMask(value));
-                            }}
-                            maxLength={15}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={form.control}
-                    name="secondary_contact_relationship"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Relacionamento</FormLabel>
-                        <FormControl>
-                          <Input 
-                            placeholder="Ex: Mãe, Pai, Filho" 
-                            {...field}
-                            value={field.value || ''}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+            <div className="space-y-4">
+              <h2 className="text-xl font-semibold mb-4">Contato Secundário (Opcional)</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="secondary_contact_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nome do Contato</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="Digite o nome do contato" 
+                          {...field} 
+                          value={field.value || ''}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="secondary_contact_phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Telefone do Contato</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="(00) 00000-0000" 
+                          {...field}
+                          value={field.value || ''}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            field.onChange(applyPhoneMask(value));
+                          }}
+                          maxLength={15}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="secondary_contact_relationship"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Relacionamento</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="Ex: Mãe, Pai, Filho" 
+                          {...field}
+                          value={field.value || ''}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
-            )}
+            </div>
             
             <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-2">
               <Button

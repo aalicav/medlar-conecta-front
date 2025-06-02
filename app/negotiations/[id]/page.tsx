@@ -20,21 +20,25 @@ import {
   BarChart4,
   Info,
   BarChart,
-  MoreHorizontal
+  MoreHorizontal,
+  ArrowLeftRight
 } from 'lucide-react';
 
 import { useAuth } from '@/contexts/auth-context';
 
 import { 
   negotiationService, 
-  Negotiation, 
-  NegotiationItem,
-  negotiationStatusLabels, 
+  negotiationStatusLabels,
+  negotiationStatusColors,
   negotiationItemStatusLabels,
-  UserRole,
-  ApprovalLevel,
-  ApprovalAction
-} from '../../services/negotiationService';
+  type ApprovalLevel,
+  type ApprovalAction,
+  type Negotiation,
+  type NegotiationItem,
+  type NegotiationStatus,
+  type NegotiationItemStatus,
+  type ApprovalHistoryItem
+} from '../../../services/negotiationService';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -100,18 +104,8 @@ import { NegotiationForkDialog } from '@/app/components/NegotiationForkDialog';
 import { ForkedNegotiationsList } from '@/app/components/ForkedNegotiationsList';
 import { Toaster } from '@/components/ui/toaster';
 import { getErrorMessage } from '../../services/types';
+import { NegotiationItemActions } from '../components/NegotiationItemActions';
 
-// Updated NegotiationStatus type to include all status values
-type NegotiationStatus = 
-  | 'draft'
-  | 'submitted'
-  | 'pending'
-  | 'complete'
-  | 'partially_complete'
-  | 'approved'
-  | 'partially_approved'
-  | 'rejected'
-  | 'cancelled';
 
 // Helper function to map status to color variants
 const getStatusVariant = (status: string) => {
@@ -156,32 +150,90 @@ const formatCurrency = (value: number | string | null | undefined): string => {
 const getStatusDescription = (status: NegotiationStatus): string => {
   switch (status) {
     case 'draft':
-      return 'Rascunho inicial aguardando envio para aprovação interna';
+      return 'Negociação em elaboração, ainda não enviada.';
     case 'submitted':
-      return 'Em análise pela entidade, aguardando respostas para envio à aprovação interna';
+      return 'Aguardando avaliação da entidade.';
     case 'pending':
-      return 'Em análise interna para aprovação';
+      return 'Em processo de aprovação interna.';
     case 'approved':
-      return 'Aprovado internamente, negociação enviada automaticamente à entidade para aprovação final';
+      return 'Aprovada internamente, aguardando confirmação da entidade.';
     case 'complete':
-      return 'Aprovado pela entidade (aprovação completa)';
+      return 'Negociação aprovada e finalizada.';
     case 'partially_complete':
-      return 'Parcialmente aprovado pela entidade';
-    case 'partially_approved':
-      return 'Alguns itens foram aprovados, outros rejeitados';
+      return 'Alguns itens foram aprovados e outros rejeitados.';
     case 'rejected':
-      return 'Rejeitado internamente ou pela entidade';
+      return 'Negociação foi rejeitada.';
     case 'cancelled':
-      return 'Cancelado manualmente';
+      return 'Negociação foi cancelada.';
     default:
-      return 'Status desconhecido';
+      return '';
   }
+};
+
+// Update the status helper to use the existing labels and colors
+const getStatusInfo = (status: string) => {
+  const statusMap: Record<string, {
+    label: string;
+    description: string;
+    color: string;
+  }> = {
+    draft: {
+      label: 'Rascunho',
+      description: 'Negociação em elaboração, ainda não enviada.',
+      color: 'default'
+    },
+    submitted: {
+      label: 'Enviada',
+      description: 'Aguardando avaliação da entidade.',
+      color: 'blue'
+    },
+    pending: {
+      label: 'Em Aprovação',
+      description: 'Em processo de aprovação interna.',
+      color: 'yellow'
+    },
+    approved: {
+      label: 'Aprovada Internamente',
+      description: 'Aprovada internamente, aguardando confirmação da entidade.',
+      color: 'green'
+    },
+    complete: {
+      label: 'Concluída',
+      description: 'Negociação aprovada e finalizada.',
+      color: 'green'
+    },
+    partially_complete: {
+      label: 'Parcialmente Concluída',
+      description: 'Alguns itens foram aprovados e outros rejeitados.',
+      color: 'orange'
+    },
+    rejected: {
+      label: 'Rejeitada',
+      description: 'Negociação foi rejeitada.',
+      color: 'red'
+    },
+    cancelled: {
+      label: 'Cancelada',
+      description: 'Negociação foi cancelada.',
+      color: 'gray'
+    }
+  };
+
+  return statusMap[status] || { label: status, description: '', color: 'default' };
+};
+
+// Update the response form type
+type ResponseForm = {
+  status: NegotiationItemStatus;
+  approved_value: number;
+  counter_value: number;
+  notes: string;
 };
 
 export default function NegotiationDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const { toast } = useToast();
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
   // NOTA: Em versões futuras do Next.js, será necessário usar React.use(params) 
   // em vez do acesso direto a params.id
   const negotiationId = parseInt(params.id);
@@ -191,7 +243,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
   const [selectedItem, setSelectedItem] = useState<NegotiationItem | null>(null);
   const [responseDialogOpen, setResponseDialogOpen] = useState(false);
   const [counterOfferMode, setCounterOfferMode] = useState(false);
-  const [responseForm, setResponseForm] = useState({
+  const [responseForm, setResponseForm] = useState<ResponseForm>({
     status: 'approved',
     approved_value: 0,
     counter_value: 0,
@@ -199,12 +251,12 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
   });
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
-    action: 'submit' | 'submit_for_approval' | 'cancel' | null;
+    action: 'submit_for_approval' | 'cancel';
     title: string;
     description: string;
   }>({
     open: false,
-    action: null,
+    action: 'submit_for_approval',
     title: '',
     description: ''
   });
@@ -215,47 +267,58 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
 
   // Function to check if negotiation has no pending items
   const hasNoPendingItems = (negotiation: Negotiation): boolean => {
-    return !negotiation.items.some(item => item.status === 'pending');
+    return negotiation.items.every(item => item.status !== 'pending');
   };
 
   const fetchNegotiation = async () => {
-    setLoading(true);
     try {
-      console.log(`Buscando negociação ID: ${negotiationId}`);
-      const response = await negotiationService.getNegotiation(negotiationId);
-      
-      if (response.data) {
-        console.log("Dados da negociação recebidos:", response.data);
-        console.log("Status da negociação:", response.data.status);
-        console.log("Itens da negociação:", response.data.items?.length || 0);
-        
-        // Log dos itens com status counter_offered
-        const counterOfferedItems = response.data.items?.filter(
-          (item: NegotiationItem) => item.status === 'counter_offered'
-        );
-        console.log("Itens com contraproposta:", counterOfferedItems?.length || 0);
-        
-        if (counterOfferedItems?.length > 0) {
-          console.log("Detalhes dos itens com contraproposta:", counterOfferedItems);
-        }
-        
-        setNegotiation(response.data);
-      } else {
-        console.error("Resposta vazia ao buscar negociação");
-        toast({
-          title: "Erro",
-          description: "Não foi possível carregar os detalhes da negociação",
-          variant: "destructive"
-        });
-      }
+      const response = await negotiationService.getById(Number(params.id));
+      const apiData = response.data;
+
+      const negotiation: Negotiation = {
+        id: apiData.id,
+        title: apiData.title,
+        description: apiData.description,
+        status: apiData.status,
+        status_label: apiData.status_label,
+        start_date: apiData.start_date,
+        end_date: apiData.end_date,
+        total_value: apiData.total_value,
+        notes: apiData.notes,
+        created_at: apiData.created_at,
+        updated_at: apiData.updated_at,
+        negotiation_cycle: apiData.negotiation_cycle,
+        max_cycles_allowed: apiData.max_cycles_allowed,
+        is_fork: apiData.is_fork,
+        forked_at: apiData.forked_at,
+        fork_count: apiData.fork_count,
+        parent_negotiation_id: apiData.parent_negotiation_id,
+        negotiable_type: apiData.negotiable_type,
+        negotiable_id: apiData.negotiable_id,
+        negotiable: apiData.negotiable,
+        creator: apiData.creator,
+        items: apiData.items,
+        approved_at: apiData.approved_at,
+        approval_notes: apiData.approval_notes,
+        rejected_at: apiData.rejected_at,
+        rejection_notes: apiData.rejection_notes,
+        can_approve: apiData.can_approve,
+        can_submit_for_approval: apiData.can_submit_for_approval,
+        can_edit: apiData.can_edit,
+        approval_history: apiData.approval_history,
+        forked_negotiations: apiData.forked_negotiations,
+        formalization_status: apiData.formalization_status
+      };
+
+      setNegotiation(negotiation);
     } catch (error) {
-      console.error('Erro ao buscar negociação:', error);
+      console.error('Error fetching negotiation:', error);
       toast({
         title: "Erro",
-        description: "Falha ao obter detalhes da negociação",
+        description: "Falha ao carregar a negociação",
         variant: "destructive"
       });
-    } finally {
+    }finally{
       setLoading(false);
     }
   };
@@ -335,13 +398,77 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     if (!negotiation) return;
     
     try {
-      await negotiationService.processApproval(negotiation.id, action);
+      const response = await negotiationService.processApproval(negotiation.id, action);
+      if (response.data) {
+        // First cast the response data to ServiceNegotiation to ensure proper typing
+        const apiData = response.data as unknown as Negotiation;
+        
+        // Map the API response to match our local types
+        const mappedItems: NegotiationItem[] = apiData.items.map(item => ({
+          id: item.id || 0,
+          negotiation_id: item.negotiation_id,
+          tuss: item.tuss,
+          proposed_value: typeof item.proposed_value === 'string' 
+            ? parseFloat(item.proposed_value) 
+            : item.proposed_value,
+          approved_value: item.approved_value || null,
+          status: item.status,
+          notes: item.notes || null,
+          responded_at: null,
+          created_at: item.created_at || new Date().toISOString(),
+          updated_at: item.updated_at || new Date().toISOString(),
+          created_by: {
+            id: item.created_by?.id || 0,
+            name: item.created_by?.name || ''
+          },
+          can_respond: false,
+          is_approved: item.status === 'approved',
+          is_rejected: item.status === 'rejected',
+          has_counter_offer: item.status === 'counter_offered'
+        }));
+
+        const mappedNegotiation: Negotiation = {
+          id: apiData.id,
+          title: apiData.title,
+          description: apiData.description || null,
+          status: apiData.status,
+          status_label: negotiationStatusLabels[apiData.status],
+          start_date: apiData.start_date,
+          end_date: apiData.end_date,
+          total_value: apiData.total_value || 0,
+          notes: apiData.notes || null,
+          created_at: apiData.created_at,
+          updated_at: apiData.updated_at,
+          negotiation_cycle: apiData.negotiation_cycle || 0,
+          max_cycles_allowed: apiData.max_cycles_allowed || 1,
+          is_fork: apiData.is_fork || false,
+          forked_at: apiData.forked_at || null,
+          fork_count: apiData.fork_count || 0,
+          parent_negotiation_id: apiData.parent_negotiation_id || null,
+          negotiable_type: apiData.negotiable_type,
+          negotiable_id: apiData.negotiable_id,
+          negotiable: apiData.negotiable || null,
+          creator: apiData.creator || null,
+          items: mappedItems,
+          approved_at: apiData.approved_at || null,
+          approval_notes: apiData.approval_notes || null,
+          rejected_at: apiData.rejected_at || null,
+          rejection_notes: apiData.rejection_notes || null,
+          can_approve: apiData.can_approve || false,
+          can_submit_for_approval: apiData.can_submit_for_approval || false,
+          can_edit: apiData.can_edit || false,
+          approval_history: apiData.approval_history || [],
+          forked_negotiations: apiData.forked_negotiations || [],
+          formalization_status: apiData.formalization_status
+        };
+
+        setNegotiation(mappedNegotiation);
+      }
       toast({
         title: "Sucesso",
         description: `Negociação ${action === 'approve' ? 'aprovada' : 'rejeitada'} com sucesso`,
       });
       
-      // Quando aprovado internamente, mostra uma mensagem específica
       if (action === 'approve') {
         toast({
           title: "Entidade será notificada",
@@ -349,8 +476,6 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
           variant: "default"
         });
       }
-      
-      fetchNegotiation();
     } catch (error) {
       console.error(`Erro ao ${action === 'approve' ? 'aprovar' : 'rejeitar'} negociação:`, error);
       toast({
@@ -365,16 +490,24 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     if (!negotiation) return;
     
     try {
-      await negotiationService.resendNotifications(negotiation.id, negotiation.status);
+      if (negotiation.status !== 'submitted') {
+        toast({
+          title: "Aviso",
+          description: "Somente negociações no status 'Submetido' podem ter notificações reenviadas.",
+          variant: "warning"
+        });
+        return;
+      }
+
+      await negotiationService.resendNotifications(negotiation.id);
       
       toast({
         title: "Sucesso",
         description: "Notificações reenviadas com sucesso",
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao reenviar notificações:', error);
       
-      // Use the getErrorMessage helper to get a translated error message
       const errorMessage = getErrorMessage(error);
       
       toast({
@@ -383,6 +516,35 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
         variant: "destructive"
       });
     }
+  };
+
+  // Update the canMakeProposal function
+  const canMakeProposal = (negotiation: Negotiation): boolean => {
+    if (!negotiation || !user) return false;
+    
+    const isOwnNegotiation = negotiation.creator.id === user.id;
+    
+    // Can make proposal if:
+    // 1. Negotiation is submitted AND not own negotiation OR
+    // 2. Negotiation is rejected (even if own negotiation)
+    return (negotiation.status === 'submitted' && !isOwnNegotiation) ||
+           (negotiation.status === 'rejected' && hasPermission('edit negotiations'));
+  };
+
+  // Update the message shown when can't make proposal
+  const renderProposalRestrictionMessage = (negotiation: Negotiation): string => {
+    if (negotiation.creator.id === user?.id && negotiation.status !== 'rejected') {
+      return 'Você não pode fazer propostas em sua própria negociação, a menos que ela tenha sido rejeitada';
+    }
+    return 'Você não tem permissão para fazer propostas';
+  };
+
+  const canApproveNegotiation = (negotiation: Negotiation): boolean => {
+    if (!negotiation || !user) return false;
+    
+    return negotiation.can_approve &&
+           negotiation.creator.id !== user.id &&
+           negotiation.status === 'pending';
   };
 
   /**
@@ -400,116 +562,82 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
    * - cancelled: Cancelado manualmente
    */
   const renderizarAcoes = (negociacao: Negotiation) => {
-    /**
-     * Fluxo de status da negociação:
-     * 1. draft: Rascunho inicial
-     * 2. pending: Em avaliação interna 
-     * 3. approved: Aprovado internamente, aguardando confirmação final da entidade 
-     * 4a. complete: Completamente aprovado pela entidade externa
-     * 4b. partially_complete: Parcialmente aprovado pela entidade externa
-     * 
-     * Também pode ser:
-     * - rejected: Rejeitado internamente ou externamente
-     * - cancelled: Cancelado manualmente
-     */
-    const canApprove = (): boolean => {
-      // Check if user has permission to approve negotiations
-      return hasPermission('approve_negotiations');
-    };
-
     return (
       <div className="flex items-center gap-2">
-        {/* 1. Draft → Pending: Enviar o rascunho para aprovação interna */}
-        {negociacao.status === 'draft' && (
+        {/* Submit for approval */}
+        {negociacao.can_submit_for_approval && (
           <Button onClick={() => confirmAction('submit_for_approval')}>
             Enviar para Aprovação Interna
           </Button>
         )}
         
-        {/* 2. Submitted → Pending: Depois que a entidade responde aos itens, 
-            pode ser enviado para aprovação interna */}
-        {negociacao.status === 'submitted' && hasNoPendingItems(negociacao) && 
-          !['pending_approval', 'pending_director_approval'].includes(negociacao.current_approval_level || '') && (
-          <Button onClick={() => confirmAction('submit_for_approval')}>
-            Enviar para Aprovação Interna
-          </Button>
+        {/* Approval actions */}
+        {negociacao.status === 'pending' && (
+          <div className="flex items-center gap-2">
+            {negociacao.can_approve ? (
+              <>
+                <Button onClick={() => handleApproval('approve')}>
+                  Aprovar Negociação
+                </Button>
+                <Button variant="destructive" onClick={() => handleApproval('reject')}>
+                  Rejeitar
+                </Button>
+              </>
+            ) : negociacao.creator.id === user?.id ? (
+              <div className="text-sm text-muted-foreground">
+                Você não pode aprovar sua própria negociação
+              </div>
+            ) : !hasPermission('approve negotiations') ? (
+              <div className="text-sm text-muted-foreground">
+                Você não tem permissão para aprovar negociações
+              </div>
+            ) : null}
+          </div>
         )}
         
-        {/* 2b. Partially_approved → Pending: Negociação parcialmente aprovada 
-             pode ser enviada para aprovação interna novamente */}
-        {negociacao.status === 'partially_approved' && 
-          !['pending_approval', 'pending_director_approval'].includes(negociacao.current_approval_level || '') && (
-          <Button onClick={() => confirmAction('submit_for_approval')}>
-            Enviar para Aprovação Interna
-          </Button>
-        )}
-        
-        {/* 3. Pending → Approved/Rejected: Decisão de aprovação interna */}
-        {negociacao.status === 'pending' && canApprove() && (
-          <>
-            <Button onClick={() => handleApproval('approve')}>
-              Aprovar Negociação
-            </Button>
-            <Button variant="destructive" onClick={() => handleApproval('reject')}>
-              Rejeitar
-            </Button>
-          </>
-        )}
-        
-        {/* 4. Approved → Complete/Partially_complete: Após aprovação interna,
-            a aplicação gerencia a mudança para complete/partially_complete automaticamente
-            com base nas respostas da entidade */}
-        {negociacao.status === 'approved' && (
-          <Button onClick={handleResendNotifications}>
-            Reenviar Notificação à Entidade
-          </Button>
-        )}
-        
-        {/* Funcionalidade para reenviar notificações */}
+        {/* Resend notifications */}
         {(negociacao.status === 'pending' || negociacao.status === 'submitted') && (
           <Button variant="outline" onClick={handleResendNotifications}>
             Reenviar Notificações
           </Button>
         )}
         
-        {/* Cancelar negociação ativa (apenas status não-finais) */}
-        {!['approved', 'rejected', 'cancelled', 'complete', 'partially_complete'].includes(negociacao.status) && (
+        {/* Cancel negotiation */}
+        {negociacao.can_edit && !['approved', 'rejected', 'cancelled', 'complete', 'partially_complete'].includes(negociacao.status) && (
           <Button variant="outline" onClick={() => confirmAction('cancel')}>
             Cancelar
           </Button>
         )}
         
-        {/* Gerar contrato para negociações aprovadas ou completas */}
+        {/* Generate contract */}
         {(['approved', 'complete', 'partially_complete'].includes(negociacao.status)) && (
           <Button onClick={handleGenerateContract}>
             Gerar Contrato
           </Button>
         )}
 
-        {/* Adicionar reverter status quando aplicável */}
-        {(['pending', 'approved', 'partially_approved'].includes(negociacao.status)) && (
+        {/* Status rollback */}
+        {(['pending', 'approved'].includes(negociacao.status) && hasPermission('manage_negotiations')) && (
           <RollbackStatusDialog 
-            negotiation={negociacao} 
+            negotiation={negociacao}
             onComplete={fetchNegotiation} 
           />
         )}
 
-        {/* Adicionar novo ciclo de negociação para negociações parcialmente ou totalmente completadas */}
+        {/* New negotiation cycle */}
         {(['partially_complete', 'complete', 'rejected'].includes(negociacao.status) && 
-          negociacao.negotiation_cycle !== undefined && 
-          negociacao.max_cycles_allowed !== undefined && 
           negociacao.negotiation_cycle < negociacao.max_cycles_allowed) && (
           <NegotiationCycleDialog 
-            negotiation={negociacao} 
+            negotiation={negociacao}
             onComplete={fetchNegotiation} 
           />
         )}
 
-        {/* Adicionar bifurcação de negociação (apenas em draft ou quando não houve bifurcação) */}
+        {/* Fork negotiation */}
         {(negociacao.status === 'draft' && !negociacao.is_fork && 
           negociacao.items.length > 1 && hasPermission('manage_negotiations')) && (
           <NegotiationForkDialog 
-            negotiation={negociacao} 
+            negotiation={negociacao}
             onComplete={fetchNegotiation} 
           />
         )}
@@ -543,16 +671,10 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
   const showResponseDialog = (item: NegotiationItem) => {
     setSelectedItem(item);
     setCounterOfferMode(false);
-    
-    // Se o item já tiver uma contraproposta, use o valor proposto como valor aprovado inicial
-    const initialApprovedValue = item.status === 'counter_offered' && item.approved_value 
-      ? item.approved_value 
-      : item.proposed_value;
-    
     setResponseForm({
       status: 'approved',
-      approved_value: initialApprovedValue,
-      counter_value: item.proposed_value,
+      approved_value: item.approved_value || Number(item.proposed_value),
+      counter_value: 0,
       notes: ''
     });
     setResponseDialogOpen(true);
@@ -562,32 +684,27 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     setSelectedItem(item);
     setCounterOfferMode(true);
     setResponseForm({
-      status: 'approved',
-      approved_value: item.proposed_value,
-      counter_value: item.proposed_value,
+      status: 'counter_offered',
+      approved_value: 0,
+      counter_value: Number(item.proposed_value),
       notes: ''
     });
     setResponseDialogOpen(true);
   };
 
   const handleResponseSubmit = async () => {
-    if (!selectedItem || !selectedItem.id) return;
+    if (!selectedItem?.id || !negotiation || !selectedItem.tuss?.id) return;
     
     setRespondLoading(true);
     try {
       if (counterOfferMode) {
-        console.log("Enviando contraproposta:", {
-          endpoint: `/negotiation-items/${selectedItem.id}/counter`,
-          data: {
-            counter_value: responseForm.counter_value,
+        await negotiationService.update(negotiation.id, {
+          items: [{
+            id: selectedItem.id,
+            tuss_id: selectedItem.tuss.id,
+            proposed_value: responseForm.counter_value,
             notes: responseForm.notes
-          }
-        });
-        
-        // Usando a API de contra-oferta
-        await negotiationService.counterOffer(selectedItem.id, {
-          counter_value: responseForm.counter_value,
-          notes: responseForm.notes
+          }]
         });
         
         toast({
@@ -595,21 +712,9 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
           description: "Contra-proposta enviada com sucesso",
         });
       } else {
-        console.log("Enviando resposta:", {
-          endpoint: `/negotiation-items/${selectedItem.id}/respond`,
-          data: {
-            status: responseForm.status,
-            approved_value: responseForm.status === 'approved' ? responseForm.approved_value : undefined,
-            notes: responseForm.notes
-          }
-        });
-        
-        // Usando a API de resposta
-        await negotiationService.respondToItem(selectedItem.id, {
-          status: responseForm.status as 'approved' | 'rejected',
-          approved_value: responseForm.status === 'approved' ? responseForm.approved_value : undefined,
-          notes: responseForm.notes
-        });
+        await negotiationService.processApproval(negotiation.id, 
+          responseForm.status === 'approved' ? 'approve' : 'reject'
+        );
       
         toast({
           title: "Sucesso",
@@ -618,33 +723,16 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
       }
       
       setResponseDialogOpen(false);
-      fetchNegotiation();
+      await fetchNegotiation();
     } catch (error: any) {
       console.error('Erro ao responder ao item:', error);
       
-      // Use the getErrorMessage helper to get a translated error message
       const errorMessage = getErrorMessage(error);
-      
-      // Mensagem de erro mais detalhada
-      const displayMessage = errorMessage || 
-        (counterOfferMode ? "Falha ao enviar contra-proposta" : "Falha ao enviar resposta");
       
       toast({
         title: "Erro",
-        description: displayMessage,
+        description: errorMessage || (counterOfferMode ? "Falha ao enviar contra-proposta" : "Falha ao enviar resposta"),
         variant: "destructive"
-      });
-      
-      // Log detalhado do erro para depuração
-      console.error('Detalhes do erro:', {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        config: {
-          url: error.config?.url,
-          method: error.config?.method,
-          data: error.config?.data
-        }
       });
     } finally {
       setRespondLoading(false);
@@ -781,22 +869,33 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-              <div className="flex items-center gap-3 mb-1">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Badge variant={getStatusVariant(negotiation.status)} className="px-3 py-1">
-                        {negotiationStatusLabels[negotiation.status]}
-                      </Badge>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{getStatusDescription(negotiation.status)}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <span className="text-muted-foreground text-sm">
-                  ID: {negotiation.id}
-                </span>
+              <div className="flex items-center gap-4">
+                <Badge 
+                  variant={negotiationStatusColors[negotiation.status] as any}
+                  className="text-sm py-1 px-3"
+                >
+                  {negotiationStatusLabels[negotiation.status]}
+                </Badge>
+                <HoverCard>
+                  <HoverCardTrigger>
+                    <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                  </HoverCardTrigger>
+                  <HoverCardContent>
+                    <div className="space-y-2">
+                      <h4 className="font-medium">Status da Negociação</h4>
+                      <p className="text-sm text-muted-foreground">
+                        {negotiation.status === 'draft' && 'Negociação em elaboração, ainda não enviada.'}
+                        {negotiation.status === 'submitted' && 'Aguardando avaliação da entidade.'}
+                        {negotiation.status === 'pending' && 'Em processo de aprovação interna.'}
+                        {negotiation.status === 'approved' && 'Aprovada internamente, aguardando confirmação da entidade.'}
+                        {negotiation.status === 'complete' && 'Negociação aprovada e finalizada.'}
+                        {negotiation.status === 'partially_complete' && 'Alguns itens foram aprovados e outros rejeitados.'}
+                        {negotiation.status === 'rejected' && 'Negociação foi rejeitada.'}
+                        {negotiation.status === 'cancelled' && 'Negociação foi cancelada.'}
+                      </p>
+                    </div>
+                  </HoverCardContent>
+                </HoverCard>
               </div>
               <h1 className="text-3xl font-bold tracking-tight mb-1">{negotiation.title}</h1>
               <div className="flex items-center gap-3 text-sm text-muted-foreground">
@@ -1033,20 +1132,19 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
           <Table>
               <TableHeader className="bg-muted/50">
               <TableRow>
-                  <TableHead className="w-[40%]">Procedimento</TableHead>
-                  <TableHead className="text-right">Valor Proposto</TableHead>
-                  <TableHead className="text-right">Valor Aprovado</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Observações</TableHead>
-                {negotiation.status === 'submitted' && (
-                  <TableHead className="text-right">Ações</TableHead>
-                )}
+                  <TableHead className="w-[15%]">Procedimento</TableHead>
+                  <TableHead className="w-[35%]">Descrição</TableHead>
+                  <TableHead className="w-[12%] text-right">Valor Proposto</TableHead>
+                  <TableHead className="w-[12%] text-right">Valor Aprovado</TableHead>
+                  <TableHead className="w-[10%]">Status</TableHead>
+                  <TableHead className="w-[8%]">Observações</TableHead>
+                  <TableHead className="w-[8%] text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {negotiation.items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center">
+                  <TableCell colSpan={7} className="h-24 text-center">
                       <div className="flex flex-col items-center justify-center py-4 text-muted-foreground">
                         <Clipboard className="h-8 w-8 mb-2 opacity-40" />
                         <p>Nenhum item encontrado nesta negociação</p>
@@ -1055,157 +1153,108 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                 </TableRow>
               ) : (
                 negotiation.items.map((item) => (
-                    <TableRow key={item.id} className={item.status === 'pending' && negotiation.status === 'pending' ? 'bg-amber-50/30' : undefined}>
+                    <TableRow key={item.id} className={
+                      item.status === 'pending' && negotiation.status === 'pending' 
+                        ? 'bg-amber-50/30' 
+                        : item.status === 'approved' 
+                          ? 'bg-green-50/30'
+                          : item.status === 'rejected'
+                            ? 'bg-red-50/30'
+                            : undefined
+                    }>
+                    <TableCell className="font-medium">
+                      <Badge variant="outline" className="h-5 text-xs">
+                        {item.tuss?.code}
+                      </Badge>
+                    </TableCell>
                     <TableCell>
-                      <div>
-                        <div className="font-medium">{item.tuss?.name}</div>
-                          <div className="text-xs text-muted-foreground flex items-center">
-                            <Badge variant="outline" className="h-5 mr-1.5 text-xs">
-                              {item.tuss?.code}
-                            </Badge>
-                            <span>TUSS</span>
-                        </div>
+                      <div className="font-medium">{item.tuss?.name}</div>
+                      <div className="text-xs text-muted-foreground truncate max-w-[400px]">
+                        {item.tuss?.description}
                       </div>
                     </TableCell>
-                      <TableCell className="text-right font-medium">
+                    <TableCell className="text-right font-medium">
                       {formatCurrency(item.proposed_value)}
                     </TableCell>
-                      <TableCell className="text-right">
-                      {item.status === 'approved' && item.approved_value ? (
-                        <HoverCard>
-                          <HoverCardTrigger>
-                            <span className={`font-medium ${
-                              parseFloat(String(item.approved_value)) < parseFloat(String(item.proposed_value))
-                                ? "text-red-600 flex items-center justify-end" 
-                                : parseFloat(String(item.approved_value)) > parseFloat(String(item.proposed_value))
-                                  ? "text-green-600 flex items-center justify-end" 
-                                  : "flex items-center justify-end"
-                            }`}>
-                              {formatCurrency(item.approved_value)}
-                              {parseFloat(String(item.approved_value)) < parseFloat(String(item.proposed_value)) && 
-                                <TrendingDown className="h-4 w-4 ml-1" />}
-                              {parseFloat(String(item.approved_value)) > parseFloat(String(item.proposed_value)) && 
-                                <TrendingUp className="h-4 w-4 ml-1" />}
-                            </span>
-                          </HoverCardTrigger>
-                          <HoverCardContent className="w-auto">
-                            <div className="space-y-2">
-                              <div className="text-sm font-medium">Comparativo</div>
-                              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                                <div className="text-muted-foreground">Proposto:</div>
-                                <div className="text-right">{formatCurrency(item.proposed_value)}</div>
-                                
-                                <div className="text-muted-foreground">Aprovado:</div>
-                                <div className="text-right">{formatCurrency(item.approved_value)}</div>
-                                
-                                <div className="text-muted-foreground border-t pt-1 mt-1">Diferença:</div>
-                                <div className={`text-right border-t pt-1 mt-1 ${
-                          parseFloat(String(item.approved_value)) < parseFloat(String(item.proposed_value))
-                            ? "text-red-600" 
-                            : parseFloat(String(item.approved_value)) > parseFloat(String(item.proposed_value))
-                              ? "text-green-600" 
-                              : ""
-                                }`}>
-                                  {parseFloat(String(item.approved_value)) > parseFloat(String(item.proposed_value)) ? "+" : ""}
-                                  {formatCurrency(parseFloat(String(item.approved_value)) - parseFloat(String(item.proposed_value))).replace('R$ ', '')}
-                                </div>
-                              </div>
-                            </div>
-                          </HoverCardContent>
-                        </HoverCard>
-                      ) : item.status === 'counter_offered' && item.approved_value ? (
-                        <HoverCard>
-                          <HoverCardTrigger>
-                            <span className="font-medium text-blue-600 flex items-center justify-end">
-                              {formatCurrency(item.approved_value)}
-                              <TrendingUp className="h-4 w-4 ml-1" />
-                            </span>
-                          </HoverCardTrigger>
-                          <HoverCardContent className="w-auto">
-                            <div className="space-y-2">
-                              <div className="text-sm font-medium">Detalhes da Proposta</div>
-                              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                                <div className="text-muted-foreground">Valor Original:</div>
-                                <div className="text-right">{formatCurrency(item.proposed_value)}</div>
-                                
-                                <div className="text-muted-foreground">Proposta:</div>
-                                <div className="text-right font-medium text-blue-600">{formatCurrency(item.approved_value)}</div>
-                                
-                                <div className="text-muted-foreground border-t pt-1 mt-1">Diferença:</div>
-                                <div className={`text-right border-t pt-1 mt-1 ${
-                          parseFloat(String(item.approved_value)) < parseFloat(String(item.proposed_value))
-                            ? "text-red-600" 
-                            : parseFloat(String(item.approved_value)) > parseFloat(String(item.proposed_value))
-                              ? "text-green-600" 
-                              : ""
-                                }`}>
-                                  {parseFloat(String(item.approved_value)) > parseFloat(String(item.proposed_value)) ? "+" : ""}
-                                  {formatCurrency(parseFloat(String(item.approved_value)) - parseFloat(String(item.proposed_value))).replace('R$ ', '')}
-                                </div>
-                                
-                                {item.notes && (
-                                  <>
-                                    <div className="text-muted-foreground col-span-2 border-t pt-1 mt-1">Observações:</div>
-                                    <div className="text-sm col-span-2 italic">{item.notes}</div>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </HoverCardContent>
-                        </HoverCard>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
+                    <TableCell className="text-right font-medium">
+                      {item.approved_value ? formatCurrency(item.approved_value) : "-"}
                     </TableCell>
                     <TableCell>
-                        <Badge variant={getItemStatusVariant(item.status)} className="capitalize">
+                      <Badge variant={
+                        item.status === 'approved' ? 'success' :
+                        item.status === 'rejected' ? 'destructive' :
+                        item.status === 'counter_offered' ? 'secondary' :
+                        'default'
+                      }>
                         {negotiationItemStatusLabels[item.status]}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                        {item.notes ? (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger>
-                                <div className="max-w-[180px] truncate text-sm text-muted-foreground hover:text-foreground transition-colors">
-                                  {item.notes}
-                      </div>
-                              </TooltipTrigger>
-                              <TooltipContent className="max-w-md">
-                                <p>{item.notes}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">-</span>
-                        )}
+                      {item.notes ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <div className="max-w-[100px] truncate text-sm text-muted-foreground hover:text-foreground transition-colors">
+                                {item.notes}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-md">
+                              <p>{item.notes}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">-</span>
+                      )}
                     </TableCell>
-                    {negotiation.status === 'submitted' && (
-                      <TableCell className="text-right">
-                        {item.status === 'pending' && (
-                          <div className="space-x-2">
-                            <Button 
-                              size="sm" 
-                              onClick={() => showCounterOfferDialog(item)}
-                              className="bg-primary hover:bg-primary/90"
-                            >
-                              Proposta
-                            </Button>
-                          </div>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end items-center gap-2">
+                        {negotiation.status === 'submitted' && (
+                          <>
+                            {item.status === 'pending' && canMakeProposal(negotiation) && (
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => showCounterOfferDialog(item)}
+                                className="h-8 px-2"
+                              >
+                                <TrendingUp className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {item.status === 'counter_offered' && canMakeProposal(negotiation) && (
+                              <Button 
+                                size="sm"
+                                variant="outline"
+                                onClick={() => showResponseDialog(item)}
+                                className="h-8 px-2"
+                              >
+                                <ArrowLeftRight className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </>
                         )}
-                        {item.status === 'counter_offered' && (
-                          <div className="space-x-2">
-                            <Button 
-                              size="sm" 
-                              onClick={() => showResponseDialog(item)}
-                              className="bg-secondary hover:bg-secondary/90"
-                            >
-                              Responder Proposta
-                            </Button>
-                          </div>
-                        )}
-                      </TableCell>
-                    )}
+                        <NegotiationItemActions
+                          negotiation={{
+                            ...negotiation,
+                            establishment: negotiation.negotiable,
+                            created_by: negotiation.creator
+                          }}
+                          item={{
+                            ...item,
+                            updated_by: item.created_by
+                          }}
+                          onActionComplete={fetchNegotiation}
+                          onShowResponseDialog={(i) => showResponseDialog({
+                            ...i,
+                            created_by: i.updated_by
+                          })}
+                          onShowCounterOfferDialog={(i) => showCounterOfferDialog({
+                            ...i,
+                            created_by: i.updated_by
+                          })}
+                        />
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -1216,14 +1265,20 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
       </Card>
       
       {/* Response Dialog */}
-      <Dialog open={responseDialogOpen} onOpenChange={setResponseDialogOpen}>
+      <Dialog 
+        open={responseDialogOpen && canMakeProposal(negotiation)} 
+        onOpenChange={(open) => {
+          if (!canMakeProposal(negotiation)) return;
+          setResponseDialogOpen(open);
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {counterOfferMode ? (
                 <>
                   <TrendingUp className="h-5 w-5 text-secondary" />
-                  Proposta de Valor
+                  Fazer Contraproposta
                 </>
               ) : (
                 <>
@@ -1233,93 +1288,119 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
               )}
             </DialogTitle>
             <DialogDescription>
-              {selectedItem?.tuss?.name && (
-                <div className="mt-1">
-                  <Badge variant="outline" className="mr-2">{selectedItem.tuss.code}</Badge>
-                  {selectedItem.tuss.name}
+              {counterOfferMode ? (
+                'Faça uma contraproposta para este item da negociação.'
+              ) : (
+                'Aprove ou rejeite este item da negociação.'
+              )}
+              {selectedItem?.tuss?.description && (
+                <div className="mt-2 p-3 bg-muted rounded-md space-y-2">
+                  <div className="text-sm font-medium">{selectedItem.tuss.description}</div>
+                  <div className="text-xs text-muted-foreground flex items-center mt-1">
+                    <Badge variant="outline" className="mr-2">{selectedItem.tuss.code}</Badge>
+                    Código TUSS
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mt-2 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Valor Atual:</span>
+                      <div className="font-medium">{formatCurrency(selectedItem.proposed_value)}</div>
+                    </div>
+                    {selectedItem.approved_value && (
+                      <div>
+                        <span className="text-muted-foreground">Último Valor Aprovado:</span>
+                        <div className="font-medium">{formatCurrency(selectedItem.approved_value)}</div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-5 py-4">
-            {!counterOfferMode && (
-              <div>
-                <Label htmlFor="status" className="text-muted-foreground">Resposta</Label>
-                <Select 
-                  value={responseForm.status} 
-                  onValueChange={(value) => setResponseForm({...responseForm, status: value})}
-                >
-                  <SelectTrigger className="mt-1.5">
-                    <SelectValue placeholder="Selecione o status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="approved">Aprovar</SelectItem>
-                    <SelectItem value="rejected">Rejeitar</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            
-            <div className="grid grid-cols-2 gap-4 items-end">
-              <div>
-                <Label htmlFor="proposed-value" className="text-muted-foreground">Valor Original</Label>
-                <div className="relative mt-1.5">
-                  <Input 
-                    id="proposed-value" 
-                    value={selectedItem && selectedItem.proposed_value 
-                      ? parseFloat(String(selectedItem.proposed_value)).toFixed(2).replace('.', ',')
-                      : '0,00'} 
-                    disabled 
-                    className="bg-muted pl-8"
-                  />
-                  <div className="absolute inset-y-0 left-0 pl-2 flex items-center text-muted-foreground">
-                    R$
-                  </div>
-              </div>
-            </div>
-            
-              {(responseForm.status !== 'rejected' || counterOfferMode) && (
-              <div>
-                  <Label htmlFor="response-value" className="text-muted-foreground">
-                    {counterOfferMode ? 'Valor Proposto' : 'Valor Aprovado'}
-                </Label>
-                  <div className="relative mt-1.5">
-                <Input 
-                      id="response-value"
-                  type="number"
-                  step="0.01"
-                      min="0"
-                      value={counterOfferMode ? responseForm.counter_value : responseForm.approved_value} 
-                      onChange={(e) => counterOfferMode
-                        ? setResponseForm({...responseForm, counter_value: parseFloat(e.target.value) || 0})
-                        : setResponseForm({...responseForm, approved_value: parseFloat(e.target.value) || 0})
-                      }
-                      className={`pl-8 ${
-                        counterOfferMode
-                          ? 'border-primary focus-visible:ring-primary'
-                          : responseForm.status === 'approved'
-                            ? 'border-primary focus-visible:ring-primary'
-                            : ''
-                      }`}
-                    />
-                    <div className="absolute inset-y-0 left-0 pl-2 flex items-center text-muted-foreground">
-                      R$
+            {!counterOfferMode ? (
+              <>
+                <div>
+                  <Label htmlFor="status" className="text-muted-foreground">Decisão</Label>
+                  <Select 
+                    value={responseForm.status} 
+                    onValueChange={(value) => setResponseForm({...responseForm, status: value as NegotiationItemStatus})}
+                  >
+                    <SelectTrigger className="mt-1.5">
+                      <SelectValue placeholder="Selecione a decisão">
+                        {responseForm.status === 'approved' ? 'Aprovar Item' : 
+                         responseForm.status === 'rejected' ? 'Rejeitar Item' : 
+                         'Selecione a decisão'}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="approved">
+                        <div className="flex items-center">
+                          <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                          Aprovar Item
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="rejected">
+                        <div className="flex items-center">
+                          <XCircle className="h-4 w-4 text-red-500 mr-2" />
+                          Rejeitar Item
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {responseForm.status === 'approved' && (
+                  <div>
+                    <Label htmlFor="approved_value" className="text-muted-foreground">
+                      Valor Aprovado
+                    </Label>
+                    <div className="mt-1.5">
+                      <Input
+                        id="approved_value"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={responseForm.approved_value}
+                        onChange={(e) => setResponseForm({...responseForm, approved_value: parseFloat(e.target.value)})}
+                      />
                     </div>
                   </div>
+                )}
+              </>
+            ) : (
+              <div>
+                <Label htmlFor="counter_value" className="text-muted-foreground">
+                  Valor da Contraproposta
+                </Label>
+                <div className="mt-1.5">
+                  <Input
+                    id="counter_value"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={responseForm.counter_value}
+                    onChange={(e) => setResponseForm({...responseForm, counter_value: parseFloat(e.target.value)})}
+                  />
+                </div>
               </div>
             )}
-            </div>
             
             <div>
-              <Label htmlFor="notes" className="text-muted-foreground">Observações</Label>
-              <Textarea 
-                id="notes"
-                placeholder="Adicione comentários ou observações sobre sua proposta"
-                value={responseForm.notes}
-                onChange={(e) => setResponseForm({...responseForm, notes: e.target.value})}
-                className="mt-1.5 min-h-[100px]"
-              />
+              <Label htmlFor="notes" className="text-muted-foreground">
+                Observações
+              </Label>
+              <div className="mt-1.5">
+                <Textarea
+                  id="notes"
+                  value={responseForm.notes}
+                  onChange={(e) => setResponseForm({...responseForm, notes: e.target.value})}
+                  placeholder={counterOfferMode ? 
+                    "Explique os motivos da sua contraproposta..." : 
+                    "Adicione observações sobre sua decisão..."}
+                  rows={3}
+                />
+              </div>
             </div>
           </div>
           
@@ -1330,6 +1411,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
             <Button 
               onClick={handleResponseSubmit} 
               disabled={respondLoading}
+              variant={counterOfferMode ? "secondary" : responseForm.status === 'approved' ? "default" : "destructive"}
             >
               {respondLoading ? (
                 <>
@@ -1337,7 +1419,24 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                   {counterOfferMode ? 'Enviando...' : 'Respondendo...'}
                 </>
               ) : (
-                counterOfferMode ? 'Enviar Proposta' : 'Confirmar Resposta'
+                <>
+                  {counterOfferMode ? (
+                    <>
+                      <TrendingUp className="mr-2 h-4 w-4" />
+                      Enviar Contraproposta
+                    </>
+                  ) : responseForm.status === 'approved' ? (
+                    <>
+                      <CheckCircle className="mr-2 h-4 w-4" />
+                      Aprovar Item
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="mr-2 h-4 w-4" />
+                      Rejeitar Item
+                    </>
+                  )}
+                </>
               )}
             </Button>
           </DialogFooter>

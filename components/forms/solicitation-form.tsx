@@ -57,7 +57,11 @@ const formSchema = z.object({
   health_plan_id: z.string().min(1, "Selecione um plano de saúde"),
   patient_id: z.string().min(1, "Selecione um paciente"),
   tuss_id: z.string().min(1, "Selecione uma especialidade"),
-  description: z.string().min(1, "Digite uma descrição")
+  description: z.string().min(1, "Digite uma descrição"),
+  preferred_date: z.date().optional(),
+  secondary_contact_name: z.string().optional(),
+  secondary_contact_phone: z.string().optional(),
+  secondary_contact_relationship: z.string().optional()
 })
 
 // Infer the type from the schema
@@ -169,6 +173,10 @@ export function SolicitationForm({
       patient_id: initialData?.patient_id || "",
       tuss_id: initialData?.tuss_id || "",
       description: initialData?.description || "",
+      preferred_date: initialData?.preferred_date ? new Date(initialData.preferred_date) : undefined,
+      secondary_contact_name: initialData?.secondary_contact_name || "",
+      secondary_contact_phone: initialData?.secondary_contact_phone || "",
+      secondary_contact_relationship: initialData?.secondary_contact_relationship || ""
     },
   })
 
@@ -639,6 +647,71 @@ export function SolicitationForm({
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name="preferred_date"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Data Preferencial</FormLabel>
+                    <DatePicker
+                      date={field.value || null}
+                      setDate={(date) => field.onChange(date)}
+                      placeholder="Selecione uma data preferencial"
+                    />
+                    <FormDescription>
+                      Selecione uma data preferencial para o agendamento (opcional)
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Contato Secundário (Opcional)</h3>
+                
+                <FormField
+                  control={form.control}
+                  name="secondary_contact_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nome do Contato Secundário</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Nome completo" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="secondary_contact_phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Telefone do Contato Secundário</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="(00) 00000-0000" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="secondary_contact_relationship"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Relação com o Paciente</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Ex: Pai, Mãe, Filho(a), etc" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <FormField
                 control={form.control}

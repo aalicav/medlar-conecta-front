@@ -1,4 +1,4 @@
-import { ApprovalHistoryItem, approvalLevelLabels } from '../services/negotiationService';
+import { ApprovalHistoryItem, approvalLevelLabels } from '../../services/negotiationService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';

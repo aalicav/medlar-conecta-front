@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Negotiation, NegotiationStatus, negotiationService, negotiationStatusLabels } from '@/app/services/negotiationService';
+import { Negotiation, NegotiationStatus, negotiationService, negotiationStatusLabels } from '@/services/negotiationService';
 import { useToast } from '@/components/ui/use-toast';
 
 interface RollbackStatusDialogProps {

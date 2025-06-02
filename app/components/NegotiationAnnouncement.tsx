@@ -3,7 +3,7 @@ import { X, Info, Bell, TrendingUp, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { negotiationService } from '@/app/services/negotiationService';
+import { negotiationService } from '@/services/negotiationService';
 
 interface Announcement {
   id: string;

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
@@ -21,12 +21,13 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 
-import { 
-  negotiationService, 
+import { negotiationService } from '@/services/negotiationService';
+import type { 
   Negotiation,
-  UpdateNegotiationDto, 
-  NegotiationItem 
-} from '../../../services/negotiationService';
+  NegotiationItem,
+  UpdateNegotiationDto,
+} from '@/types/negotiations';
+import type { ApiResponse, Tuss } from '@/services/types';
 import { apiClient } from '../../../services/apiClient';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -54,35 +55,62 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/components/ui/use-toast';
 import { useForm } from 'react-hook-form';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   Command,
   CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
+  CommandList,
 } from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-interface EntityOption {
+interface OpcaoEntidade {
   id: number;
   name: string;
-  type: string;
+  type?: string;
 }
 
-interface TussOption {
+interface TussProcedure {
+  id: number;
+  code: string;
+  description?: string;
+}
+
+interface ExtendedNegotiation {
+  id: number;
+  title: string;
+  description?: string;
+  negotiable_type: string;
+  negotiable_id: number;
+  start_date: string;
+  end_date: string;
+  notes?: string;
+  items: Array<NegotiationItem & { tuss?: TussProcedure }>;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  created_by: {
+    id: number;
+    name: string;
+  };
+}
+
+interface OpcaoTuss {
   id: number;
   code: string;
   name: string;
+  description?: string;
 }
 
 interface FormValues {
@@ -101,20 +129,25 @@ interface FormValues {
   }[];
 }
 
-export default function EditNegotiationPage({ params }: { params: { id: string } }) {
+interface TussResponse {
+  id: number;
+  code: string;
+  description?: string;
+}
+
+const EditNegotiationPage = ({ params }: { params: { id: string } }) => {
   const router = useRouter();
-  // NOTA: Em versões futuras do Next.js, será necessário usar React.use(params) 
-  // em vez do acesso direto a params.id
-  const negotiationId = params.id;
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [negotiation, setNegotiation] = useState<Negotiation | null>(null);
-  const [entityOptions, setEntityOptions] = useState<EntityOption[]>([]);
+  const [negotiation, setNegotiation] = useState<ExtendedNegotiation | null>(null);
+  const [entityOptions, setEntityOptions] = useState<OpcaoEntidade[]>([]);
   const [selectedEntityType, setSelectedEntityType] = useState<string>('');
-  const [tussOptions, setTussOptions] = useState<TussOption[]>([]);
+  const [tussOptions, setTussOptions] = useState<OpcaoTuss[]>([]);
   const [searchingTuss, setSearchingTuss] = useState(false);
   const [tussSearchTerm, setTussSearchTerm] = useState('');
-  const { toast } = useToast();
+  const [entitySearchTerm, setEntitySearchTerm] = useState('');
+  const [searchingEntities, setSearchingEntities] = useState(false);
   
   const form = useForm<FormValues>({
     defaultValues: {
@@ -123,7 +156,7 @@ export default function EditNegotiationPage({ params }: { params: { id: string }
       entity_id: 0,
       start_date: new Date(),
       end_date: new Date(),
-      items: [{ tuss_id: 0, proposed_value: 0 }]
+      items: []
     }
   });
 
@@ -132,32 +165,35 @@ export default function EditNegotiationPage({ params }: { params: { id: string }
     const fetchNegotiation = async () => {
       setLoading(true);
       try {
-        const response = await negotiationService.getNegotiation(parseInt(negotiationId));
-        setNegotiation(response.data);
+        const response = await negotiationService.getById(parseInt(params.id));
+        const negotiationData = response.data as unknown as ExtendedNegotiation;
         
-        // Definir tipagem explícita para os itens
-        const negotiationItems: NegotiationItem[] = response.data.items;
+        if (!negotiationData) {
+          throw new Error('Negotiation data not found');
+        }
         
-        // Configurar valores iniciais do formulário com tipagem explícita
-        const items = negotiationItems.map((item: NegotiationItem) => ({
+        setNegotiation(negotiationData);
+        
+        // Map the items with correct types
+        const items = negotiationData.items.map((item) => ({
           id: item.id,
-          tuss_id: item.tuss_id,
-          proposed_value: item.proposed_value,
+          tuss_id: item.tuss?.id || 0,
+          proposed_value: typeof item.proposed_value === 'number' ? item.proposed_value : parseFloat(item.proposed_value),
           notes: item.notes || undefined
         }));
         
         form.reset({
-          title: response.data.title,
-          entity_type: response.data.negotiable_type,
-          entity_id: response.data.negotiable_id,
-          start_date: new Date(response.data.start_date),
-          end_date: new Date(response.data.end_date),
-          description: response.data.description || undefined,
-          notes: response.data.notes || undefined,
-          items: items.length > 0 ? items : [{ tuss_id: 0, proposed_value: 0 }]
+          title: negotiationData.title || '',
+          entity_type: negotiationData.negotiable_type || '',
+          entity_id: negotiationData.negotiable_id || 0,
+          start_date: negotiationData.start_date ? new Date(negotiationData.start_date) : new Date(),
+          end_date: negotiationData.end_date ? new Date(negotiationData.end_date) : new Date(),
+          description: negotiationData.description || undefined,
+          notes: negotiationData.notes || undefined,
+          items: items.length > 0 ? items : []
         });
         
-        setSelectedEntityType(response.data.negotiable_type);
+        setSelectedEntityType(negotiationData.negotiable_type || '');
       } catch (error) {
         console.error('Erro ao buscar negociação:', error);
         toast({
@@ -171,7 +207,7 @@ export default function EditNegotiationPage({ params }: { params: { id: string }
     };
 
     fetchNegotiation();
-  }, [negotiationId, form, toast]);
+  }, [params.id, form, toast]);
 
   // Carregar opções de entidades e procedimentos TUSS
   useEffect(() => {
@@ -258,8 +294,15 @@ export default function EditNegotiationPage({ params }: { params: { id: string }
     setSearchingTuss(true);
     try {
       const response = await negotiationService.getTussProcedures(term);
-      if (response && response.success && Array.isArray(response.data)) {
-        setTussOptions(response.data);
+      if (response.data) {
+        const tussData = response.data as unknown as TussResponse[];
+        const mappedOptions = tussData.map((tuss: TussResponse) => ({
+          id: tuss.id,
+          code: tuss.code || '',
+          name: tuss.description || '',
+          description: tuss.description
+        }));
+        setTussOptions(mappedOptions as unknown[] as OpcaoTuss[]);
       } else {
         console.error('Formato de resposta inválido para procedimentos TUSS:', response);
         setTussOptions([]);
@@ -272,9 +315,6 @@ export default function EditNegotiationPage({ params }: { params: { id: string }
   };
 
   // Implementar busca de entidades com debounce
-  const [entitySearchTerm, setEntitySearchTerm] = useState('');
-  const [searchingEntities, setSearchingEntities] = useState(false);
-  
   const searchEntities = async (term: string) => {
     setEntitySearchTerm(term);
     if (!selectedEntityType || term.length < 2) return;
@@ -316,24 +356,18 @@ export default function EditNegotiationPage({ params }: { params: { id: string }
     if (!negotiation) return;
     
     const formattedValues = {
-      title: values.title,
-      description: values.description,
-      notes: values.notes,
-      start_date: format(values.start_date, 'yyyy-MM-dd'),
-      end_date: format(values.end_date, 'yyyy-MM-dd'),
-      entity_type: values.entity_type,
-      entity_id: values.entity_id,
+      establishment_id: values.entity_id,
       items: values.items.map((item) => ({
-        id: item.id, // Pode ser undefined para novos itens
+        id: item.id,
         tuss_id: item.tuss_id,
         proposed_value: item.proposed_value,
         notes: item.notes
       }))
-    };
+    } as UpdateNegotiationDto;
     
     setSaving(true);
     try {
-      await negotiationService.updateNegotiation(negotiation.id, formattedValues as UpdateNegotiationDto);
+      await negotiationService.update(negotiation.id, formattedValues);
       toast({
         title: "Sucesso",
         description: "Negociação atualizada com sucesso",
@@ -414,7 +448,7 @@ export default function EditNegotiationPage({ params }: { params: { id: string }
   }
 
   return (
-    <div className="container max-w-7xl py-6 space-y-6">
+    <div className="container py-6 space-y-6">
       {/* Breadcrumb */}
       <div className="flex items-center space-x-2 text-muted-foreground">
         <Link href="/dashboard" className="hover:underline">Painel</Link>
@@ -428,11 +462,11 @@ export default function EditNegotiationPage({ params }: { params: { id: string }
       
       {/* Header */}
       <div className="bg-card border rounded-lg p-6 shadow-sm">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-start gap-4">
             <Button variant="outline" size="icon" onClick={() => router.push(`/negotiations/${negotiation.id}`)} className="mt-1">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
             <div>
               <Badge variant="outline" className="mb-2">
                 Rascunho
@@ -947,4 +981,6 @@ export default function EditNegotiationPage({ params }: { params: { id: string }
       </Card>
     </div>
   );
-} 
+};
+
+export default EditNegotiationPage; 

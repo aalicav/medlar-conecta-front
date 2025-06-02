@@ -43,7 +43,7 @@ import {
 import { 
   negotiationService, 
   CreateNegotiationDto
-} from '../../services/negotiationService';
+} from '../../../services/negotiationService';
 import { apiClient } from '../../services/apiClient';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -82,11 +82,25 @@ interface OpcaoEntidade {
   type?: string;
 }
 
+interface Tuss {
+  id: number;
+  code: string;
+  name?: string;
+  description?: string;
+}
+
 interface OpcaoTuss {
   id: number;
   code: string;
   name: string;
   description?: string;
+}
+
+interface CreateNegotiationResponse {
+  data: {
+    id: number;
+    [key: string]: any;
+  }
 }
 
 // Schema para validação com Zod
@@ -136,45 +150,40 @@ export default function PaginaCriarNegociacao() {
 
   // Buscar procedimentos TUSS com filtragem
   const buscarProcedimentosTuss = useCallback(async (termo: string = '') => {
-    console.log('🔄 Iniciando busca TUSS, termo:', termo);
+    if (carregandoTuss) return;
+    
     setCarregandoTuss(true);
     try {
       const response = await negotiationService.getTussProcedures(termo);
       
-      console.log('📊 Resposta da busca TUSS:', response);
-      
-      if (response && response.success && Array.isArray(response.data)) {
-        console.log('✅ Dados TUSS recebidos, quantidade:', response.data.length);
-        if (response.data.length > 0) {
-          console.log('🔍 Primeiro item TUSS:', response.data[0]);
-        }
+      if (response?.data) {
+        // Garantir que os dados estão no formato correto
+        const novaOpcoesTuss: OpcaoTuss[] = response.data.map((tuss: any) => ({
+          id: tuss.id,
+          code: tuss.code || '',
+          name: tuss.name || tuss.description || '',
+          description: tuss.description || ''
+        }));
         
-        // Importante: atualizar o estado
-        const novaOpcoesTuss = response.data;
+        console.log('Procedimentos TUSS carregados:', novaOpcoesTuss);
         setOpcoesTuss(novaOpcoesTuss);
         
-        // Se ainda não temos um procedimento padrão e temos opções disponíveis, selecione o primeiro
+        // Se ainda não temos um procedimento padrão e temos opções disponíveis
         if (!procedimentoPadrao && novaOpcoesTuss.length > 0) {
-          console.log('🔄 Definindo procedimento padrão:', novaOpcoesTuss[0].id);
           setProcedimentoPadrao(novaOpcoesTuss[0].id);
           
-          // Se o formulário ainda não tem itens, adiciona o primeiro item com o procedimento padrão
+          // Se o formulário ainda não tem itens, adiciona o primeiro item
           const itensAtuais = form.getValues('items');
           if (itensAtuais.length === 0) {
-            console.log('➕ Adicionando item padrão ao formulário');
             form.setValue('items', [{ 
               tuss_id: novaOpcoesTuss[0].id, 
               proposed_value: 0 
             }]);
           }
         }
-      } else {
-        console.error('❌ Formato de resposta inválido para procedimentos TUSS:', response);
-        setOpcoesTuss([]);
       }
     } catch (error) {
-      console.error('❌ Erro ao carregar procedimentos TUSS:', error);
-      setOpcoesTuss([]);
+      console.error('Erro ao carregar procedimentos TUSS:', error);
       toast({
         title: "Erro",
         description: "Não foi possível carregar os procedimentos TUSS",
@@ -183,7 +192,23 @@ export default function PaginaCriarNegociacao() {
     } finally {
       setCarregandoTuss(false);
     }
-  }, [toast, procedimentoPadrao, form, termoPesquisaTuss]);
+  }, [toast, procedimentoPadrao, form]);
+
+  // Efeito para carregar procedimentos TUSS iniciais
+  useEffect(() => {
+    buscarProcedimentosTuss();
+  }, []);
+
+  // Debounce para pesquisa TUSS
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (termoPesquisaTuss.length >= 3) {
+        buscarProcedimentosTuss(termoPesquisaTuss);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [termoPesquisaTuss]);
 
   // Buscar entidades com filtragem
   const buscarEntidades = useCallback(async (tipo: string, termo: string = '') => {
@@ -230,11 +255,6 @@ export default function PaginaCriarNegociacao() {
     }
   }, [toast]);
 
-  useEffect(() => {
-    // Carregar procedimentos TUSS iniciais
-    buscarProcedimentosTuss();
-  }, [buscarProcedimentosTuss]);
-
   const handleMudancaTipoEntidade = (valor: string) => {
     setTipoEntidadeSelecionada(valor);
     buscarEntidades(valor);
@@ -248,25 +268,30 @@ export default function PaginaCriarNegociacao() {
       entity_id: valores.entity_id,
       start_date: format(valores.start_date, 'yyyy-MM-dd'),
       end_date: format(valores.end_date, 'yyyy-MM-dd'),
-      description: valores.description,
-      notes: valores.notes,
+      description: valores.description || '',
+      notes: valores.notes || '',
       items: valores.items.map(item => ({
         tuss_id: item.tuss_id,
         proposed_value: item.proposed_value,
-        notes: item.notes
+        notes: item.notes || ''
       }))
     };
     
     setCarregando(true);
     try {
-      const response = await negotiationService.createNegotiation(dadosNegociacao);
+      const response = await apiClient.post<CreateNegotiationResponse>('/negotiations', {
+        ...dadosNegociacao,
+        negotiable_type: valores.entity_type, // Adicionando o campo correto
+        negotiable_id: valores.entity_id, // Adicionando o campo correto
+        status: 'draft' // Definindo o status inicial
+      });
       
       toast({
         title: "Sucesso",
         description: "Negociação criada com sucesso",
       });
       
-      router.push(`/negotiations/${response.data.id}`);
+      router.push(`/negotiations/${response.data.data.id}`);
     } catch (error) {
       console.error('Erro ao criar negociação:', error);
       
@@ -737,38 +762,50 @@ export default function PaginaCriarNegociacao() {
                                                 <Loader2 className="h-6 w-6 animate-spin opacity-50" />
                                               </div>
                                             )}
-                                            {opcoesTuss.length > 0 && !carregandoTuss && (
-                                            <div className="p-1 text-xs text-muted-foreground border-b mx-2">
-                                                {opcoesTuss.length} procedimento(s) disponível(is)
-                                            </div>
-                                          )}
-                                          {opcoesTuss.map((tuss) => (
-                                            <CommandItem
-                                              key={tuss.id}
-                                                value={`${tuss.code} ${tuss.name || ''} ${tuss.description || ''}`}
-                                              onSelect={() => {
-                                                field.onChange(tuss.id);
-                                              }}
-                                              className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-accent data-[selected=true]:bg-primary/10 data-[selected=true]:text-primary border-b last:border-b-0"
-                                            >
-                                              <div className="flex flex-col w-full">
-                                                <div className="flex items-center">
-                                                  <Badge 
-                                                    variant="outline" 
-                                                    className={`mr-2 text-xs font-bold ${field.value === tuss.id ? 'bg-primary/20 text-primary border-primary' : ''}`}
-                                                  >
-                                                    {tuss.code}
-                                                  </Badge>
-                                                  <span className={`${field.value === tuss.id ? 'font-medium text-primary' : ''} flex-1 text-sm`}>
-                                                      {tuss.name || tuss.description}
-                                                  </span>
-                                                </div>
+                                            {!carregandoTuss && opcoesTuss.length === 0 && (
+                                              <div className="p-4 text-center text-sm text-muted-foreground">
+                                                Nenhum procedimento encontrado
                                               </div>
-                                              {field.value === tuss.id && (
-                                                <Check className="ml-auto h-4 w-4 flex-shrink-0 text-primary" />
-                                              )}
-                                            </CommandItem>
-                                          ))}
+                                            )}
+                                            {!carregandoTuss && opcoesTuss.length > 0 && (
+                                              <>
+                                                <div className="p-1 text-xs text-muted-foreground border-b mx-2">
+                                                  {opcoesTuss.length} procedimento(s) encontrado(s)
+                                                </div>
+                                                {opcoesTuss.map((tuss) => (
+                                                  <CommandItem
+                                                    key={tuss.id}
+                                                    value={`${tuss.code} ${tuss.name}`}
+                                                    onSelect={() => {
+                                                      field.onChange(tuss.id);
+                                                    }}
+                                                    className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-accent data-[selected=true]:bg-primary/10 data-[selected=true]:text-primary"
+                                                  >
+                                                    <div className="flex flex-col w-full">
+                                                      <div className="flex items-center">
+                                                        <Badge 
+                                                          variant="outline" 
+                                                          className={`mr-2 text-xs font-bold ${field.value === tuss.id ? 'bg-primary/20 text-primary border-primary' : ''}`}
+                                                        >
+                                                          {tuss.code}
+                                                        </Badge>
+                                                        <span className={`${field.value === tuss.id ? 'font-medium text-primary' : ''} flex-1 text-sm`}>
+                                                          {tuss.name}
+                                                        </span>
+                                                      </div>
+                                                      {tuss.description && (
+                                                        <span className="text-xs text-muted-foreground mt-1">
+                                                          {tuss.description}
+                                                        </span>
+                                                      )}
+                                                    </div>
+                                                    {field.value === tuss.id && (
+                                                      <Check className="ml-auto h-4 w-4 flex-shrink-0 text-primary" />
+                                                    )}
+                                                  </CommandItem>
+                                                ))}
+                                              </>
+                                            )}
                                         </CommandGroup>
                                         </CommandList>
                                       </Command>

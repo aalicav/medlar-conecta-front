@@ -10,7 +10,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Loader2, RefreshCw } from 'lucide-react';
-import { Negotiation, negotiationService, negotiationStatusLabels } from '@/app/services/negotiationService';
+import { Negotiation, negotiationService, negotiationStatusLabels } from '@/services/negotiationService';
 import { useToast } from '@/components/ui/use-toast';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';

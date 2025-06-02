@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getExtemporaneousNegotiations } from "@/services/extemporaneous-negotiations";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,14 +12,17 @@ import { EyeIcon, FilterIcon, CalendarIcon, PencilIcon, PlusIcon } from "lucide-
 import { formatDate, formatMoney } from "@/app/utils/format";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { DatePicker } from "@/components/ui/date-picker";
 import { useAuth } from "@/app/hooks/auth";
 import { parseISO } from "date-fns";
 import Link from 'next/link';
-import { useToast } from '@/components/ui/use-toast';
 import { usePermissions } from '@/app/hooks/usePermissions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LoadingSpinner } from '@/app/components/ui/loading-spinner';
+import { Plus } from 'lucide-react';
+import { ExceptionForm } from '../components/ExceptionForm';
+import { negotiationService } from '@/services/negotiationService';
+import { toast } from "@/components/ui/use-toast"
+import { AlertCircle, CheckCircle } from "lucide-react"
 
 interface NegociacaoExtemporanea {
   id: number;
@@ -42,6 +45,33 @@ interface NegociacaoExtemporanea {
   specialty?: string;
 }
 
+interface ExceptionNegotiation {
+  id: number;
+  patient: {
+    id: number;
+    name: string;
+  };
+  tuss: {
+    id: number;
+    code: string;
+    description: string;
+  };
+  proposed_value: number;
+  justification: string;
+  status: 'pending_approval' | 'approved' | 'formalized';
+  created_at: string;
+  updated_at: string;
+  creator?: {
+    id: number;
+    name: string;
+  };
+  approver?: {
+    id: number;
+    name: string;
+  };
+  notes?: string;
+}
+
 // Especialidades médicas
 const especialidades = [
   'Cardiologia',
@@ -61,52 +91,41 @@ const especialidades = [
 export default function PaginaNegociacoesExtemporaneas() {
   const router = useRouter();
   const { user } = useAuth();
+  const { hasPermission } = usePermissions();
+  
+  // States
   const [negociacoes, setNegociacoes] = useState<NegociacaoExtemporanea[]>([]);
-  const [carregando, setCarregando] = useState(true);
+  const [carregando, setCarregando] = useState(false);
   const [filtroStatus, setFiltroStatus] = useState<string>("");
   const [dataInicial, setDataInicial] = useState<Date | null>(null);
   const [dataFinal, setDataFinal] = useState<Date | null>(null);
   const [termoBusca, setTermoBusca] = useState("");
+  const [filtroEspecialidade, setFiltroEspecialidade] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [permissionChecked, setPermissionChecked] = useState(false);
+  const [exceptions, setExceptions] = useState<ExceptionNegotiation[]>([]);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [paginacao, setPaginacao] = useState({
     pageIndex: 0,
     pageSize: 10,
   });
-  const { toast } = useToast();
-  const { hasPermission, hasRole } = usePermissions();
-  const [filtroEspecialidade, setFiltroEspecialidade] = useState<string>("");
-  
-  const buscarNegociacoes = async () => {
+
+  const buscarNegociacoes = useCallback(async () => {
     setCarregando(true);
     try {
       const params: Record<string, any> = {
         page: paginacao.pageIndex + 1,
         per_page: paginacao.pageSize,
+        status: filtroStatus || undefined,
+        from_date: dataInicial ? formatDate(dataInicial, "yyyy-MM-dd") : undefined,
+        to_date: dataFinal ? formatDate(dataFinal, "yyyy-MM-dd") : undefined,
+        search: termoBusca || undefined,
+        specialty: filtroEspecialidade || undefined,
       };
-      
-      if (filtroStatus) {
-        params.status = filtroStatus;
-      }
-      
-      if (dataInicial) {
-        params.from_date = formatDate(dataInicial, "yyyy-MM-dd");
-      }
-      
-      if (dataFinal) {
-        params.to_date = formatDate(dataFinal, "yyyy-MM-dd");
-      }
-      
-      if (termoBusca) {
-        params.search = termoBusca;
-      }
-      
-      if (filtroEspecialidade) {
-        params.specialty = filtroEspecialidade;
-      }
       
       const response = await getExtemporaneousNegotiations(params);
       
       if (response?.data?.data) {
-        // Adicionar especialidades aleatórias para fins de demonstração
         const dadosAprimorados = response.data.data.map((item: NegociacaoExtemporanea) => ({
           ...item,
           specialty: especialidades[Math.floor(Math.random() * especialidades.length)]
@@ -116,19 +135,123 @@ export default function PaginaNegociacoesExtemporaneas() {
     } catch (error) {
       console.error("Erro ao buscar negociações extemporâneas:", error);
       toast({
-        title: 'Erro',
-        description: 'Falha ao carregar negociações extemporâneas',
-        variant: 'destructive',
+        title: "Erro ao carregar negociações",
+        description: "Não foi possível carregar a lista de negociações",
+        variant: "destructive"
       });
     } finally {
       setCarregando(false);
     }
-  };
-  
+  }, [paginacao.pageIndex, paginacao.pageSize, filtroStatus, dataInicial, dataFinal, termoBusca, filtroEspecialidade]);
+
+  // Only proceed with data fetching if loading is false
   useEffect(() => {
-    buscarNegociacoes();
-  }, [paginacao.pageIndex, paginacao.pageSize, filtroStatus, dataInicial, dataFinal, termoBusca, filtroEspecialidade, toast]);
-  
+    if (!isLoading && permissionChecked && hasPermission('view negotiations')) {
+      buscarNegociacoes();
+    }
+  }, [isLoading, permissionChecked, buscarNegociacoes, hasPermission]);
+
+  if (isLoading) {
+    return <div>Carregando...</div>;
+  }
+
+  const loadExceptions = useCallback(async () => {
+    if (isLoading) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await negotiationService.getExceptions();
+      if (response?.data) {
+        setExceptions(response.data as unknown as ExceptionNegotiation[]);
+      }
+    } catch (error) {
+      console.error('Error loading exceptions:', error);
+      toast({
+        title: "Erro ao carregar exceções",
+        description: (
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4" />
+            <span>Não foi possível carregar as exceções</span>
+          </div>
+        ),
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoading]);
+
+  // Load initial data
+  useEffect(() => {
+    if (hasPermission('create negotiations')) {
+      buscarNegociacoes();
+      loadExceptions();
+    }
+  }, [hasPermission, buscarNegociacoes, loadExceptions]);
+
+  const handleSubmit = useCallback(async (data: {
+    patient_id: number;
+    tuss_id: number;
+    proposed_value: number;
+    justification: string;
+  }) => {
+    try {
+      await negotiationService.createException(data);
+      setIsFormOpen(false);
+      await loadExceptions();
+      toast({
+        title: "Exceção criada com sucesso",
+        description: "A solicitação de exceção foi enviada com sucesso",
+        variant: "success"
+      });
+    } catch (error) {
+      console.error('Error creating exception:', error);
+      toast({
+        title: "Erro ao criar exceção",
+        description: "Não foi possível criar a solicitação de exceção",
+        variant: "destructive"
+      });
+    }
+  }, [loadExceptions]);
+
+  const handleApprove = useCallback(async (id: number) => {
+    try {
+      await negotiationService.approveException(id);
+      await loadExceptions();
+      toast({
+        title: "Exceção aprovada",
+        description: "A exceção foi aprovada com sucesso",
+        variant: "success"
+      });
+    } catch (error) {
+      console.error('Error approving exception:', error);
+      toast({
+        title: "Erro ao aprovar exceção",
+        description: "Não foi possível aprovar a exceção",
+        variant: "destructive"
+      });
+    }
+  }, [loadExceptions]);
+
+  const handleReject = useCallback(async (id: number) => {
+    try {
+      await negotiationService.rejectException(id);
+      await loadExceptions();
+      toast({
+        title: "Exceção rejeitada",
+        description: "A exceção foi rejeitada com sucesso",
+        variant: "success"
+      });
+    } catch (error) {
+      console.error('Error rejecting exception:', error);
+      toast({
+        title: "Erro ao rejeitar exceção",
+        description: "Não foi possível rejeitar a exceção",
+        variant: "destructive"
+      });
+    }
+  }, [loadExceptions]);
+
   const varianteBadgeStatus = (status: string) => {
     switch (status) {
       case 'approved':
@@ -400,6 +523,12 @@ export default function PaginaNegociacoesExtemporaneas() {
           )}
         </CardContent>
       </Card>
+
+      <ExceptionForm
+        open={isFormOpen}
+        onOpenChange={setIsFormOpen}
+        onSubmit={handleSubmit}
+      />
     </div>
   );
 } 
