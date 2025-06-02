@@ -191,7 +191,10 @@ const getFormSchema = (isChildPlan: boolean): z.ZodType<FormValues> => {
     return z.object({
       ...baseSchema,
       cnpj: z.string().min(14, "CNPJ inválido"),
-      municipal_registration: z.string().optional(),
+      municipal_registration: z.string()
+        .min(1, "Inscrição municipal é obrigatória")
+        .max(15, "Inscrição municipal deve ter no máximo 15 caracteres")
+        .regex(/^\d+$/, "Inscrição municipal deve conter apenas números"),
       password: z.string().optional(),
       ans_code: z.string().min(1, "Código ANS é obrigatório"),
       description: z.string(),
@@ -207,23 +210,13 @@ const getFormSchema = (isChildPlan: boolean): z.ZodType<FormValues> => {
       operational_representative_email: z.string().email("E-mail do representante operacional inválido"),
       operational_representative_password: z.string().optional(),
       operational_representative_password_confirmation: z.string().optional(),
-      documents: z.array(documentSchema)
-    }).superRefine((data, ctx) => {
-      if (data.legal_representative_password && data.legal_representative_password !== data.legal_representative_password_confirmation) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "As senhas não coincidem",
-          path: ["legal_representative_password_confirmation"]
-        });
-      }
-      
-      if (data.operational_representative_password && data.operational_representative_password !== data.operational_representative_password_confirmation) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "As senhas não coincidem",
-          path: ["operational_representative_password_confirmation"]
-        });
-      }
+      documents: z.array(z.object({
+        type_id: z.number(),
+        file: z.any(),
+        file_url: z.string().optional(),
+        expiration_date: z.string().optional(),
+        observation: z.string().optional(),
+      })).optional(),
     });
   }
 
@@ -573,24 +566,28 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
         }
       }));
       
-      if (response.status !== 200) {
-        throw new Error('Failed to save health plan');
+      // Check for success in the response data
+      if (response.data?.success === true) {
+        toast({
+          title: healthPlanId ? "Plano atualizado" : "Plano criado",
+          description: response.data.message || (healthPlanId 
+            ? "O plano de saúde foi atualizado com sucesso"
+            : "O plano de saúde foi criado com sucesso"),
+          variant: "success",
+        });
+        
+        router.push('/health-plans');
+        return;
       }
       
-      toast({
-        title: healthPlanId ? "Plano atualizado" : "Plano criado",
-        description: healthPlanId 
-          ? "O plano de saúde foi atualizado com sucesso"
-          : "O plano de saúde foi criado com sucesso",
-        variant: "success",
-      });
+      // If we get here and don't have success: true, treat as error
+      throw new Error(response.data?.message || 'Falha ao salvar o plano de saúde');
       
-      router.push('/health-plans');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving health plan:', error);
       toast({
         title: "Erro",
-        description: "Ocorreu um erro ao salvar o plano de saúde",
+        description: error.response?.data?.message || error.message || "Ocorreu um erro ao salvar o plano de saúde",
         variant: "destructive",
       });
     } finally {
@@ -1705,17 +1702,21 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
                         name="municipal_registration"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Inscrição Municipal</FormLabel>
+                            <FormLabel>Inscrição Municipal<span className="text-red-500">*</span></FormLabel>
                             <FormControl>
                               <Input
                                 {...field}
                                 placeholder="Digite a inscrição municipal"
+                                maxLength={15}
                                 onChange={(e) => {
-                                  const value = e.target.value;
-                                  field.onChange(applyMunicipalRegistrationMask(value));
+                                  const value = e.target.value.replace(/\D/g, '');
+                                  field.onChange(value);
                                 }}
                               />
                             </FormControl>
+                            <FormDescription>
+                              Apenas números, máximo 15 caracteres
+                            </FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}
