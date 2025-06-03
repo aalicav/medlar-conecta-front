@@ -213,20 +213,29 @@ const addressSchema = z.object({
   is_main: z.boolean()
 });
 
-// Modificar o schema do formulário
+// Update the form schema at the beginning of the file
 const formSchema = z.object({
-  // Common fields
-  documentType: z.enum(["cpf", "cnpj"], {
-    required_error: "Tipo de documento é obrigatório",
-  }),
+  documentType: z.enum(["cpf", "cnpj"]),
   name: z.string().min(1, "Nome é obrigatório"),
-  phone: z.string().min(10, "Telefone deve ter pelo menos 10 dígitos"),
   email: z.string().email("Email inválido"),
+  phones: z.array(z.object({
+    number: z.string().min(1, "Número é obrigatório"),
+    is_main: z.boolean(),
+    type: z.enum(["mobile", "landline"]),
+    is_whatsapp: z.boolean()
+  })).min(1, "Pelo menos um telefone é obrigatório"),
+  addresses: z.array(z.object({
+    street: z.string().min(1, "Rua é obrigatória"),
+    number: z.string().min(1, "Número é obrigatório"),
+    complement: z.string().optional(),
+    district: z.string().min(1, "Bairro é obrigatório"),
+    city: z.string().min(1, "Cidade é obrigatória"),
+    state: z.string().min(1, "Estado é obrigatório"),
+    postal_code: z.string().min(1, "CEP é obrigatório"),
+    is_main: z.boolean()
+  })).min(1, "Pelo menos um endereço é obrigatório"),
   
-  // Novo campo de endereços múltiplos
-  addresses: z.array(addressSchema).min(1, "Pelo menos um endereço é necessário"),
-  
-  // Campos para profissionais (CPF)
+  // Professional fields
   cpf: z.string().optional(),
   birth_date: z.string().optional(),
   gender: z.enum(["male", "female", "other"]).optional(),
@@ -237,7 +246,7 @@ const formSchema = z.object({
   bio: z.string().optional(),
   clinic_id: z.string().optional(),
   
-  // Campos para estabelecimentos (CNPJ)
+  // Establishment fields
   cnpj: z.string().optional(),
   trading_name: z.string().optional(),
   foundation_date: z.string().optional(),
@@ -245,133 +254,17 @@ const formSchema = z.object({
   services: z.string().optional(),
   health_reg_number: z.string().optional(),
   
-  // Documentos
-  documents: z.array(documentSchema)
-})
-.superRefine((data, ctx) => {
-  // Based on document type, validate required fields
-
-  // Common validations for both types
-  if (!data.name) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "Nome é obrigatório",
-      path: ["name"]
-    });
-  }
-  
-  if (!data.email || !data.email.includes('@')) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "Email válido é obrigatório",
-      path: ["email"]
-    });
-  }
-  
-  if (!data.phone || data.phone.replace(/\D/g, '').length < 10) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "Telefone é obrigatório e deve ter pelo menos 10 dígitos",
-      path: ["phone"]
-    });
-  }
-
-  // Professional (CPF) specific validations
-  if (data.documentType === "cpf") {
-    if (!data.cpf || data.cpf.replace(/\D/g, '').length !== 11) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "CPF válido é obrigatório",
-        path: ["cpf"]
-      });
-    }
-    
-    if (!data.birth_date) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Data de nascimento é obrigatória",
-        path: ["birth_date"]
-      });
-    }
-    
-    if (!data.gender) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Gênero é obrigatório",
-        path: ["gender"]
-      });
-    }
-    
-    if (!data.specialty) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Especialidade é obrigatória",
-        path: ["specialty"]
-      });
-    }
-    
-    if (!data.council_type) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Tipo de conselho é obrigatório",
-        path: ["council_type"]
-      });
-    }
-    
-    if (!data.council_number) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Número do conselho é obrigatório",
-        path: ["council_number"]
-      });
-    }
-    
-    if (!data.council_state) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Estado do conselho é obrigatório",
-        path: ["council_state"]
-      });
-    }
-  } 
-  // Establishment (CNPJ) specific validations
-  else if (data.documentType === "cnpj") {
-    if (!data.cnpj || data.cnpj.replace(/\D/g, '').length !== 14) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "CNPJ válido é obrigatório",
-        path: ["cnpj"]
-      });
-    }
-    
-    if (!data.trading_name) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Nome fantasia é obrigatório",
-        path: ["trading_name"]
-      });
-    }
-    
-    if (!data.foundation_date) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Data de fundação é obrigatória",
-        path: ["foundation_date"]
-      });
-    }
-    
-    if (!data.health_reg_number) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Registro sanitário é obrigatório",
-        path: ["health_reg_number"]
-      });
-    }
-  }
+  // Documents
+  documents: z.array(z.object({
+    id: z.number().optional(),
+    type_id: z.number(),
+    file: z.any().optional(),
+    file_url: z.string().optional(),
+    expiration_date: z.string().optional(),
+    observation: z.string().optional()
+  }))
 });
 
-// Definir o tipo para os valores do formulário
-type FormValues = z.infer<typeof formSchema>
 
 // After the FormValues type definition, add field render types
 type FieldRenderProps<T extends FieldPath<FormValues> = FieldPath<FormValues>> = {
@@ -610,6 +503,7 @@ interface Document {
 interface ApiData {
   id?: number;
   name: string;
+  documentType?: "cpf" | "cnpj";
   professional_type?: "individual" | "clinic";
   cpf?: string;
   cnpj?: string;
@@ -636,9 +530,14 @@ interface ApiData {
 type DocumentType = "cpf" | "cnpj";
 
 interface FormValues {
-  documentType: DocumentType;
+  documentType: "cpf" | "cnpj";
   name: string;
-  phone: string;
+  phones: {
+    number: string;
+    is_main: boolean;
+    type: "mobile" | "landline";
+    is_whatsapp: boolean;
+  }[];
   email: string;
   addresses: Address[];
   
@@ -717,15 +616,24 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
 
   // Update form initialization
   const form = useForm<FormValues>({
-    resolver: isEdit ? undefined : zodResolver(formSchema) as any,
+    resolver: isEdit ? undefined : zodResolver(formSchema),
     mode: "onBlur",
     defaultValues: {
-      documentType: initialData?.cpf ? "cpf" : "cnpj",
+      documentType: initialData?.documentType || (initialData?.cpf ? "cpf" : "cnpj"),
       name: initialData?.name || "",
       email: initialData?.email || "",
-      phone: initialData?.phones?.[0]?.formatted_number || "",
-      addresses: (initialData?.addresses?.length ? initialData.addresses.map((addr: ApiAddress) => ({
-        id: addr.id,
+      phones: initialData?.phones?.map(phone => ({
+        number: phone.number ? applyPhoneMask(phone.number) : "",
+        is_main: phone.is_primary || false,
+        type: phone.type as "mobile" | "landline",
+        is_whatsapp: phone.is_whatsapp || false
+      })) || [{
+        number: "",
+        is_main: true,
+        type: "mobile",
+        is_whatsapp: false
+      }],
+      addresses: initialData?.addresses?.map(addr => ({
         street: addr.street || "",
         number: addr.number || "",
         complement: addr.complement || "",
@@ -733,10 +641,8 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
         city: addr.city || "",
         state: addr.state || "",
         postal_code: addr.postal_code ? applyCEPMask(addr.postal_code) : "",
-        is_main: addr.is_primary || false,
-        latitude: addr.latitude,
-        longitude: addr.longitude
-      })) : [{
+        is_main: addr.is_primary || false
+      })) || [{
         street: "",
         number: "",
         complement: "",
@@ -745,37 +651,21 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
         state: "",
         postal_code: "",
         is_main: true
-      }]) as Address[],
-
-      // Professional fields
+      }],
       cpf: initialData?.cpf ? applyCPFMask(initialData.cpf) : "",
+      cnpj: initialData?.cnpj ? applyCNPJMask(initialData.cnpj) : "",
       birth_date: initialData?.birth_date || "",
-      gender: initialData?.gender,
+      gender: initialData?.gender || undefined,
       specialty: initialData?.specialty || "",
       council_type: initialData?.council_type || "",
       council_number: initialData?.council_number || "",
       council_state: initialData?.council_state || "",
       bio: initialData?.bio || "",
-      clinic_id: isClinicAdmin ? clinicId : initialData?.clinic_id || "",
-
-      // Establishment fields
-      cnpj: initialData?.cnpj ? applyCNPJMask(initialData.cnpj) : "",
-      trading_name: initialData?.description || "",
-      foundation_date: initialData?.created_at?.split('T')[0] || "",
+      clinic_id: initialData?.clinic_id || clinicId || "",
       business_hours: initialData?.business_hours || "",
       services: initialData?.services || "",
-      health_reg_number: initialData?.cnes || "",
-
-      // Documents
-      documents: (initialData?.documents || []).map(doc => ({
-        id: doc.id,
-        type_id: doc.type_id,
-        file: null,
-        file_url: doc.file_url,
-        expiration_date: doc.expiration_date,
-        observation: doc.observation
-      })),
-    },
+      documents: initialData?.documents || []
+    }
   });
 
   // Add effect to handle document initialization in edit mode
@@ -1139,7 +1029,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
           errors.documentType || 
           errors.name || 
           errors.email || 
-          errors.phone || 
+          errors.phones || 
           errors.cpf || 
           errors.cnpj || 
           errors.addresses
@@ -1203,7 +1093,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
       } 
       else if (currentTab === "additional-info") {
         // Validate additional info fields
-        const commonFields = ["phone"];
+        const commonFields = ["phones"];
         const cpfFields = ["specialty", "council_type", "council_number", "council_state", "bio"];
         const cnpjFields = ["health_reg_number"];
         
@@ -1289,11 +1179,12 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     form.setValue("cnpj", maskedValue);
   };
 
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
     const value = e.target.value;
     const maskedValue = applyPhoneMask(value);
-    e.target.value = maskedValue;
-    form.setValue("phone", maskedValue);
+    const phones = form.getValues("phones");
+    phones[index].number = maskedValue;
+    form.setValue("phones", phones);
   };
 
   // Atualizar o onSubmit para usar FormData corretamente
@@ -1482,6 +1373,18 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
         const formData = new FormData();
         const changedFields = new Set<string>();
         
+        // Handle phones array
+        if (data.phones?.length) {
+          data.phones.forEach((phone, index) => {
+            formData.append(`phones[${index}][number]`, unmask(phone.number));
+            formData.append(`phones[${index}][country_code]`, '+55');
+            formData.append(`phones[${index}][type]`, phone.type);
+            formData.append(`phones[${index}][is_whatsapp]`, String(phone.is_whatsapp));
+            formData.append(`phones[${index}][is_primary]`, String(phone.is_main));
+          });
+          changedFields.add('phones');
+        }
+
         // Comparar campos simples
         Object.keys(data).forEach(key => {
           if (key !== 'documents' && key !== 'addresses' && key !== 'phones') {
@@ -2387,6 +2290,20 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     </div>
   )}
 
+  // Add function to handle adding new phone
+  const handleAddPhone = () => {
+    const currentPhones = form.getValues("phones") || [];
+    form.setValue("phones", [
+      ...currentPhones,
+      {
+        number: "",
+        is_main: false,
+        type: "mobile",
+        is_whatsapp: false
+      }
+    ]);
+  };
+
   return (
     <Card className="w-full max-w-4xl mx-auto">
       <CardHeader className="bg-muted/50">
@@ -2716,19 +2633,107 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <TypedFormField
                           control={form.control}
-                          name="phone"
+                          name="phones"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Telefone<span className="text-red-500">*</span></FormLabel>
+                              <FormLabel>Telefones<span className="text-red-500">*</span></FormLabel>
                               <FormControl>
-                                <Input 
-                                  placeholder="Digite o telefone" 
-                                  {...field} 
-                                  onChange={(e) => handlePhoneChange(e)}
-                                  maxLength={15}
-                                />
+                                <div className="space-y-4 mt-6">
+                                  {field.value?.map((phone, index) => (
+                                    <div key={index} className="flex gap-4 items-end">
+                                      <div className="flex-1">
+                                        <TypedFormField
+                                          name={`phones.${index}.number`}
+                                          control={form.control}
+                                          render={({ field, fieldState }) => (
+                                            <FormItem>
+                                              <FormLabel>{index === 0 ? "Telefone Principal" : `Telefone ${index + 1}`}</FormLabel>
+                                              <FormControl>
+                                                <Input
+                                                  {...field}
+                                                  value={field.value || ""}
+                                                  onChange={(e) => {
+                                                    const maskedValue = applyPhoneMask(e.target.value);
+                                                    field.onChange(maskedValue);
+                                                  }}
+                                                  placeholder="(00) 00000-0000"
+                                                />
+                                              </FormControl>
+                                              <FormMessage>{fieldState.error?.message}</FormMessage>
+                                            </FormItem>
+                                          )}
+                                        />
+                                      </div>
+                                      
+                                      <div className="flex gap-2">
+                                        <TypedFormField
+                                          name={`phones.${index}.type`}
+                                          control={form.control}
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <Select
+                                                value={field.value}
+                                                onValueChange={field.onChange}
+                                              >
+                                                <SelectTrigger className="w-[140px]">
+                                                  <SelectValue placeholder="Tipo" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                  <SelectItem value="mobile">Celular</SelectItem>
+                                                  <SelectItem value="landline">Fixo</SelectItem>
+                                                </SelectContent>
+                                              </Select>
+                                            </FormItem>
+                                          )}
+                                        />
+                                        
+                                        <TypedFormField
+                                          name={`phones.${index}.is_whatsapp`}
+                                          control={form.control}
+                                          render={({ field }) => (
+                                            <FormItem className="flex items-center space-x-2 space-y-0">
+                                              <FormControl>
+                                                <Checkbox
+                                                  checked={field.value}
+                                                  onCheckedChange={field.onChange}
+                                                />
+                                              </FormControl>
+                                              <FormLabel className="text-sm font-normal">
+                                                WhatsApp
+                                              </FormLabel>
+                                            </FormItem>
+                                          )}
+                                        />
+                                        
+                                        {index > 0 && (
+                                          <Button
+                                            type="button"
+                                            variant="destructive"
+                                            size="icon"
+                                            onClick={() => {
+                                              const phones = form.getValues("phones");
+                                              form.setValue("phones", phones.filter((_, i) => i !== index));
+                                            }}
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
                               </FormControl>
                               <FormMessage />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={handleAddPhone}
+                                className="mt-4 bg-blue-50 hover:bg-blue-100 border-blue-200"
+                              >
+                                <Plus className="w-4 h-4 mr-2 text-blue-500" />
+                                Adicionar Telefone
+                              </Button>
                             </FormItem>
                           )}
                         />
@@ -3200,7 +3205,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                             <span className="font-medium">Email:</span> {form.getValues('email')}
                           </div>
                           <div>
-                            <span className="font-medium">Telefone:</span> {form.getValues('phone')}
+                            <span className="font-medium">Telefone:</span> {form.getValues('phones')?.map(phone => phone.number).join(', ')}
                           </div>
                           {documentType === "cpf" && (
                             <>
@@ -3321,19 +3326,107 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <TypedFormField
                         control={form.control}
-                        name="phone"
+                        name="phones"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Telefone<span className="text-red-500">*</span></FormLabel>
+                            <FormLabel>Telefones<span className="text-red-500">*</span></FormLabel>
                             <FormControl>
-                              <Input 
-                                placeholder="Digite o telefone" 
-                                {...field} 
-                                onChange={(e) => handlePhoneChange(e)}
-                                maxLength={15}
-                              />
+                              <div className="space-y-4 mt-6">
+                                {field.value?.map((phone, index) => (
+                                  <div key={index} className="flex gap-4 items-end">
+                                    <div className="flex-1">
+                                      <TypedFormField
+                                        name={`phones.${index}.number`}
+                                        control={form.control}
+                                        render={({ field, fieldState }) => (
+                                          <FormItem>
+                                            <FormLabel>{index === 0 ? "Telefone Principal" : `Telefone ${index + 1}`}</FormLabel>
+                                            <FormControl>
+                                              <Input
+                                                {...field}
+                                                value={field.value || ""}
+                                                onChange={(e) => {
+                                                  const maskedValue = applyPhoneMask(e.target.value);
+                                                  field.onChange(maskedValue);
+                                                }}
+                                                placeholder="(00) 00000-0000"
+                                              />
+                                            </FormControl>
+                                            <FormMessage>{fieldState.error?.message}</FormMessage>
+                                          </FormItem>
+                                        )}
+                                      />
+                                    </div>
+                                    
+                                    <div className="flex gap-2">
+                                      <TypedFormField
+                                        name={`phones.${index}.type`}
+                                        control={form.control}
+                                        render={({ field }) => (
+                                          <FormItem>
+                                            <Select
+                                              value={field.value}
+                                              onValueChange={field.onChange}
+                                            >
+                                              <SelectTrigger className="w-[140px]">
+                                                <SelectValue placeholder="Tipo" />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="mobile">Celular</SelectItem>
+                                                <SelectItem value="landline">Fixo</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </FormItem>
+                                        )}
+                                      />
+                                      
+                                      <TypedFormField
+                                        name={`phones.${index}.is_whatsapp`}
+                                        control={form.control}
+                                        render={({ field }) => (
+                                          <FormItem className="flex items-center space-x-2 space-y-0">
+                                            <FormControl>
+                                              <Checkbox
+                                                checked={field.value}
+                                                onCheckedChange={field.onChange}
+                                              />
+                                            </FormControl>
+                                            <FormLabel className="text-sm font-normal">
+                                              WhatsApp
+                                            </FormLabel>
+                                          </FormItem>
+                                        )}
+                                      />
+                                      
+                                      {index > 0 && (
+                                        <Button
+                                          type="button"
+                                          variant="destructive"
+                                          size="icon"
+                                          onClick={() => {
+                                            const phones = form.getValues("phones");
+                                            form.setValue("phones", phones.filter((_, i) => i !== index));
+                                          }}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
                             </FormControl>
                             <FormMessage />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={handleAddPhone}
+                              className="mt-4 bg-blue-50 hover:bg-blue-100 border-blue-200"
+                            >
+                              <Plus className="w-4 h-4 mr-2 text-blue-500" />
+                              Adicionar Telefone
+                            </Button>
                           </FormItem>
                         )}
                       />
@@ -3804,7 +3897,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                           <span className="font-medium">Email:</span> {form.getValues('email')}
                         </div>
                         <div>
-                          <span className="font-medium">Telefone:</span> {form.getValues('phone')}
+                          <span className="font-medium">Telefone:</span> {form.getValues('phones')?.map(phone => phone.number).join(', ')}
                         </div>
                         {documentType === "cpf" && (
                           <>
