@@ -98,13 +98,17 @@ export interface NegotiationItem {
   negotiation_id: number;
   tuss: Tuss;
   proposed_value: string | number;
-  approved_value: number | null;
+  approved_value: string | number | null;
   status: NegotiationItemStatus;
   notes: string | null;
   responded_at: string | null;
   created_at: string;
   updated_at: string;
   created_by: {
+    id: number;
+    name: string;
+  };
+  updated_by?: {
     id: number;
     name: string;
   };
@@ -250,7 +254,8 @@ interface GetNegotiationsParams {
 }
 
 export interface NegotiationServiceType {
-  getNegotiations: (params: GetNegotiationsParams) => Promise<PaginatedApiResponse<Negotiation>>;
+  getNegotiations: (params: GetNegotiationsParams) => Promise<ApiResponse<Negotiation>>;
+  getById: (id: number) => Promise<ApiResponse<Negotiation>>;
   processApproval: (id: number, data: NegotiationApprovalRequest) => Promise<ApiResponse<Negotiation>>;
   processExternalApproval: (id: number, data: NegotiationApprovalRequest) => Promise<ApiResponse<Negotiation>>;
   forkNegotiation: (id: number, groups: ForkGroupItem[]) => Promise<ApiResponse<Negotiation>>;
@@ -259,6 +264,9 @@ export interface NegotiationServiceType {
   markAsComplete: (id: number) => Promise<ApiResponse<Negotiation>>;
   markAsPartiallyComplete: (id: number) => Promise<ApiResponse<Negotiation>>;
   startNewCycle: (id: number) => Promise<ApiResponse<Negotiation>>;
+  resendNotifications: (id: number) => Promise<ApiResponse<any>>;
+  generateContract: (id: number) => Promise<ApiResponse<{ contract_id: number }>>;
+  update: (id: number, data: any) => Promise<ApiResponse<Negotiation>>;
 }
 
 export interface NegotiationApprovalRequest {
@@ -271,24 +279,29 @@ export interface NegotiationApprovalRequest {
 }
 
 class NegotiationService implements NegotiationServiceType {
-  async getNegotiations(params: GetNegotiationsParams): Promise<PaginatedApiResponse<Negotiation>> {
-    const response = await api.get<PaginatedApiResponse<Negotiation>>('/negotiations', { params });
+  async getNegotiations(params: GetNegotiationsParams): Promise<ApiResponse<Negotiation[]>> {
+    const response = await api.get<Negotiation[]>('/negotiations', { params });
+    return response;
+  }
+
+  async getById(id: number): Promise<ApiResponse<Negotiation>> {
+    const response = await api.get<Negotiation>(`${API_BASE_PATH}/${id}`);
     return response;
   }
 
   async processApproval(id: number, data: NegotiationApprovalRequest): Promise<ApiResponse<Negotiation>> {
-    const response = await api.post<ApiResponse<Negotiation>>(`/negotiations/${id}/process-approval`, data);
-    return response;
+    const response = await api.post<ApiResponse<Negotiation>>(`${API_BASE_PATH}/${id}/process-approval`, data);
+    return response.data;
   }
 
   async processExternalApproval(id: number, data: NegotiationApprovalRequest): Promise<ApiResponse<Negotiation>> {
-    const response = await api.post<ApiResponse<Negotiation>>(`/negotiations/${id}/process-external-approval`, data);
-    return response;
+    const response = await api.post<ApiResponse<Negotiation>>(`${API_BASE_PATH}/${id}/process-external-approval`, data);
+    return response.data;
   }
 
   async forkNegotiation(id: number, groups: ForkGroupItem[]): Promise<ApiResponse<Negotiation>> {
-    const response = await api.post<ApiResponse<Negotiation>>(`/negotiations/${id}/fork`, { item_groups: groups });
-    return response;
+    const response = await api.post<ApiResponse<Negotiation>>(`${API_BASE_PATH}/${id}/fork`, { item_groups: groups });
+    return response.data;
   }
 
   async submitForApproval(id: number): Promise<ApiResponse<Negotiation>> {
@@ -309,6 +322,21 @@ class NegotiationService implements NegotiationServiceType {
 
   async startNewCycle(id: number): Promise<ApiResponse<Negotiation>> {
     return api.post(`${API_BASE_PATH}/${id}/new-cycle`);
+  }
+
+  async resendNotifications(id: number): Promise<ApiResponse<any>> {
+    const response = await api.post<ApiResponse<any>>(`${API_BASE_PATH}/${id}/resend-notifications`);
+    return response.data;
+  }
+
+  async generateContract(id: number): Promise<ApiResponse<{ contract_id: number }>> {
+    const response = await api.post<ApiResponse<{ contract_id: number }>>(`${API_BASE_PATH}/${id}/generate-contract`);
+    return response.data;
+  }
+
+  async update(id: number, data: any): Promise<ApiResponse<Negotiation>> {
+    const response = await api.put<ApiResponse<Negotiation>>(`${API_BASE_PATH}/${id}`, data);
+    return response.data;
   }
 }
 

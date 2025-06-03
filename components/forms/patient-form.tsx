@@ -28,6 +28,7 @@ import { Loader2, Plus, Trash } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { fetchResource, createResource } from "@/services/resource-service"
 import { DatePicker } from "@/components/ui/date-picker"
+import { DateInput } from "../ui/date-input"
 
 // Estados brasileiros
 const BRAZILIAN_STATES = [
@@ -617,54 +618,19 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Data de Nascimento*</FormLabel>
-                      <div className="flex space-x-2">
-                        <FormControl>
-                          <Input
-                            type="text"
-                            placeholder="DD/MM/AAAA"
-                            value={field.value ? format(new Date(field.value), 'dd/MM/yyyy') : ''}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              // Remove caracteres não numéricos
-                              const cleaned = value.replace(/\D/g, '');
-                              
-                              // Formata a data automaticamente
-                              let formatted = cleaned;
-                              if (cleaned.length >= 2) {
-                                formatted = cleaned.slice(0, 2) + '/' + cleaned.slice(2);
-                              }
-                              if (cleaned.length >= 4) {
-                                formatted = formatted.slice(0, 5) + '/' + formatted.slice(5);
-                              }
-                              
-                              // Atualiza o valor do input
-                              e.target.value = formatted;
-                              
-                              // Se tiver 8 dígitos, tenta converter para data
-                              if (cleaned.length === 8) {
-                                const day = parseInt(cleaned.slice(0, 2));
-                                const month = parseInt(cleaned.slice(2, 4)) - 1;
-                                const year = parseInt(cleaned.slice(4, 8));
-                                const date = new Date(year, month, day);
-                                
-                                // Verifica se é uma data válida
-                                if (!isNaN(date.getTime())) {
-                                  field.onChange(date);
-                                }
-                              }
-                            }}
-                            maxLength={10}
-                          />
-                        </FormControl>
-                        <FormControl>
-                          <DatePicker 
-                            date={field.value ? new Date(field.value) : null} 
-                            setDate={(date: Date | null) => {
-                              field.onChange(date);
-                            }}
-                          />
-                        </FormControl>
-                      </div>
+                      <FormControl>
+                        <DateInput
+                          value={field.value ? new Date(field.value) : null}
+                          onChange={(date) => {
+                            field.onChange(date);
+                            // Verificar idade para mostrar campos de contato secundário
+                            if (date) {
+                              const age = differenceInYears(new Date(), date);
+                              setShowSecondaryContact(age < 18 || age >= 65);
+                            }
+                          }}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}

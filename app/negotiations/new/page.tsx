@@ -75,6 +75,8 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Toaster } from '@/components/ui/toaster';
 import { getErrorMessage } from '../../services/types';
+import { fetchResource } from '@/services/resource-service';
+import api from '@/services/api-client';
 
 interface OpcaoEntidade {
   id: number;
@@ -154,11 +156,11 @@ export default function PaginaCriarNegociacao() {
     
     setCarregandoTuss(true);
     try {
-      const response = await negotiationService.getTussProcedures(termo);
+      const response = await api.get<{data: OpcaoTuss[]}>('/tuss',  { search: termo });
       
       if (response?.data) {
         // Garantir que os dados estão no formato correto
-        const novaOpcoesTuss: OpcaoTuss[] = response.data.map((tuss: any) => ({
+        const novaOpcoesTuss: OpcaoTuss[] = response.data.data.map((tuss: any) => ({
           id: tuss.id,
           code: tuss.code || '',
           name: tuss.name || tuss.description || '',
@@ -413,9 +415,8 @@ export default function PaginaCriarNegociacao() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="App\Models\HealthPlan">Plano de Saúde</SelectItem>
                             <SelectItem value="App\Models\Professional">Profissional</SelectItem>
-                            <SelectItem value="App\Models\Clinic">Clínica</SelectItem>
+                            <SelectItem value="App\Models\Clinic">Estabelecimento</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />

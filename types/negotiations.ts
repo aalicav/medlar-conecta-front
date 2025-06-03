@@ -23,16 +23,27 @@ export interface Tuss {
 
 export interface NegotiationItem {
   id: number;
+  negotiation_id: number;
   tuss: Tuss;
-  proposed_value: number;
-  approved_value: number | null;
+  proposed_value: string | number;
+  approved_value: string | number | null;
   status: NegotiationItemStatus;
-  notes?: string;
+  notes: string | null;
+  responded_at: string | null;
   created_at: string;
-  updated_by: {
+  updated_at: string;
+  created_by: {
     id: number;
     name: string;
   };
+  updated_by?: {
+    id: number;
+    name: string;
+  };
+  can_respond: boolean;
+  is_approved: boolean;
+  is_rejected: boolean;
+  has_counter_offer: boolean;
 }
 
 export interface Negotiation {
@@ -107,16 +118,16 @@ export interface Negotiation {
     status: NegotiationItemStatus;
     notes: string | null;
     responded_at: string | null;
-    created_at: string;
-    updated_at: string;
-    created_by: {
-      id: number;
-      name: string;
-    };
+  created_at: string;
+  updated_at: string;
+  created_by: {
+    id: number;
+    name: string;
+  };
     updated_by?: {
-      id: number;
-      name: string;
-    };
+    id: number;
+    name: string;
+  };
     can_respond: boolean;
     is_approved: boolean;
     is_rejected: boolean;

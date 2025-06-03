@@ -96,7 +96,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
-import { ApprovalHistoryList } from '@/app/components/ApprovalHistory';
+import { ApprovalHistory } from '@/app/components/ApprovalHistory';
 import { NegotiationAnnouncement } from '@/app/components/NegotiationAnnouncement';
 import { RollbackStatusDialog } from '@/app/components/RollbackStatusDialog';
 import { NegotiationCycleDialog } from '@/app/components/NegotiationCycleDialog';
@@ -398,7 +398,20 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     if (!negotiation) return;
     
     try {
-      const response = await negotiationService.processApproval(negotiation.id, action);
+      const response = await negotiationService.processApproval(negotiation.id, {
+        approved: action === 'approve',
+        approval_notes: action === 'approve' ? 'Aprovado internamente' : 'Rejeitado internamente'
+      });
+
+      if (!response.success) {
+        toast({
+          title: "Erro",
+          description: response.message || "Falha ao processar a aprovação",
+          variant: "destructive"
+        });
+        return;
+      }
+
       if (response.data) {
         // First cast the response data to ServiceNegotiation to ensure proper typing
         const apiData = response.data as unknown as Negotiation;
@@ -408,79 +421,49 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
           id: item.id || 0,
           negotiation_id: item.negotiation_id,
           tuss: item.tuss,
-          proposed_value: typeof item.proposed_value === 'string' 
-            ? parseFloat(item.proposed_value) 
-            : item.proposed_value,
-          approved_value: item.approved_value || null,
+          proposed_value: item.proposed_value,
+          approved_value: item.approved_value,
           status: item.status,
-          notes: item.notes || null,
-          responded_at: null,
+          notes: item.notes,
+          responded_at: item.responded_at,
           created_at: item.created_at || new Date().toISOString(),
           updated_at: item.updated_at || new Date().toISOString(),
           created_by: {
             id: item.created_by?.id || 0,
             name: item.created_by?.name || ''
           },
-          can_respond: false,
+          updated_by: item.updated_by,
+          can_respond: item.can_respond,
           is_approved: item.status === 'approved',
           is_rejected: item.status === 'rejected',
           has_counter_offer: item.status === 'counter_offered'
         }));
 
-        const mappedNegotiation: Negotiation = {
-          id: apiData.id,
-          title: apiData.title,
-          description: apiData.description || null,
-          status: apiData.status,
-          status_label: negotiationStatusLabels[apiData.status],
-          start_date: apiData.start_date,
-          end_date: apiData.end_date,
-          total_value: apiData.total_value || 0,
-          notes: apiData.notes || null,
-          created_at: apiData.created_at,
-          updated_at: apiData.updated_at,
-          negotiation_cycle: apiData.negotiation_cycle || 0,
-          max_cycles_allowed: apiData.max_cycles_allowed || 1,
-          is_fork: apiData.is_fork || false,
-          forked_at: apiData.forked_at || null,
-          fork_count: apiData.fork_count || 0,
-          parent_negotiation_id: apiData.parent_negotiation_id || null,
-          negotiable_type: apiData.negotiable_type,
-          negotiable_id: apiData.negotiable_id,
-          negotiable: apiData.negotiable || null,
-          creator: apiData.creator || null,
+        setNegotiation({
+          ...apiData,
           items: mappedItems,
-          approved_at: apiData.approved_at || null,
-          approval_notes: apiData.approval_notes || null,
-          rejected_at: apiData.rejected_at || null,
-          rejection_notes: apiData.rejection_notes || null,
-          can_approve: apiData.can_approve || false,
-          can_submit_for_approval: apiData.can_submit_for_approval || false,
-          can_edit: apiData.can_edit || false,
-          approval_history: apiData.approval_history || [],
-          forked_negotiations: apiData.forked_negotiations || [],
-          formalization_status: apiData.formalization_status
-        };
-
-        setNegotiation(mappedNegotiation);
-      }
-      toast({
-        title: "Sucesso",
-        description: `Negociação ${action === 'approve' ? 'aprovada' : 'rejeitada'} com sucesso`,
-      });
-      
-      if (action === 'approve') {
-        toast({
-          title: "Entidade será notificada",
-          description: "Uma notificação foi enviada à entidade para dar o veredito final",
-          variant: "default"
+          status_label: negotiationStatusLabels[apiData.status]
         });
+
+        toast({
+          title: "Sucesso",
+          description: `Negociação ${action === 'approve' ? 'aprovada' : 'rejeitada'} com sucesso`,
+        });
+        
+        if (action === 'approve') {
+          toast({
+            title: "Entidade será notificada",
+            description: "Uma notificação foi enviada à entidade para dar o veredito final",
+            variant: "default"
+          });
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Erro ao ${action === 'approve' ? 'aprovar' : 'rejeitar'} negociação:`, error);
+      
       toast({
         title: "Erro",
-        description: `Falha ao ${action === 'approve' ? 'aprovar' : 'rejeitar'} a negociação`,
+        description: error.response?.data?.message || `Falha ao ${action === 'approve' ? 'aprovar' : 'rejeitar'} a negociação`,
         variant: "destructive"
       });
     }
@@ -673,7 +656,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     setCounterOfferMode(false);
     setResponseForm({
       status: 'approved',
-      approved_value: item.approved_value || Number(item.proposed_value),
+      approved_value: Number(item.approved_value) || Number(item.proposed_value),
       counter_value: 0,
       notes: ''
     });
@@ -702,8 +685,8 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
           items: [{
             id: selectedItem.id,
             tuss_id: selectedItem.tuss.id,
-            proposed_value: responseForm.counter_value,
-            notes: responseForm.notes
+            proposed_value: responseForm.counter_value.toString(),
+            notes: responseForm.notes || null
           }]
         });
         
@@ -712,9 +695,10 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
           description: "Contra-proposta enviada com sucesso",
         });
       } else {
-        await negotiationService.processApproval(negotiation.id, 
-          responseForm.status === 'approved' ? 'approve' : 'reject'
-        );
+        await negotiationService.processApproval(negotiation.id, {
+          approved: responseForm.status === 'approved',
+          approval_notes: responseForm.notes
+        });
       
         toast({
           title: "Sucesso",
@@ -1234,23 +1218,28 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                           </>
                         )}
                         <NegotiationItemActions
-                          negotiation={{
-                            ...negotiation,
-                            establishment: negotiation.negotiable,
-                            created_by: negotiation.creator
-                          }}
+                          negotiation={negotiation}
                           item={{
                             ...item,
-                            updated_by: item.created_by
+                            updated_by: item.created_by,
+                            notes: item.notes,
+                            proposed_value: item.proposed_value,
+                            approved_value: item.approved_value
                           }}
                           onActionComplete={fetchNegotiation}
                           onShowResponseDialog={(i) => showResponseDialog({
                             ...i,
-                            created_by: i.updated_by
+                            created_by: i.updated_by ?? i.created_by,
+                            notes: i.notes || null,
+                            proposed_value: i.proposed_value,
+                            approved_value: i.approved_value
                           })}
                           onShowCounterOfferDialog={(i) => showCounterOfferDialog({
                             ...i,
-                            created_by: i.updated_by
+                            created_by: i.updated_by ?? i.created_by,
+                            notes: i.notes || null,
+                            proposed_value: i.proposed_value,
+                            approved_value: i.approved_value
                           })}
                         />
                       </div>
@@ -1467,7 +1456,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
       {/* Approval History Section */}
       {negotiation && negotiation.approval_history && negotiation.approval_history.length > 0 && (
         <div className="my-6">
-          <ApprovalHistoryList history={negotiation.approval_history} />
+          <ApprovalHistory history={negotiation.approval_history} />
         </div>
       )}
 
