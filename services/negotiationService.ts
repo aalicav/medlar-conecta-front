@@ -273,22 +273,22 @@ export interface NegotiationApprovalRequest {
 class NegotiationService implements NegotiationServiceType {
   async getNegotiations(params: GetNegotiationsParams): Promise<PaginatedApiResponse<Negotiation>> {
     const response = await api.get<PaginatedApiResponse<Negotiation>>('/negotiations', { params });
-    return response.data;
+    return response;
   }
 
   async processApproval(id: number, data: NegotiationApprovalRequest): Promise<ApiResponse<Negotiation>> {
     const response = await api.post<ApiResponse<Negotiation>>(`/negotiations/${id}/process-approval`, data);
-    return response.data;
+    return response;
   }
 
   async processExternalApproval(id: number, data: NegotiationApprovalRequest): Promise<ApiResponse<Negotiation>> {
     const response = await api.post<ApiResponse<Negotiation>>(`/negotiations/${id}/process-external-approval`, data);
-    return response.data;
+    return response;
   }
 
   async forkNegotiation(id: number, groups: ForkGroupItem[]): Promise<ApiResponse<Negotiation>> {
     const response = await api.post<ApiResponse<Negotiation>>(`/negotiations/${id}/fork`, { item_groups: groups });
-    return response.data;
+    return response;
   }
 
   async submitForApproval(id: number): Promise<ApiResponse<Negotiation>> {
