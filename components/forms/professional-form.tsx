@@ -279,7 +279,6 @@ type FieldRenderProps<T extends FieldPath<FormValues> = FieldPath<FormValues>> =
 
 // Near TypedFormField declaration or where components are used
 // Create a typed wrapper for FormField
-const TypedFormField = FormField as any;
 
 interface UnifiedFormProps {
   initialData?: ApiData;
@@ -572,6 +571,23 @@ interface UnifiedFormProps {
   entityId?: string;
   isEdit?: boolean;
 }
+
+// Near the top of the file, after imports and before other code
+interface TypedFormFieldProps<T extends FieldPath<FormValues>> {
+  name: T;
+  control: Control<FormValues>;
+  render: (props: {
+    field: ControllerRenderProps<FormValues, T>;
+    fieldState: {
+      invalid: boolean;
+      isTouched: boolean;
+      isDirty: boolean;
+      error?: FieldError;
+    };
+  }) => React.ReactElement;
+}
+
+const TypedFormField = FormField as any;
 
 // Export the form as a forwarded ref component
 export const ProfessionalForm = forwardRef(function ProfessionalForm({
@@ -1180,11 +1196,19 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
-    const value = e.target.value;
-    const maskedValue = applyPhoneMask(value);
-    const phones = form.getValues("phones");
-    phones[index].number = maskedValue;
-    form.setValue("phones", phones);
+    try {
+      const value = e.target.value;
+      const maskedValue = applyPhoneMask(value);
+      const phones = form.getValues("phones");
+      phones[index].number = maskedValue;
+      form.setValue("phones", phones);
+    } catch (error) {
+      showToast(toast, {
+        title: "Erro",
+        description: "Erro ao formatar o número de telefone",
+        variant: "destructive"
+      });
+    }
   };
 
   // Atualizar o onSubmit para usar FormData corretamente
@@ -1192,18 +1216,8 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     try {
       setLoading(true);
 
-      // Skip document validation in edit mode
-      if (!isEdit && !validateRequiredDocuments()) {
-        setLoading(false);
-        return;
-      }
-
-      // Criar FormData
       const formData = new FormData();
 
-      // Adicionar professional_type baseado no documentType
-      formData.append('professional_type', documentType === "cpf" ? "individual" : "clinic");
-      
       // Adicionar campos básicos
       Object.entries(data).forEach(([key, value]) => {
         if (key !== 'documents' && key !== 'addresses' && key !== 'phones' && value !== null && value !== undefined) {
@@ -1211,44 +1225,32 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
             formData.append(key, unmask(value));
           } else if (key === 'cnpj' && typeof value === 'string') {
             formData.append(key, unmask(value));
-          } else if (key === 'phone' && typeof value === 'string') {
-            // Adicionar telefone principal como campo legado
-            formData.append(key, unmask(value));
-            
-            // Adicionar ao array de telefones
-            formData.append('phones[]', JSON.stringify({
-              number: unmask(value),
-              type: 'primary',
-              is_primary: true
-            }));
           } else {
             formData.append(key, String(value));
           }
         }
       });
 
-      // Adicionar endereço principal como campo simples "address"
-      const mainAddress = data.addresses?.find(addr => addr.is_main === true) || (data.addresses?.[0]);
-      if (mainAddress) {
-        // Formato do endereço: rua, número - complemento, bairro
-        const fullAddress = `${mainAddress.street}, ${mainAddress.number}${mainAddress.complement ? ' - ' + mainAddress.complement : ''}, ${mainAddress.district}`;
-        formData.append('address', fullAddress);
-        formData.append('city', mainAddress.city);
-        formData.append('state', mainAddress.state);
-        formData.append('postal_code', unmask(String(mainAddress.postal_code)));
-      }
-
-      // Adicionar telefone
-      if ('phone' in data && data.phone) {
-        formData.append('phone', unmask(String(data.phone)));
+      // Adicionar telefones
+      if (data.phones?.length) {
+        data.phones.forEach((phone, index) => {
+          formData.append(`phones[${index}][number]`, unmask(phone.number));
+          formData.append(`phones[${index}][type]`, phone.type);
+          formData.append(`phones[${index}][is_whatsapp]`, String(phone.is_whatsapp));
+          formData.append(`phones[${index}][is_primary]`, String(phone.is_main));
+        });
       }
 
       // Adicionar endereços
-      if (data.addresses) {
-        data.addresses.forEach((address: any, index: number) => {
+      if (data.addresses?.length) {
+        data.addresses.forEach((address, index) => {
           Object.entries(address).forEach(([key, value]) => {
             if (key === 'postal_code') {
               formData.append(`addresses[${index}][${key}]`, unmask(String(value)));
+            } else if (key === 'district') {
+              formData.append(`addresses[${index}][neighborhood]`, String(value));
+            } else if (key === 'is_main') {
+              formData.append(`addresses[${index}][is_primary]`, String(value));
             } else {
               formData.append(`addresses[${index}][${key}]`, String(value));
             }
@@ -1256,61 +1258,33 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
         });
       }
 
-      // Adicionar documentos com os tipos corretos e prevenir duplicações
-      let documentCount = 0;
-      const processedTypeIds = new Set(); // Track processed type_ids to prevent duplicates
-
-      for (let i = 0; i < documentFiles.length; i++) {
-        const docFile = documentFiles[i];
-        const docItem = data.documents[i];
-        
-        if (!docItem || !docItem.type_id) continue;
-        
-        // Skip if we've already processed this type_id
-        if (processedTypeIds.has(docItem.type_id)) continue;
-        processedTypeIds.add(docItem.type_id);
-        
-        // Mapear o type_id para o valor aceito pela API
-        const docType = documentTypeApiMap[Number(docItem.type_id)] || 'other';
-        
-        // Adicionar o type_id e type para o documento
-        formData.append(`documents[${documentCount}][type_id]`, String(docItem.type_id));
-        formData.append(`documents[${documentCount}][type]`, docType);
-        
-        // Se tiver arquivo, adiciona o arquivo
-        if (docFile instanceof File && docFile.size > 0) {
-          formData.append(`documents[${documentCount}][file]`, docFile);
-        }
-        
-        if (docItem.expiration_date) {
-          formData.append(`documents[${documentCount}][expiration_date]`, docItem.expiration_date);
-        }
-        
-        if (docItem.observation) {
-          formData.append(`documents[${documentCount}][observation]`, docItem.observation);
-        }
-        
-        documentCount++;
+      // Adicionar documentos
+      if (data.documents?.length) {
+        data.documents.forEach((doc, index) => {
+          if (doc.file instanceof File) {
+            formData.append(`documents[${index}][file]`, doc.file);
+          }
+          formData.append(`documents[${index}][type_id]`, String(doc.type_id));
+          if (doc.expiration_date) {
+            formData.append(`documents[${index}][expiration_date]`, doc.expiration_date);
+          }
+          if (doc.observation) {
+            formData.append(`documents[${index}][observation]`, doc.observation);
+          }
+        });
       }
 
-      // Log para debug
-      console.log('==== CONTEÚDO FINAL DO FORMDATA ====');
-      for (let pair of formData.entries()) {
-        if (typeof pair[1] === 'object') {
-          if ('name' in pair[1] && 'type' in pair[1] && 'size' in pair[1]) {
-            console.log(`${pair[0]}: File: ${(pair[1] as any).name} (${(pair[1] as any).size} bytes, tipo: ${(pair[1] as any).type})`);
-          } else if ('size' in pair[1] && 'type' in pair[1]) {
-            console.log(`${pair[0]}: Blob: blob (${(pair[1] as any).size} bytes, tipo: ${(pair[1] as any).type})`);
-          } else {
-            console.log(`${pair[0]}: ${String(pair[1])}`);
-          }
-        } else {
-          console.log(`${pair[0]}: ${String(pair[1])}`);
-        }
+      // Se for edição, adicionar método PUT
+      if (isEdit) {
+        formData.append('_method', 'PUT');
       }
 
       // Enviar requisição
-      const response = await api.post(documentType === 'cpf' ? '/professionals' : '/clinics', formData, {
+      const endpoint = documentType === 'cpf' ? 
+        (isEdit ? `/professionals/${entityId}` : '/professionals') : 
+        (isEdit ? `/clinics/${entityId}` : '/clinics');
+
+      const response = await api.post(endpoint, formData, {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'multipart/form-data'
@@ -1319,23 +1293,17 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
 
       showToast(toast, {
         title: "Sucesso",
-        description: "Profissional cadastrado com sucesso",
+        description: isEdit 
+          ? "Profissional atualizado com sucesso!" 
+          : "Profissional cadastrado com sucesso!",
         variant: "success"
       });
 
       router.push('/professionals');
-
     } catch (error: any) {
       console.error("Erro ao enviar formulário:", error);
       
-      // Verificar se é um erro específico de campo faltando
-      if (error.message && error.message.includes("Field 'address' doesn't have a default value")) {
-        showToast(toast, {
-          title: "Erro de Dados",
-          description: "O campo de endereço é obrigatório. Por favor, verifique se há pelo menos um endereço cadastrado e tente novamente.",
-          variant: "destructive"
-        });
-      } else if (error.response?.data?.errors) {
+      if (error.response?.data?.errors) {
         const errorMessages = formatApiValidationErrors(error.response.data.errors);
         
         showToast(toast, {
@@ -1354,10 +1322,9 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
           variant: "destructive"
         });
       } else {
-        const errorMessage = error.message || "Erro ao cadastrar profissional";
         showToast(toast, {
           title: "Erro",
-          description: translateError(errorMessage),
+          description: translateError(error.message || "Erro ao processar o formulário"),
           variant: "destructive"
         });
       }
@@ -1369,163 +1336,151 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
   // Atualizar o handleFormSubmit para usar a função correta
   const handleFormSubmit = async (data: FormValues) => {
     try {
-      if (isEdit) {
-        const formData = new FormData();
-        const changedFields = new Set<string>();
-        
-        // Handle phones array
-        if (data.phones?.length) {
-          data.phones.forEach((phone, index) => {
-            formData.append(`phones[${index}][number]`, unmask(phone.number));
-            formData.append(`phones[${index}][country_code]`, '+55');
-            formData.append(`phones[${index}][type]`, phone.type);
-            formData.append(`phones[${index}][is_whatsapp]`, String(phone.is_whatsapp));
-            formData.append(`phones[${index}][is_primary]`, String(phone.is_main));
-          });
-          changedFields.add('phones');
-        }
+      setLoading(true);
 
-        // Comparar campos simples
-        Object.keys(data).forEach(key => {
-          if (key !== 'documents' && key !== 'addresses' && key !== 'phones') {
-            const initialValue = initialData?.[key as keyof typeof initialData];
-            const newValue = data[key as keyof FormValues];
-            
-            if (
-              JSON.stringify(initialValue) !== JSON.stringify(newValue) && 
-              newValue !== undefined && 
-              newValue !== null && 
-              newValue !== ''
-            ) {
-              if (key === 'cpf' && typeof newValue === 'string') {
-                formData.append(key, unmask(newValue));
-              } else if (key === 'cnpj' && typeof newValue === 'string') {
-                formData.append(key, unmask(newValue));
-              } else if (key === 'phone' && typeof newValue === 'string') {
-                // Adicionar ao array de telefones
-                formData.append('phones[0][number]', unmask(newValue));
-                formData.append('phones[0][country_code]', '+55');
-                formData.append('phones[0][type]', 'mobile');
-                formData.append('phones[0][is_primary]', '1');
-                formData.append('phones[0][is_whatsapp]', '0');
-              } else if (key === 'trading_name') {
-                formData.append('description', newValue as string);
-              } else if (key === 'health_reg_number') {
-                formData.append('cnes', newValue as string);
-              } else {
-                formData.append(key, newValue as string);
-              }
-              changedFields.add(key);
-            }
-          }
-        });
-
-        // Comparar endereços
-        if (data.addresses?.length) {
-          const initialAddresses = initialData?.addresses || [];
-          const hasAddressChanges = data.addresses.some((addr: Address, index: number) => {
-            const initialAddr = initialAddresses[index];
-            if (!initialAddr) return true;
-            
-            return Object.keys(addr).some(key => {
-              if (key === 'district') {
-                return addr[key] !== initialAddr.neighborhood;
-              }
-              if (key === 'is_main') {
-                return addr[key] !== initialAddr.is_primary;
-              }
-              return addr[key as keyof Address] !== initialAddr[key as keyof typeof initialAddr];
-            });
-          });
-          
-          if (hasAddressChanges) {
-            data.addresses.forEach((address, index) => {
-              Object.entries(address).forEach(([key, value]) => {
-                if (key === 'postal_code') {
-                  formData.append(`addresses[${index}][${key}]`, unmask(String(value)));
-                } else if (key === 'is_main') {
-                  formData.append(`addresses[${index}][is_primary]`, value ? '1' : '0');
-                } else if (key === 'district') {
-                  formData.append(`addresses[${index}][neighborhood]`, String(value));
-                } else {
-                  formData.append(`addresses[${index}][${key}]`, String(value));
-                }
-              });
-            });
-            changedFields.add('addresses');
-          }
-        }
-
-        // Processar documentos modificados
-        if (data.documents?.length) {
-          const documentsToSend: any[] = [];
-          const processedTypeIds = new Set();
-
-          for (let i = 0; i < data.documents.length; i++) {
-            const docItem = data.documents[i];
-            const docFile = documentFiles[i];
-            
-            if (!docItem || !docItem.type_id || processedTypeIds.has(docItem.type_id)) continue;
-            processedTypeIds.add(docItem.type_id);
-            
-            const initialDoc = initialData?.documents?.find(d => d.type_id === docItem.type_id);
-            const isModified = 
-              docFile instanceof File || 
-              !initialDoc || 
-              docItem.expiration_date !== initialDoc.expiration_date ||
-              docItem.observation !== initialDoc.observation;
-
-            if (isModified) {
-              if (docFile instanceof File) {
-                formData.append(`documents[${documentsToSend.length}][file]`, docFile);
-              }
-              formData.append(`documents[${documentsToSend.length}][type_id]`, String(docItem.type_id));
-              if (docItem.expiration_date) {
-                formData.append(`documents[${documentsToSend.length}][expiration_date]`, docItem.expiration_date);
-              }
-              if (docItem.observation) {
-                formData.append(`documents[${documentsToSend.length}][observation]`, docItem.observation);
-              }
-              documentsToSend.push(docItem);
-            }
-          }
-        }
-
-        if (changedFields.size === 0) {
-          showToast(toast, {
-            title: "Nenhuma alteração",
-            description: "Não foram detectadas alterações para salvar.",
-            variant: "info"
-          });
-          return;
-        }
-
-        // Adicionar método _method para simular PUT
-        formData.append('_method', 'PUT');
-
-        // Enviar requisição de atualização
-        const endpoint = data.documentType === "cpf" ? `/professionals/${entityId}` : `/clinics/${entityId}`;
-        const response = await api.put(endpoint, formData, {
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'multipart/form-data'
-          }
-        });
-
+      // Validar se há pelo menos um telefone
+      if (!data.phones || data.phones.length === 0) {
         showToast(toast, {
-          title: "Sucesso",
-          description: data.documentType === "cpf" ? "Profissional atualizado com sucesso" : "Clínica atualizada com sucesso",
-          variant: "success"
+          title: "Erro de validação",
+          description: "É necessário adicionar pelo menos um telefone.",
+          variant: "destructive"
         });
-
-        router.push('/professionals');
-      } else {
-        // Se não estiver editando, use a função original de criação
-        await onSubmit(data);
+        return;
       }
+
+      // Validar se há pelo menos um endereço
+      if (!data.addresses || data.addresses.length === 0) {
+        showToast(toast, {
+          title: "Erro de validação",
+          description: "É necessário adicionar pelo menos um endereço.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Mostrar toast de carregamento
+      showToast(toast, {
+        title: "Processando",
+        description: "Salvando as informações...",
+        variant: "default"
+      });
+
+      // Preparar os dados para envio
+      const formData = new FormData();
+
+      // Adicionar campos básicos
+      Object.entries(data).forEach(([key, value]) => {
+        if (key !== 'documents' && key !== 'addresses' && key !== 'phones' && value !== null && value !== undefined) {
+          if (key === 'cpf' && typeof value === 'string') {
+            formData.append(key, unmask(value));
+          } else if (key === 'cnpj' && typeof value === 'string') {
+            formData.append(key, unmask(value));
+          } else {
+            formData.append(key, String(value));
+          }
+        }
+      });
+
+      // Adicionar telefones
+      if (data.phones?.length) {
+        data.phones.forEach((phone, index) => {
+          formData.append(`phones[${index}][number]`, unmask(phone.number));
+          formData.append(`phones[${index}][type]`, phone.type);
+          formData.append(`phones[${index}][is_whatsapp]`, String(phone.is_whatsapp));
+          formData.append(`phones[${index}][is_primary]`, String(phone.is_main));
+          formData.append(`phones[${index}][country_code]`, '+55');
+        });
+      }
+
+      // Adicionar endereços
+      if (data.addresses?.length) {
+        data.addresses.forEach((address, index) => {
+          Object.entries(address).forEach(([key, value]) => {
+            if (key === 'postal_code') {
+              formData.append(`addresses[${index}][${key}]`, unmask(String(value)));
+            } else if (key === 'district') {
+              formData.append(`addresses[${index}][neighborhood]`, String(value));
+            } else if (key === 'is_main') {
+              formData.append(`addresses[${index}][is_primary]`, String(value));
+            } else {
+              formData.append(`addresses[${index}][${key}]`, String(value));
+            }
+          });
+        });
+      }
+
+      // Adicionar documentos
+      if (data.documents?.length) {
+        data.documents.forEach((doc, index) => {
+          if (doc.file instanceof File) {
+            formData.append(`documents[${index}][file]`, doc.file);
+          }
+          formData.append(`documents[${index}][type_id]`, String(doc.type_id));
+          if (doc.expiration_date) {
+            formData.append(`documents[${index}][expiration_date]`, doc.expiration_date);
+          }
+          if (doc.observation) {
+            formData.append(`documents[${index}][observation]`, doc.observation);
+          }
+        });
+      }
+
+      // Se for edição, adicionar método PUT
+      if (isEdit) {
+        formData.append('_method', 'PUT');
+      }
+
+      // Enviar requisição
+      const endpoint = documentType === 'cpf' ? 
+        (isEdit ? `/professionals/${entityId}` : '/professionals') : 
+        (isEdit ? `/clinics/${entityId}` : '/clinics');
+
+      const response = await api.post(endpoint, formData, {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      showToast(toast, {
+        title: "Sucesso",
+        description: isEdit 
+          ? "Profissional atualizado com sucesso!" 
+          : "Profissional cadastrado com sucesso!",
+        variant: "success"
+      });
+
+      router.push('/professionals');
     } catch (error: any) {
-      console.error("Erro ao processar formulário:", error);
-      handleFormError(error);
+      console.error("Erro ao enviar formulário:", error);
+      
+      if (error.response?.data?.errors) {
+        const errorMessages = formatApiValidationErrors(error.response.data.errors);
+        
+        showToast(toast, {
+          title: "Erro de validação",
+          description: (
+            <div className="max-h-[200px] overflow-y-auto">
+              <p className="mb-2 font-semibold text-destructive">Por favor, corrija os seguintes erros:</p>
+              {errorMessages.map((message, index) => (
+                <div key={index} className="flex gap-2 items-start mb-1">
+                  <div className="mt-1 h-1.5 w-1.5 rounded-full bg-destructive shrink-0"></div>
+                  <p className="text-sm">{message}</p>
+                </div>
+              ))}
+            </div>
+          ),
+          variant: "destructive"
+        });
+      } else {
+        showToast(toast, {
+          title: "Erro",
+          description: translateError(error.message || "Erro ao processar o formulário"),
+          variant: "destructive"
+        });
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1810,16 +1765,34 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
 
   // Adicionar botão para novo endereço
   const handleAddAddress = () => {
-    appendAddress({
-      street: "",
-      number: "",
-      complement: "",
-      district: "",
-      city: "",
-      state: "",
-      postal_code: "",
-      is_main: false
-    });
+    try {
+      const addresses = form.getValues("addresses") || [];
+      form.setValue("addresses", [
+        ...addresses,
+        {
+          street: "",
+          number: "",
+          complement: "",
+          district: "",
+          city: "",
+          state: "",
+          postal_code: "",
+          is_main: false
+        }
+      ]);
+
+      showToast(toast, {
+        title: "Sucesso",
+        description: "Novo endereço adicionado",
+        variant: "success"
+      });
+    } catch (error) {
+      showToast(toast, {
+        title: "Erro",
+        description: "Erro ao adicionar novo endereço",
+        variant: "destructive"
+      });
+    }
   };
 
   // Expose form methods to parent component
@@ -1928,15 +1901,31 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
   };
 
   // Add CEP change handler
-  const handleCEPChange = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
-    const value = e.target.value;
-    const maskedValue = applyCEPMask(value);
-    e.target.value = maskedValue;
-    form.setValue(`addresses.${index}.postal_code` as any, maskedValue);
-    
-    // Fetch address by CEP if it has 8 digits
-    if (unmask(maskedValue).length === 8) {
-      fetchAddressByCEP(unmask(maskedValue), index);
+  const handleCEPChange = async (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
+    try {
+      const cep = unmask(e.target.value);
+      if (cep.length === 8) {
+        showToast(toast, {
+          title: "Processando",
+          description: "Buscando endereço...",
+          variant: "default"
+        });
+
+        const address = await fetchAddressByCEP(cep, index);
+        if (address) {
+          showToast(toast, {
+            title: "Sucesso",
+            description: "Endereço encontrado e preenchido automaticamente",
+            variant: "success"
+          });
+        }
+      }
+    } catch (error) {
+      showToast(toast, {
+        title: "Erro",
+        description: "Erro ao buscar o CEP. Tente novamente.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -1966,11 +1955,20 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
       // Set city
       form.setValue(`addresses.${index}.city` as any, data.localidade);
       
-      showToast(toast, {
-        title: "Endereço preenchido",
-        description: "Os dados de endereço foram preenchidos automaticamente",
-        variant: "success"
-      });
+      return {
+        street: data.logradouro,
+        number: "",
+        complement: "",
+        district: data.bairro,
+        city: data.localidade,
+        state: data.uf,
+        postal_code: data.cep,
+        is_main: true,
+        neighborhood: "",
+        is_primary: true,
+        latitude: null,
+        longitude: null
+      };
     } catch (error) {
       console.error("Erro ao buscar CEP:", error);
       showToast(toast, {
@@ -1978,6 +1976,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
         description: "Não foi possível buscar o endereço pelo CEP",
         variant: "destructive"
       });
+      return null;
     }
   };
 
@@ -2292,16 +2291,30 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
 
   // Add function to handle adding new phone
   const handleAddPhone = () => {
-    const currentPhones = form.getValues("phones") || [];
-    form.setValue("phones", [
-      ...currentPhones,
-      {
-        number: "",
-        is_main: false,
-        type: "mobile",
-        is_whatsapp: false
-      }
-    ]);
+    try {
+      const currentPhones = form.getValues("phones") || [];
+      form.setValue("phones", [
+        ...currentPhones,
+        {
+          number: "",
+          is_main: false,
+          type: "mobile",
+          is_whatsapp: false
+        }
+      ]);
+      
+      showToast(toast, {
+        title: "Sucesso",
+        description: "Novo telefone adicionado",
+        variant: "success"
+      });
+    } catch (error) {
+      showToast(toast, {
+        title: "Erro",
+        description: "Erro ao adicionar novo telefone",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
