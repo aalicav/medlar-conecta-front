@@ -111,54 +111,54 @@ export default function ProfessionalDetailsPage({ params }: { params: { id: stri
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loadingAppointments, setLoadingAppointments] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const type = searchParams?.get('type') || 'clinic';
 
   // Fetch professional data
   useEffect(() => {
     const fetchProfessional = async () => {
       try {
         setLoading(true)
-        const type = searchParams?.get('type') || 'clinic'
         const endpoint = type === 'clinic' ? 'clinics' : 'professionals'
-        const data = await fetchResourceById<{ data: Professional }>(endpoint, params.id)
+        const response = await fetchResourceById<Professional>(endpoint, params.id)
         
-        if (data) {
+        if (response) {
           const professionalData: Professional = {
-            ...data,
+            ...response,
             documentType: 'cnpj' as const,
             // Ensure all required fields are present with their correct types
-            id: data.id,
-            name: data.name,
-            cnpj: data.cnpj,
-            description: data.description,
-            phones: data.phones || [],
-            addresses: data.addresses || [],
-            cnes: data.cnes,
-            technical_director: data.technical_director,
-            technical_director_document: data.technical_director_document,
-            technical_director_professional_id: data.technical_director_professional_id,
-            parent_clinic_id: data.parent_clinic_id,
-            address: data.addresses?.[0]?.street || null,
-            city: data.addresses?.[0]?.city || null,
-            state: data.addresses?.[0]?.state || null,
-            postal_code: data.addresses?.[0]?.postal_code || null,
-            latitude: data.latitude,
-            longitude: data.longitude,
-            logo: data.logo,
-            status: data.status,
-            approved_at: data.approved_at,
-            has_signed_contract: data.has_signed_contract,
-            is_active: data.is_active,
-            created_at: data.created_at,
-            updated_at: data.updated_at,
-            documents: data.documents || [],
-            approver: data.approver,
-            contract: data.contract,
-            parent_clinic: data.parent_clinic,
-            pricing_contracts: data.pricing_contracts || [],
-            professionals: data.professionals || [],
-            professionals_count: data.professionals_count,
-            appointments_count: data.appointments_count,
-            branches_count: data.branches_count
+            id: response.id,
+            name: response.name,
+            cnpj: response.cnpj,
+            description: response.description,
+            phones: response.phones || [],
+            addresses: response.addresses || [],
+            cnes: response.cnes,
+            technical_director: response.technical_director,
+            technical_director_document: response.technical_director_document,
+            technical_director_professional_id: response.technical_director_professional_id,
+            parent_clinic_id: response.parent_clinic_id,
+            address: response.addresses?.[0]?.street || null,
+            city: response.addresses?.[0]?.city || null,
+            state: response.addresses?.[0]?.state || null,
+            postal_code: response.addresses?.[0]?.postal_code || null,
+            latitude: response.latitude,
+            longitude: response.longitude,
+            logo: response.logo,
+            status: response.status,
+            approved_at: response.approved_at,
+            has_signed_contract: response.has_signed_contract,
+            is_active: response.is_active,
+            created_at: response.created_at,
+            updated_at: response.updated_at,
+            documents: response.documents || [],
+            approver: response.approver,
+            contract: response.contract,
+            parent_clinic: response.parent_clinic,
+            pricing_contracts: response.pricing_contracts || [],
+            professionals: response.professionals || [],
+            professionals_count: response.professionals_count,
+            appointments_count: response.appointments_count,
+            branches_count: response.branches_count
           }
           setProfessional(professionalData)
         }
@@ -780,10 +780,9 @@ export default function ProfessionalDetailsPage({ params }: { params: { id: stri
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         onSuccess={handleEditSuccess}
-        entityType="clinic"
+        entityType={type as "clinic" | "professional"}
         entityId={params.id}
-        title="Editar Clínica"
-        entity={professional}
+        title={isClinic ? "Editar Clínica" : "Editar Profissional"}
       />
     </div>
   )

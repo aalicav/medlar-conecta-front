@@ -209,7 +209,7 @@ function ProfessionalsContent() {
         return (
           <Button 
             variant="ghost" 
-            onClick={() => router.push(`/professionals/${professional.id}`)}
+            onClick={() => router.push(`/professionals/${professional.id}?type=professional`)}
           >
             Ver detalhes
           </Button>

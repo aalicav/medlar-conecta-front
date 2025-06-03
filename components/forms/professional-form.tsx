@@ -190,6 +190,10 @@ interface Address {
   state: string;
   postal_code: string;
   is_main: boolean;
+  neighborhood?: string;
+  is_primary?: boolean;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 // Utility to unmask a string (remove non-digits)
@@ -385,12 +389,12 @@ type FieldRenderProps<T extends FieldPath<FormValues> = FieldPath<FormValues>> =
 const TypedFormField = FormField as any;
 
 interface UnifiedFormProps {
-  initialData?: Partial<FormValues>
-  onSubmit: (data: FormValues) => Promise<void>
-  isClinicAdmin?: boolean
-  clinicId?: string
-  entityId?: string
-  isEdit?: boolean
+  initialData?: ApiData;
+  onSubmit: (data: FormValues) => Promise<void>;
+  isClinicAdmin?: boolean;
+  clinicId?: string;
+  entityId?: string;
+  isEdit?: boolean;
 }
 
 // Add this helper function before the ProfessionalForm component
@@ -555,6 +559,121 @@ const showToast = (toastInstance: any, props: {
   });
 };
 
+// Add interfaces at the beginning of the file, before any usage
+interface Phone {
+  id?: number;
+  number: string;
+  country_code?: string;
+  type: string;
+  is_whatsapp: boolean;
+  is_primary: boolean;
+  formatted_number?: string;
+}
+
+interface Address {
+  id?: number;
+  street: string;
+  number: string;
+  complement?: string;
+  district: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  is_main: boolean;
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
+interface ApiAddress {
+  id?: number;
+  street: string;
+  number: string;
+  complement?: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  is_primary: boolean;
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
+interface Document {
+  id?: number;
+  type_id: number;
+  file?: File | null;
+  file_url?: string;
+  expiration_date?: string;
+  observation?: string;
+}
+
+interface ApiData {
+  id?: number;
+  name: string;
+  professional_type?: "individual" | "clinic";
+  cpf?: string;
+  cnpj?: string;
+  description?: string;
+  cnes?: string;
+  created_at?: string;
+  phones: Phone[];
+  addresses: ApiAddress[];
+  documents: Document[];
+  birth_date?: string;
+  gender?: "male" | "female" | "other";
+  specialty?: string;
+  council_type?: string;
+  council_number?: string;
+  council_state?: string;
+  bio?: string;
+  clinic_id?: string;
+  business_hours?: string;
+  services?: string;
+  email?: string;
+}
+
+// Remove duplicate FormValues interface and update type definitions
+type DocumentType = "cpf" | "cnpj";
+
+interface FormValues {
+  documentType: DocumentType;
+  name: string;
+  phone: string;
+  email: string;
+  addresses: Address[];
+  
+  // Professional fields
+  cpf?: string;
+  birth_date?: string;
+  gender?: "male" | "female" | "other";
+  specialty?: string;
+  council_type?: string;
+  council_number?: string;
+  council_state?: string;
+  bio?: string;
+  clinic_id?: string;
+  
+  // Establishment fields
+  cnpj?: string;
+  trading_name?: string;
+  foundation_date?: string;
+  business_hours?: string;
+  services?: string;
+  health_reg_number?: string;
+  
+  // Documents
+  documents: Document[];
+}
+
+interface UnifiedFormProps {
+  initialData?: ApiData;
+  onSubmit: (data: FormValues) => Promise<void>;
+  isClinicAdmin?: boolean;
+  clinicId?: string;
+  entityId?: string;
+  isEdit?: boolean;
+}
+
 // Export the form as a forwarded ref component
 export const ProfessionalForm = forwardRef(function ProfessionalForm({
   initialData,
@@ -596,82 +715,101 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     7: "other"
   };
 
+  // Update form initialization
   const form = useForm<FormValues>({
     resolver: isEdit ? undefined : zodResolver(formSchema) as any,
+    mode: "onBlur",
     defaultValues: {
-      documentType: documentType, // Use o estado local como valor inicial
+      documentType: initialData?.cpf ? "cpf" : "cnpj",
       name: initialData?.name || "",
-      phone: initialData?.phone ? applyPhoneMask(initialData.phone) : "",
       email: initialData?.email || "",
-      addresses: initialData?.addresses?.length
-        ? initialData.addresses.map(addr => ({
-            ...addr,
-            postal_code: addr.postal_code ? applyCEPMask(addr.postal_code) : "",
-            is_main: addr.is_main === undefined ? false : addr.is_main
-          }))
-        : [
-            {
-              street: "",
-              number: "",
-              complement: "",
-              district: "",
-              city: "",
-              state: "",
-              postal_code: "",
-              is_main: true
-            }
-          ],
-      
+      phone: initialData?.phones?.[0]?.formatted_number || "",
+      addresses: (initialData?.addresses?.length ? initialData.addresses.map((addr: ApiAddress) => ({
+        id: addr.id,
+        street: addr.street || "",
+        number: addr.number || "",
+        complement: addr.complement || "",
+        district: addr.neighborhood || "",
+        city: addr.city || "",
+        state: addr.state || "",
+        postal_code: addr.postal_code ? applyCEPMask(addr.postal_code) : "",
+        is_main: addr.is_primary || false,
+        latitude: addr.latitude,
+        longitude: addr.longitude
+      })) : [{
+        street: "",
+        number: "",
+        complement: "",
+        district: "",
+        city: "",
+        state: "",
+        postal_code: "",
+        is_main: true
+      }]) as Address[],
+
       // Professional fields
       cpf: initialData?.cpf ? applyCPFMask(initialData.cpf) : "",
       birth_date: initialData?.birth_date || "",
-      gender: initialData?.gender || undefined,
+      gender: initialData?.gender,
       specialty: initialData?.specialty || "",
       council_type: initialData?.council_type || "",
       council_number: initialData?.council_number || "",
       council_state: initialData?.council_state || "",
       bio: initialData?.bio || "",
       clinic_id: isClinicAdmin ? clinicId : initialData?.clinic_id || "",
-      
+
       // Establishment fields
       cnpj: initialData?.cnpj ? applyCNPJMask(initialData.cnpj) : "",
-      trading_name: initialData?.trading_name || "",
-      foundation_date: initialData?.foundation_date || "",
+      trading_name: initialData?.description || "",
+      foundation_date: initialData?.created_at?.split('T')[0] || "",
       business_hours: initialData?.business_hours || "",
       services: initialData?.services || "",
-      health_reg_number: initialData?.health_reg_number || "",
-      
+      health_reg_number: initialData?.cnes || "",
+
       // Documents
-      documents: initialData?.documents || [],
+      documents: (initialData?.documents || []).map(doc => ({
+        id: doc.id,
+        type_id: doc.type_id,
+        file: null,
+        file_url: doc.file_url,
+        expiration_date: doc.expiration_date,
+        observation: doc.observation
+      })),
     },
-  })
-  
-  // Sincronizar o estado local com o valor do formulário quando o componente é montado
+  });
+
+  // Add effect to handle document initialization in edit mode
+  useEffect(() => {
+    if (isEdit && initialData?.documents?.length) {
+      // Initialize document files from existing documents
+      const files = initialData.documents.map(doc => {
+        if (doc.file_url) {
+          // Create a placeholder for existing files
+          return new File([], doc.file_url.split('/').pop() || 'document', {
+            type: 'application/octet-stream'
+          });
+        }
+        return null;
+      });
+      setDocumentFiles(files);
+    }
+  }, [isEdit, initialData]);
+
+  // Update document type handling for edit mode
   useEffect(() => {
     if (!formInitializedRef.current) {
-      const currentDocType = form.getValues("documentType");
+      const currentDocType = initialData?.documentType || form.getValues("documentType");
       if (currentDocType) {
         setDocumentType(currentDocType);
+        if (!isEdit) {
+          // Only reset documents for new entries
+          form.setValue("documents", []);
+          setDocumentFiles([]);
+        }
       }
       formInitializedRef.current = true;
     }
-  }, [form]);
-
-  // Update documentType state when form value changes
-  useEffect(() => {
-    const subscription = form.watch((value, { name }) => {
-      if (name === "documentType" && value.documentType) {
-        setDocumentType(value.documentType as "cpf" | "cnpj");
-        // Reset form initialization flag to force document reinitialization
-        formInitializedRef.current = false;
-        // Reset documents array
-        form.setValue("documents", []);
-        // Reset document files
-        setDocumentFiles([]);
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, [form, form.watch]);
+  }, [form, isEdit, initialData]);
 
   // Atualizar o estado de progresso do formulário
   useEffect(() => {
@@ -701,16 +839,6 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     control: form.control,
     name: "addresses"
   });
-
-  // Update documentType state when form value changes
-  useEffect(() => {
-    const subscription = form.watch((value, { name }) => {
-      if (name === "documentType") {
-        setDocumentType(value.documentType as "cpf" | "cnpj");
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, [form.watch]);
 
   // Document validation functions
   const validateDocument = (file: File): { isValid: boolean; error?: string } => {
@@ -743,8 +871,8 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
   
   // Validate required documents
   const validateRequiredDocuments = useCallback(() => {
-    if (!documentTypes?.length) {
-      return true; // Nothing to validate
+    if (isEdit || !documentTypes?.length) {
+      return true; // Skip validation in edit mode or when there are no document types
     }
 
     const entityType = documentType === "cpf" ? "professional" : "clinic";
@@ -845,7 +973,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     }
     
     return true;
-  }, [documentTypes, form, toast, documentType]);
+  }, [documentTypes, form, toast, documentType, isEdit]);
 
   useEffect(() => {
     const fetchClinics = async () => {
@@ -857,8 +985,8 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
 
       setLoadingClinics(true)
       try {
-        const response = await fetch("/api/clinics")
-        const data = await response.json()
+        const response = await api.get("/clinics")
+        const data = response.data?.data;
         setClinics(data)
       } catch (error) {
         toast({
@@ -874,8 +1002,8 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     const fetchSpecialties = async () => {
       setLoadingSpecialties(true)
       try {
-        const response = await fetch("/api/specialties")
-        const data = await response.json()
+        const response = await api.get("/specialties")
+        const data = response.data?.data;
         setSpecialties(data)
       } catch (error) {
         toast({
@@ -1027,10 +1155,11 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     }
   };
 
-  // Update validateTab to show toast on validation failure
+  // Update validateTab to skip validation in edit mode
   const validateTab = async (currentTab: string, nextTab: string) => {
-    // Se estiver indo para uma aba anterior, não precisa validar
+    // Se estiver em modo de edição ou indo para uma aba anterior, não precisa validar
     if (
+      isEdit ||
       (currentTab === "additional-info" && nextTab === "basic-info") ||
       (currentTab === "documents" && (nextTab === "basic-info" || nextTab === "additional-info"))
     ) {
@@ -1066,8 +1195,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                 ))}
               </div>
             ),
-            variant: "destructive",
-            duration: 5000
+            variant: "destructive"
           });
         }
         
@@ -1173,8 +1301,8 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     try {
       setLoading(true);
 
-      // Validar documentos obrigatórios primeiro
-      if (!validateRequiredDocuments()) {
+      // Skip document validation in edit mode
+      if (!isEdit && !validateRequiredDocuments()) {
         setLoading(false);
         return;
       }
@@ -1187,12 +1315,22 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
       
       // Adicionar campos básicos
       Object.entries(data).forEach(([key, value]) => {
-        if (key !== 'documents' && key !== 'addresses' && value !== null && value !== undefined) {
+        if (key !== 'documents' && key !== 'addresses' && key !== 'phones' && value !== null && value !== undefined) {
           if (key === 'cpf' && typeof value === 'string') {
             formData.append(key, unmask(value));
           } else if (key === 'cnpj' && typeof value === 'string') {
             formData.append(key, unmask(value));
-          } else if (typeof value !== 'object') {
+          } else if (key === 'phone' && typeof value === 'string') {
+            // Adicionar telefone principal como campo legado
+            formData.append(key, unmask(value));
+            
+            // Adicionar ao array de telefones
+            formData.append('phones[]', JSON.stringify({
+              number: unmask(value),
+              type: 'primary',
+              is_primary: true
+            }));
+          } else {
             formData.append(key, String(value));
           }
         }
@@ -1341,201 +1479,150 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
   const handleFormSubmit = async (data: FormValues) => {
     try {
       if (isEdit) {
-        // Se estiver editando, use o endpoint PUT
         const formData = new FormData();
-        
-        // Compare com initialData para enviar apenas campos modificados
         const changedFields = new Set<string>();
         
-        // Comparar campos básicos
+        // Comparar campos simples
         Object.keys(data).forEach(key => {
-          if (key !== 'documents' && key !== 'addresses') {
-            const initialValue = initialData?.[key as keyof FormValues];
+          if (key !== 'documents' && key !== 'addresses' && key !== 'phones') {
+            const initialValue = initialData?.[key as keyof typeof initialData];
             const newValue = data[key as keyof FormValues];
             
-            // Verificar se o valor mudou
-            if (JSON.stringify(initialValue) !== JSON.stringify(newValue) && newValue !== undefined && newValue !== null) {
+            if (
+              JSON.stringify(initialValue) !== JSON.stringify(newValue) && 
+              newValue !== undefined && 
+              newValue !== null && 
+              newValue !== ''
+            ) {
+              if (key === 'cpf' && typeof newValue === 'string') {
+                formData.append(key, unmask(newValue));
+              } else if (key === 'cnpj' && typeof newValue === 'string') {
+                formData.append(key, unmask(newValue));
+              } else if (key === 'phone' && typeof newValue === 'string') {
+                // Adicionar ao array de telefones
+                formData.append('phones[0][number]', unmask(newValue));
+                formData.append('phones[0][country_code]', '+55');
+                formData.append('phones[0][type]', 'mobile');
+                formData.append('phones[0][is_primary]', '1');
+                formData.append('phones[0][is_whatsapp]', '0');
+              } else if (key === 'trading_name') {
+                formData.append('description', newValue as string);
+              } else if (key === 'health_reg_number') {
+                formData.append('cnes', newValue as string);
+              } else {
+                formData.append(key, newValue as string);
+              }
               changedFields.add(key);
             }
           }
         });
 
         // Comparar endereços
-        if (data.addresses) {
+        if (data.addresses?.length) {
           const initialAddresses = initialData?.addresses || [];
-          const hasAddressChanges = data.addresses.some((addr: any, index: number) => {
+          const hasAddressChanges = data.addresses.some((addr: Address, index: number) => {
             const initialAddr = initialAddresses[index];
-            if (!initialAddr) return true; // Novo endereço
+            if (!initialAddr) return true;
             
-            return Object.keys(addr).some(key => addr[key] !== initialAddr[key]);
+            return Object.keys(addr).some(key => {
+              if (key === 'district') {
+                return addr[key] !== initialAddr.neighborhood;
+              }
+              if (key === 'is_main') {
+                return addr[key] !== initialAddr.is_primary;
+              }
+              return addr[key as keyof Address] !== initialAddr[key as keyof typeof initialAddr];
+            });
           });
           
           if (hasAddressChanges) {
+            data.addresses.forEach((address, index) => {
+              Object.entries(address).forEach(([key, value]) => {
+                if (key === 'postal_code') {
+                  formData.append(`addresses[${index}][${key}]`, unmask(String(value)));
+                } else if (key === 'is_main') {
+                  formData.append(`addresses[${index}][is_primary]`, value ? '1' : '0');
+                } else if (key === 'district') {
+                  formData.append(`addresses[${index}][neighborhood]`, String(value));
+                } else {
+                  formData.append(`addresses[${index}][${key}]`, String(value));
+                }
+              });
+            });
             changedFields.add('addresses');
           }
         }
 
-        // Adicionar professional_type se estiver nos campos alterados
-        if (changedFields.has('documentType')) {
-          formData.append('professional_type', data.documentType === "cpf" ? "individual" : "clinic");
-        }
-        
-        // Adicionar apenas campos básicos alterados
-        changedFields.forEach(key => {
-          const value = data[key as keyof FormValues];
-          if (value !== null && value !== undefined) {
-            if (key === 'cpf' && typeof value === 'string') {
-              formData.append(key, unmask(value));
-            } else if (key === 'cnpj' && typeof value === 'string') {
-              formData.append(key, unmask(value));
-            } else if (key === 'phone' && typeof value === 'string') {
-              formData.append(key, unmask(value));
-            } else if (typeof value !== 'object') {
-              formData.append(key, String(value));
-            }
-          }
-        });
+        // Processar documentos modificados
+        if (data.documents?.length) {
+          const documentsToSend: any[] = [];
+          const processedTypeIds = new Set();
 
-        // Adicionar endereços apenas se foram alterados
-        if (changedFields.has('addresses') && data.addresses) {
-          // Adicionar endereço principal como campos legados para compatibilidade
-          const mainAddress = data.addresses.find((addr: any) => addr.is_main === true) || data.addresses[0];
-          if (mainAddress) {
-            const fullAddress = `${mainAddress.street}, ${mainAddress.number}${mainAddress.complement ? ' - ' + mainAddress.complement : ''}, ${mainAddress.district}`;
-            formData.append('address', fullAddress);
-            formData.append('city', mainAddress.city);
-            formData.append('state', mainAddress.state);
-            formData.append('postal_code', unmask(mainAddress.postal_code));
-          }
-
-          // Adicionar array de endereços
-          data.addresses.forEach((address: any, index: number) => {
-            Object.entries(address).forEach(([key, value]) => {
-              if (key === 'postal_code') {
-                formData.append(`addresses[${index}][${key}]`, unmask(String(value)));
-              } else if (key === 'is_main') {
-                formData.append(`addresses[${index}][is_primary]`, value ? "1" : "0");
-              } else if (key === 'district') {
-                formData.append(`addresses[${index}][neighborhood]`, String(value));
-              } else {
-                formData.append(`addresses[${index}][${key}]`, String(value));
-              }
-            });
-          });
-        }
-
-        // Adicionar apenas documentos novos ou modificados
-        if (data.documents) {
-          let docCount = 0;
-          const processedTypeIds = new Set(); // Rastrear type_ids processados para evitar duplicatas
-
-          for (let i = 0; i < documentFiles.length; i++) {
-            const docFile = documentFiles[i];
+          for (let i = 0; i < data.documents.length; i++) {
             const docItem = data.documents[i];
+            const docFile = documentFiles[i];
             
-            if (!docItem || !docItem.type_id) continue;
-            
-            // Pular se já processamos este type_id
-            if (processedTypeIds.has(docItem.type_id)) continue;
+            if (!docItem || !docItem.type_id || processedTypeIds.has(docItem.type_id)) continue;
             processedTypeIds.add(docItem.type_id);
             
-            // Verificar se o documento foi modificado
-            const initialDoc = initialData?.documents?.[i];
-            const isModified = docFile instanceof File || 
+            const initialDoc = initialData?.documents?.find(d => d.type_id === docItem.type_id);
+            const isModified = 
+              docFile instanceof File || 
               !initialDoc || 
-              docItem.type_id !== initialDoc.type_id ||
               docItem.expiration_date !== initialDoc.expiration_date ||
               docItem.observation !== initialDoc.observation;
 
             if (isModified) {
-              // Mapear o type_id para o valor aceito pela API
-              const docType = documentTypeApiMap[Number(docItem.type_id)] || 'other';
-              
-              formData.append(`documents[${docCount}][type_id]`, String(docItem.type_id));
-              formData.append(`documents[${docCount}][type]`, docType);
-              
-              if (docFile instanceof File && docFile.size > 0) {
-                formData.append(`documents[${docCount}][file]`, docFile);
+              if (docFile instanceof File) {
+                formData.append(`documents[${documentsToSend.length}][file]`, docFile);
               }
-              
+              formData.append(`documents[${documentsToSend.length}][type_id]`, String(docItem.type_id));
               if (docItem.expiration_date) {
-                formData.append(`documents[${docCount}][expiration_date]`, docItem.expiration_date);
+                formData.append(`documents[${documentsToSend.length}][expiration_date]`, docItem.expiration_date);
               }
-              
               if (docItem.observation) {
-                formData.append(`documents[${docCount}][observation]`, docItem.observation);
+                formData.append(`documents[${documentsToSend.length}][observation]`, docItem.observation);
               }
-              
-              docCount++;
+              documentsToSend.push(docItem);
             }
           }
+        }
+
+        if (changedFields.size === 0) {
+          showToast(toast, {
+            title: "Nenhuma alteração",
+            description: "Não foram detectadas alterações para salvar.",
+            variant: "info"
+          });
+          return;
         }
 
         // Adicionar método _method para simular PUT
         formData.append('_method', 'PUT');
 
-        // Enviar apenas se houver alterações
-        if (Array.from(formData.entries()).length > 1) { // > 1 porque _method é sempre adicionado
-          const endpoint = documentType === "cpf" ? `/professionals/${entityId}` : `/clinics/${entityId}`;
-          
-          await api.put(endpoint, formData, {
-            headers: {
-              'Accept': 'application/json',
-              'Content-Type': 'multipart/form-data'
-            }
-          });
+        // Enviar requisição de atualização
+        const endpoint = data.documentType === "cpf" ? `/professionals/${entityId}` : `/clinics/${entityId}`;
+        const response = await api.put(endpoint, formData, {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'multipart/form-data'
+          }
+        });
 
-          showToast(toast, {
-            title: "Sucesso",
-            description: documentType === "cpf" ? "Profissional atualizado com sucesso" : "Clínica atualizada com sucesso",
-            variant: "success"
-          });
+        showToast(toast, {
+          title: "Sucesso",
+          description: data.documentType === "cpf" ? "Profissional atualizado com sucesso" : "Clínica atualizada com sucesso",
+          variant: "success"
+        });
 
-          router.push(documentType === "cpf" ? '/professionals' : '/clinics');
-        } else {
-          showToast(toast, {
-            title: "Nenhuma alteração",
-            description: "Nenhuma alteração foi detectada nos dados",
-            variant: "info"
-          });
-          router.push(documentType === "cpf" ? '/professionals' : '/clinics');
-        }
+        router.push('/professionals');
       } else {
         // Se não estiver editando, use a função original de criação
         await onSubmit(data);
       }
     } catch (error: any) {
       console.error("Erro ao processar formulário:", error);
-      
-      if (error.response?.data?.errors) {
-        const errorMessages = formatApiValidationErrors(error.response.data.errors);
-        
-        showToast(toast, {
-          title: "Erro de validação",
-          description: (
-            <div className="max-h-[200px] overflow-y-auto">
-              <p className="mb-2 font-semibold text-destructive">Por favor, corrija os seguintes erros:</p>
-              {errorMessages.map((message, index) => (
-                <div key={index} className="flex gap-2 items-start mb-1">
-                  <div className="mt-1 h-1.5 w-1.5 rounded-full bg-destructive shrink-0"></div>
-                  <p className="text-sm">{message}</p>
-                </div>
-              ))}
-            </div>
-          ),
-          variant: "destructive"
-        });
-      } else {
-        showToast(toast, {
-          title: "Erro",
-          description: error.message || "Ocorreu um erro ao processar o formulário",
-          variant: "destructive"
-        });
-      }
-      
-      if (!isEdit) {
-        throw error; // Re-throw para o parent lidar se não estiver em modo de edição
-      }
+      handleFormError(error);
     }
   };
 

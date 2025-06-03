@@ -20,11 +20,12 @@ import {
 } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
+import { Toaster } from '@/components/ui/toaster';
 import type { ApiResponse } from '@/app/types/api';
-
 import { 
   Negotiation, 
-  NegotiationStatus
+  NegotiationStatus,
+  type ForkGroupItem
 } from '@/services/negotiationService';
 
 import { negotiationService } from '@/services/negotiationService';
@@ -68,6 +69,16 @@ import {
 } from '@/components/ui/pagination';
 import { useAuth } from '@/contexts/auth-context';
 import { NegotiationItemActions } from '@/app/negotiations/components/NegotiationItemActions';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 interface PaginatedResponse<T> {
   data: T[];
@@ -148,6 +159,13 @@ export default function NegotiationList() {
     totalPages: 1,
     perPage: 10
   });
+  const [selectedNegotiation, setSelectedNegotiation] = useState<Negotiation | null>(null);
+  const [showForkDialog, setShowForkDialog] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<number[]>([]);
+  const [itemGroups, setItemGroups] = useState<ForkGroupItem[]>([
+    { name: '', items: [] },
+    { name: '', items: [] }
+  ]);
 
   const loadNegotiations = useCallback(async () => {
     try {
@@ -204,6 +222,61 @@ export default function NegotiationList() {
     setPagination(prev => ({ ...prev, currentPage: page }));
   };
 
+  const handleFork = async () => {
+    if (!selectedNegotiation) return;
+
+    try {
+      await negotiationService.forkNegotiation(selectedNegotiation.id, itemGroups);
+      
+      toast({
+        title: "Sucesso",
+        description: "Negociação bifurcada com sucesso",
+      });
+      
+      setShowForkDialog(false);
+      setItemGroups([
+        { name: '', items: [] },
+        { name: '', items: [] }
+      ]);
+      setSelectedNegotiation(null);
+      loadNegotiations();
+    } catch (error) {
+      console.error('Error forking negotiation:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao bifurcar negociação",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleItemGroupChange = (groupIndex: number, itemId: number) => {
+    setItemGroups(prev => {
+      const newGroups = [...prev];
+      const currentGroup = newGroups[groupIndex];
+      
+      // Remove item from all groups first
+      newGroups.forEach(group => {
+        group.items = group.items.filter(id => id !== itemId);
+      });
+      
+      // Add to selected group
+      if (!currentGroup.items.includes(itemId)) {
+        currentGroup.items.push(itemId);
+      }
+      
+      return newGroups;
+    });
+  };
+
+  const handleTitleChange = (groupIndex: number, title: string) => {
+    setItemGroups(prev => {
+      const newGroups = [...prev];
+      newGroups[groupIndex].name = title;
+      return newGroups;
+    });
+  };
+
   const handleAction = async (negotiation: Negotiation, action: string) => {
     try {
       switch (action) {
@@ -243,14 +316,14 @@ export default function NegotiationList() {
           });
           break;
         case 'fork':
-          await negotiationService.forkNegotiation(negotiation.id, []);
-          toast({
-            title: "Sucesso",
-            description: "Negociação bifurcada com sucesso",
-          });
+          setSelectedNegotiation(negotiation);
+          setSelectedItems([]);
+          setShowForkDialog(true);
           break;
       }
-      loadNegotiations();
+      if (action !== 'fork') {
+        loadNegotiations();
+      }
     } catch (error) {
       console.error('Error performing action:', error);
       toast({
@@ -428,6 +501,74 @@ export default function NegotiationList() {
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={showForkDialog} onOpenChange={setShowForkDialog}>
+        <DialogContent className="sm:max-w-[625px]">
+          <DialogHeader>
+            <DialogTitle>Bifurcar Negociação</DialogTitle>
+            <DialogDescription>
+              Divida os itens em pelo menos dois grupos para criar novas negociações
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-4">
+            {itemGroups.map((group, groupIndex) => (
+              <div key={groupIndex} className="border rounded-lg p-4">
+                <div className="mb-4">
+                  <Label htmlFor={`group-${groupIndex}-title`}>Título do Grupo {groupIndex + 1}</Label>
+                  <Input
+                    id={`group-${groupIndex}-title`}
+                    value={group.name}
+                    onChange={(e) => handleTitleChange(groupIndex, e.target.value)}
+                    placeholder="Digite o título da nova negociação"
+                    className="mt-1"
+                  />
+                </div>
+                <div className="space-y-2">
+                  {selectedNegotiation?.items.map((item) => (
+                    <div key={item.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`group-${groupIndex}-item-${item.id}`}
+                        checked={group.items.includes(item.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            handleItemGroupChange(groupIndex, item.id);
+                          }
+                        }}
+                      />
+                      <Label htmlFor={`group-${groupIndex}-item-${item.id}`} className="flex-1">
+                        {item.tuss.description} - {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(item.proposed_value))}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowForkDialog(false);
+                setItemGroups([
+                  { name: '', items: [] },
+                  { name: '', items: [] }
+                ]);
+                setSelectedNegotiation(null);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleFork}
+              disabled={itemGroups.some(group => !group.name || group.items.length === 0)}
+            >
+              Bifurcar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Toaster />
     </div>
   );
 };
