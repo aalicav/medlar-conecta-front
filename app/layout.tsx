@@ -3,7 +3,7 @@ import type React from "react"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProvider } from "@/contexts/auth-context"
-import { Toaster } from "sonner"
+import { Toaster } from "@/components/ui/toaster"
 import { MainLayout } from "@/components/layout"
 import "./globals.css"
 import { usePathname } from "next/navigation"
@@ -55,12 +55,7 @@ export default function RootLayout({
               ) : (
                 <>{children}</>
               )}
-              <Toaster 
-                position="top-right"
-                expand={false}
-                richColors
-                closeButton
-              />
+              <Toaster />
             </AuthProvider>
           </ThemeProvider>
         </QueryClientProvider>

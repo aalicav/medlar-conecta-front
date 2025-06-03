@@ -99,7 +99,7 @@ export function Sidebar({ className }: SidebarProps) {
       title: "Planos de Saúde",
       href: "/health-plans",
       icon: Building2,
-      roles: ["super_admin", "admin", "director", "commercial_manager", "plan_admin", "network_manager"],
+      roles: ["super_admin", "admin", "director", "commercial_manager", "network_manager"],
     },
     {
       title: "Cadastros",
@@ -129,7 +129,7 @@ export function Sidebar({ className }: SidebarProps) {
       title: "Negociações",
       href: "/negotiations",
       icon: GanttChart,
-      roles: ["super_admin", "admin", "director", "commercial_manager", "plan_admin", "clinic_admin", "professional"],
+      roles: ["super_admin", "admin", "director", "commercial_manager", "clinic_admin", "professional"],
     },
     {
       title: "Verificações de Valores",

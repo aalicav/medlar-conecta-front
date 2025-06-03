@@ -21,6 +21,7 @@ import debounce from "lodash/debounce"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useAuth } from "@/contexts/auth-context"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import estadosCidades from "@/hooks/estados-cidades.json"
 
 /**
  * TODO: TypeScript Type Issues
@@ -57,11 +58,10 @@ const formSchema = z.object({
   health_plan_id: z.string().min(1, "Selecione um plano de saúde"),
   patient_id: z.string().min(1, "Selecione um paciente"),
   tuss_id: z.string().min(1, "Selecione uma especialidade"),
-  description: z.string().min(1, "Digite uma descrição"),
+  description: z.string().optional(),
   preferred_date: z.date().optional(),
-  secondary_contact_name: z.string().optional(),
-  secondary_contact_phone: z.string().optional(),
-  secondary_contact_relationship: z.string().optional()
+  state: z.string().optional(),
+  city: z.string().optional()
 })
 
 // Infer the type from the schema
@@ -159,6 +159,8 @@ export function SolicitationForm({
   const [selectedProcedurePrice, setSelectedProcedurePrice] = useState<number | null>(null)
   const [tussProcedures, setTussProcedures] = useState<{ value: string; label: string; price?: number }[]>([])
   const [isLoadingTuss, setIsLoadingTuss] = useState(false)
+  const [selectedState, setSelectedState] = useState<string>("")
+  const [availableCities, setAvailableCities] = useState<string[]>([])
 
   // Read query params
   const healthPlanIdFromQuery = searchParams?.get('health_plan_id')
@@ -176,7 +178,9 @@ export function SolicitationForm({
       preferred_date: initialData?.preferred_date ? new Date(initialData.preferred_date) : undefined,
       secondary_contact_name: initialData?.secondary_contact_name || "",
       secondary_contact_phone: initialData?.secondary_contact_phone || "",
-      secondary_contact_relationship: initialData?.secondary_contact_relationship || ""
+      secondary_contact_relationship: initialData?.secondary_contact_relationship || "",
+      state: initialData?.state || "",
+      city: initialData?.city || ""
     },
   })
 
@@ -537,6 +541,35 @@ export function SolicitationForm({
     }
   }, 300);
 
+  // Atualizar cidades quando o estado for selecionado
+  useEffect(() => {
+    if (selectedState) {
+      const estado = estadosCidades.estados.find((e: any) => e.sigla === selectedState)
+      if (estado) {
+        setAvailableCities(estado.cidades)
+      } else {
+        setAvailableCities([])
+      }
+    } else {
+      setAvailableCities([])
+    }
+  }, [selectedState])
+
+  // Atualizar estado selecionado quando mudar no formulário
+  useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      if (name === 'state') {
+        setSelectedState(value.state as string)
+        // Limpar cidade se mudar o estado
+        if (value.state !== selectedState) {
+          form.setValue('city', '')
+        }
+      }
+    })
+    
+    return () => subscription.unsubscribe()
+  }, [form, selectedState])
+
   return (
     <Card>
       <CardHeader>
@@ -667,52 +700,6 @@ export function SolicitationForm({
                 )}
               />
 
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium">Contato Secundário (Opcional)</h3>
-                
-                <FormField
-                  control={form.control}
-                  name="secondary_contact_name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nome do Contato Secundário</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="Nome completo" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="secondary_contact_phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Telefone do Contato Secundário</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="(00) 00000-0000" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="secondary_contact_relationship"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Relação com o Paciente</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="Ex: Pai, Mãe, Filho(a), etc" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
               <FormField
                 control={form.control}
                 name="description"
@@ -724,6 +711,74 @@ export function SolicitationForm({
                   </FormItem>
                 )}
               />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="state"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Estado (Opcional)</FormLabel>
+                      <Select
+                        onValueChange={(value) => {
+                          field.onChange(value)
+                          setSelectedState(value)
+                        }}
+                        value={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o estado" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {estadosCidades.estados.map((estado: any) => (
+                            <SelectItem key={estado.sigla} value={estado.sigla}>
+                              {estado.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Selecione o estado para filtrar prestadores por localidade
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="city"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Cidade (Opcional)</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                        disabled={!selectedState}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder={selectedState ? "Selecione a cidade" : "Selecione um estado primeiro"} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {availableCities.map((cidade: string) => (
+                            <SelectItem key={cidade} value={cidade}>
+                              {cidade}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Selecione a cidade para filtrar prestadores por localidade
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <div className="flex justify-end space-x-4">
                 <Button

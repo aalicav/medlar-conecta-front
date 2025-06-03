@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { useForm, useFieldArray, Control, SubmitHandler, FieldValues } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { toast, useToast } from "@/components/ui/use-toast"
+import { useToast } from "@/components/ui/use-toast"
 import api from "@/services/api-client"
 import { applyCPFMask, applyPhoneMask, applyCEPMask, unmask } from "@/utils/masks"
 import estadosCidades from "@/hooks/estados-cidades.json"
@@ -29,6 +29,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { fetchResource, createResource } from "@/services/resource-service"
 import { DatePicker } from "@/components/ui/date-picker"
 import { DateInput } from "../ui/date-input"
+import { ToastIcon } from "@/components/ui/toast"
 
 // Estados brasileiros
 const BRAZILIAN_STATES = [
@@ -140,6 +141,60 @@ interface PatientFormProps {
   healthPlanId?: string;
 }
 
+// Função para traduzir mensagens de erro do backend
+const translateValidationError = (field: string, message: string) => {
+  // Tradução de campos
+  const fieldTranslations: Record<string, string> = {
+    name: "Nome",
+    cpf: "CPF",
+    email: "Email",
+    birth_date: "Data de nascimento",
+    gender: "Gênero",
+    health_plan_id: "Plano de saúde",
+    health_card_number: "Número da carteirinha",
+    address: "Endereço",
+    city: "Cidade",
+    state: "Estado",
+    postal_code: "CEP",
+    phones: "Telefones",
+    "phones.*.number": "Número do telefone",
+    "phones.*.type": "Tipo do telefone",
+    responsible_name: "Nome do responsável",
+    responsible_email: "Email do responsável",
+    responsible_phone: "Telefone do responsável",
+    secondary_contact_name: "Nome do contato secundário",
+    secondary_contact_phone: "Telefone do contato secundário",
+    secondary_contact_relationship: "Relacionamento do contato secundário"
+  }
+
+  // Tradução de mensagens comuns
+  const messageTranslations: Record<string, string> = {
+    "This field is required": "Este campo é obrigatório",
+    "Invalid email address": "Endereço de email inválido",
+    "The cpf field must be 11 characters": "O CPF deve ter 11 dígitos",
+    "The cpf has already been taken": "Este CPF já está cadastrado",
+    "The email has already been taken": "Este email já está cadastrado",
+    "The selected health plan id is invalid": "O plano de saúde selecionado é inválido",
+    "The birth date field is required": "A data de nascimento é obrigatória",
+    "The birth date is not a valid date": "A data de nascimento não é válida",
+    "The gender field is required": "O gênero é obrigatório",
+    "The selected gender is invalid": "O gênero selecionado é inválido",
+    "The health card number field is required when health plan id is present": "O número da carteirinha é obrigatório quando há plano de saúde",
+    "The phones field is required": "É necessário informar pelo menos um telefone",
+    "The phones.*.number field is required": "O número do telefone é obrigatório",
+    "The phones.*.type field is required": "O tipo do telefone é obrigatório",
+    "The selected phones.*.type is invalid": "O tipo de telefone selecionado é inválido"
+  }
+
+  // Traduzir o nome do campo
+  const translatedField = fieldTranslations[field] || field
+
+  // Traduzir a mensagem de erro
+  const translatedMessage = messageTranslations[message] || message
+
+  return `${translatedField}: ${translatedMessage}`
+}
+
 export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPlanId }: PatientFormProps) {
   const router = useRouter()
   const { hasPermission, hasRole } = useAuth()
@@ -150,7 +205,7 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
   const [selectedHealthPlanName, setSelectedHealthPlanName] = useState<string>("")
   const [selectedState, setSelectedState] = useState<string>("")
   const [availableCities, setAvailableCities] = useState<string[]>([])
-  const { toast: useToastToast } = useToast()
+  const { toast } = useToast()
   const [showSecondaryContact, setShowSecondaryContact] = useState(false)
   
   // Verificar se usuário tem permissão para gerenciar pacientes
@@ -400,6 +455,15 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
     try {
       setIsSubmitting(true);
       
+      // Toast de processamento
+      toast({
+        title: "Processando...",
+        description: patientId 
+          ? "Atualizando dados do paciente" 
+          : "Cadastrando novo paciente",
+        variant: "info"
+      });
+
       // Preparar dados para envio usando FormData
       const formData = new FormData();
       
@@ -448,23 +512,63 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
       }
 
       if (response.status === 200 || response.status === 201) {
+        // Feedback de sucesso com detalhes
+        const patientData = response.data.data || response.data;
+        const successMessage = patientId
+          ? `Paciente ${patientData.name} atualizado com sucesso`
+          : `Paciente ${patientData.name} cadastrado com sucesso`;
+          
         toast({
-          title: patientId ? "Paciente atualizado" : "Paciente cadastrado",
-          description: patientId ? "O paciente foi atualizado com sucesso" : "O paciente foi cadastrado com sucesso",
-          variant: "success"
+          title: "Sucesso!",
+          description: (
+            <div className="flex flex-col gap-2">
+              <p>{successMessage}</p>
+              <p className="text-sm text-muted-foreground">
+                {patientData.health_plan_id ? "Plano de saúde vinculado" : "Paciente particular"}
+              </p>
+            </div>
+          ),
+          variant: "success",
+          duration: 5000
         });
         
-        // Usar o callback onSuccess ao invés de router.push
-        const patientData = response.data.data || response.data;
+        // Usar o callback onSuccess
         onSuccess(patientData);
       }
     } catch (error: any) {
       console.error("Erro ao salvar paciente:", error);
-      const errorMsg = error.response?.data?.message || "Erro ao salvar o paciente";
+      
+      // Tratamento detalhado de erros
+      let errorMessage = "Erro ao salvar o paciente";
+      let errorDetails = "";
+      
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      
+      // Verificar erros de validação específicos
+      if (error.response?.data?.errors) {
+        errorDetails = Object.entries(error.response.data.errors)
+          .map(([field, messages]) => {
+            // Se messages é um array, pega a primeira mensagem
+            const message = Array.isArray(messages) ? messages[0] : messages;
+            return translateValidationError(field, message as string);
+          })
+          .join('\n');
+      }
+      
       toast({
-        title: "Erro",
-        description: errorMsg,
-        variant: "destructive"
+        title: "Erro ao salvar paciente",
+        description: (
+          <div className="flex flex-col gap-2">
+            <p className="font-semibold text-white">{errorMessage}</p>
+            {errorDetails && (
+              <p className="text-sm whitespace-pre-line text-white/90">{errorDetails}</p>
+            )}
+          </div>
+        ),
+        variant: "destructive",
+        duration: 7000
       });
       
       // Chamar onError se fornecido
@@ -1004,11 +1108,24 @@ export function PatientForm({ patientId, onSuccess, onError, onCancel, healthPla
               <Button 
                 type="submit" 
                 disabled={isSubmitting}
+                className="relative"
               >
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {patientId ? "Atualizando..." : "Salvando..."}
+                    <span className="relative">
+                      {patientId ? (
+                        <>
+                          Atualizando
+                          <span className="absolute -right-12 animate-pulse">...</span>
+                        </>
+                      ) : (
+                        <>
+                          Salvando
+                          <span className="absolute -right-12 animate-pulse">...</span>
+                        </>
+                      )}
+                    </span>
                   </>
                 ) : (
                   patientId ? "Atualizar Paciente" : "Salvar Paciente"
