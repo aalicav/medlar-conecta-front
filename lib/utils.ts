@@ -5,8 +5,22 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat("pt-BR").format(date);
+export function formatDate(date: string | Date | null | undefined): string {
+  if (!date) return '';
+  
+  try {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    if (isNaN(dateObj.getTime())) return '';
+    
+    return new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    }).format(dateObj);
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return '';
+  }
 }
 
 export function formatMoney(value: number): string {

@@ -57,63 +57,8 @@ export default function NewHealthPlanPage() {
         </div>
       </div>
 
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-lg font-medium">Tipo de Plano</CardTitle>
-          <CardDescription>
-            Selecione se este é um plano independente ou um plano filho de outro plano
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-6">
-            <div className="flex items-center space-x-4">
-              <Switch
-                id="child-plan"
-                checked={isChildPlan}
-                onCheckedChange={setIsChildPlan}
-              />
-              <Label htmlFor="child-plan" className="font-medium">
-                Este é um plano filho
-              </Label>
-            </div>
-
-            {isChildPlan && (
-              <div className="space-y-2">
-                <Label htmlFor="parent-plan">Selecione o Plano Pai</Label>
-                <Select
-                  value={selectedParentId}
-                  onValueChange={setSelectedParentId}
-                  disabled={loadingParents}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder={loadingParents ? "Carregando..." : "Selecione um plano pai"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {parentPlans?.map((plan: any) => (
-                      <SelectItem key={plan.id} value={plan.id}>
-                        {plan.name}
-                        {plan.status === 'approved' && (
-                          <span className="ml-2 text-xs text-green-600">
-                            (Aprovado)
-                          </span>
-                        )}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-sm text-muted-foreground">
-                  Apenas planos aprovados podem ser selecionados como plano pai
-                </p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
       <div className="bg-muted/30 rounded-lg p-6">
         <HealthPlanForm 
-          isChildPlan={isChildPlan} 
-          parentPlanId={selectedParentId}
         />
       </div>
       

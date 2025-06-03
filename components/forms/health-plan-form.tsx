@@ -113,115 +113,87 @@ interface DocumentField {
   observation?: string;
 }
 
-// Atualizar o schema do documento - versão simplificada para evitar problemas com arquivos existentes
+// Update the document schema to match BaseFormFields type
 const documentSchema = z.object({
-  type_id: z.number({
-    required_error: "Tipo de documento é obrigatório",
-  }),
-  // Use z.any() para aceitar qualquer valor (incluindo null, File, ou undefined)
-  // A validação será feita manualmente em validateRequiredDocuments
+  type_id: z.number(),
   file: z.any(),
   file_url: z.string().optional(),
   expiration_date: z.string().optional(),
-  observation: z.string().optional()
+  observation: z.string().optional(),
 });
 
-// Update the form schema to handle conditional fields
+type DocumentType = z.infer<typeof documentSchema>;
+
+// Update the form schema to match BaseFormFields
+const getFormSchema = (): z.ZodType<FormValues> => {
+  return z.object({
+    name: z.string().min(1, "Nome é obrigatório"),
+    email: z.string().email("E-mail inválido"),
+    addresses: z.array(z.object({
+      address: z.string().min(1, "Endereço é obrigatório"),
+      city: z.string().min(1, "Cidade é obrigatória"),
+      state: z.string().min(2, "Estado é obrigatório"),
+      postal_code: z.string().min(8, "CEP inválido"),
+      type: z.enum(['main', 'billing', 'correspondence'], {
+        required_error: "Tipo de endereço é obrigatório"
+      })
+    })).min(1, "Pelo menos um endereço é obrigatório"),
+    phones: z.array(z.object({
+      number: z.string().min(1, "Número de telefone é obrigatório"),
+      type: z.enum(['mobile', 'landline', 'whatsapp', 'fax'], {
+        required_error: "Tipo de telefone é obrigatório"
+      })
+    })),
+    cnpj: z.string().min(14, "CNPJ inválido"),
+    municipal_registration: z.string()
+      .min(1, "Inscrição municipal é obrigatória")
+      .max(15, "Inscrição municipal deve ter no máximo 15 caracteres")
+      .regex(/^\d+$/, "Inscrição municipal deve conter apenas números"),
+    ans_code: z.string().min(1, "Código ANS é obrigatório"),
+    description: z.string(),
+    legal_representative_name: z.string().min(1, "Nome do representante legal é obrigatório"),
+    legal_representative_cpf: z.string().min(11, "CPF inválido"),
+    legal_representative_position: z.string().min(1, "Cargo do representante legal é obrigatório"),
+    legal_representative_email: z.string().email("E-mail do representante legal inválido"),
+    operational_representative_name: z.string().min(1, "Nome do representante operacional é obrigatório"),
+    operational_representative_cpf: z.string().min(11, "CPF inválido"),
+    operational_representative_position: z.string().min(1, "Cargo do representante operacional é obrigatório"),
+    operational_representative_email: z.string().email("E-mail do representante operacional inválido"),
+    documents: z.array(documentSchema).min(0),
+  });
+};
+
 type BaseFormFields = {
   name: string;
   email: string;
-  address: string;
-  city: string;
-  state: string;
-  postal_code: string;
+  addresses: {
+    address: string;
+    city: string;
+    state: string;
+    postal_code: string;
+    type: 'main' | 'billing' | 'correspondence';
+  }[];
   phones: {
     number: string;
     type: 'mobile' | 'landline' | 'whatsapp' | 'fax';
   }[];
   logo?: File | null;
-};
-
-type ParentFormFields = BaseFormFields & {
   cnpj: string;
-  municipal_registration?: string;
-  password?: string;
+  municipal_registration: string;
   ans_code: string;
   description: string;
   legal_representative_name: string;
   legal_representative_cpf: string;
   legal_representative_position: string;
   legal_representative_email: string;
-  legal_representative_password?: string;
-  legal_representative_password_confirmation?: string;
   operational_representative_name: string;
   operational_representative_cpf: string;
   operational_representative_position: string;
   operational_representative_email: string;
-  operational_representative_password?: string;
-  operational_representative_password_confirmation?: string;
-  documents: {
-    type_id: number;
-    file: File | null;
-    file_url?: string;
-    expiration_date?: string;
-    observation?: string;
-  }[];
+  documents: DocumentType[];
 };
 
-type FormValues = BaseFormFields | ParentFormFields;
-
-// Update the form schema based on isChildPlan
-const getFormSchema = (isChildPlan: boolean): z.ZodType<FormValues> => {
-  const baseSchema = {
-    name: z.string().min(1, "Nome é obrigatório"),
-    email: z.string().email("E-mail inválido"),
-    address: z.string().min(1, "Endereço é obrigatório"),
-    city: z.string().min(1, "Cidade é obrigatória"),
-    state: z.string().min(2, "Estado é obrigatório"),
-    postal_code: z.string().min(8, "CEP inválido"),
-    phones: z.array(z.object({
-      number: z.string().min(1, "Número de telefone é obrigatório"),
-      type: z.enum(['mobile', 'landline', 'whatsapp', 'fax'], {
-        required_error: "Tipo de telefone é obrigatório"
-      })
-    }))
-  };
-
-  if (!isChildPlan) {
-    return z.object({
-      ...baseSchema,
-      cnpj: z.string().min(14, "CNPJ inválido"),
-      municipal_registration: z.string()
-        .min(1, "Inscrição municipal é obrigatória")
-        .max(15, "Inscrição municipal deve ter no máximo 15 caracteres")
-        .regex(/^\d+$/, "Inscrição municipal deve conter apenas números"),
-      password: z.string().optional(),
-      ans_code: z.string().min(1, "Código ANS é obrigatório"),
-      description: z.string(),
-      legal_representative_name: z.string().min(1, "Nome do representante legal é obrigatório"),
-      legal_representative_cpf: z.string().min(11, "CPF inválido"),
-      legal_representative_position: z.string().min(1, "Cargo do representante legal é obrigatório"),
-      legal_representative_email: z.string().email("E-mail do representante legal inválido"),
-      legal_representative_password: z.string().optional(),
-      legal_representative_password_confirmation: z.string().optional(),
-      operational_representative_name: z.string().min(1, "Nome do representante operacional é obrigatório"),
-      operational_representative_cpf: z.string().min(11, "CPF inválido"),
-      operational_representative_position: z.string().min(1, "Cargo do representante operacional é obrigatório"),
-      operational_representative_email: z.string().email("E-mail do representante operacional inválido"),
-      operational_representative_password: z.string().optional(),
-      operational_representative_password_confirmation: z.string().optional(),
-      documents: z.array(z.object({
-        type_id: z.number(),
-        file: z.any(),
-        file_url: z.string().optional(),
-        expiration_date: z.string().optional(),
-        observation: z.string().optional(),
-      })).optional(),
-    });
-  }
-
-  return z.object(baseSchema);
-};
+type FormValues = BaseFormFields;
 
 // Interfaces para Campos Field Array
 interface ProcedureField {
@@ -246,64 +218,117 @@ interface TussProcedure {
 interface HealthPlanFormProps {
   healthPlanId?: number;
   initialData?: any;
-  isChildPlan?: boolean;
-  parentPlanId?: string;
 }
 
 // Adicionar um tradutor de mensagens de erro
 const translateError = (errorMsg: string): string => {
-  // Mapeamento de erros comuns de validação do Laravel
   const errorTranslations: Record<string, string> = {
-    // Erros genéricos
+    // Códigos HTTP
+    '422': 'Erro de validação',
+    '401': 'Não autorizado',
+    '403': 'Acesso negado',
+    '404': 'Não encontrado',
+    '500': 'Erro interno do servidor',
+
+    // Erros gerais
+    'The given data was invalid': 'Os dados fornecidos são inválidos',
     'Validation error': 'Erro de validação',
+    'Server error': 'Erro no servidor',
+    'Network error': 'Erro de conexão',
     'Failed to create health plan': 'Falha ao criar plano de saúde',
     'Failed to update health plan': 'Falha ao atualizar plano de saúde',
-    'The given data was invalid': 'Os dados fornecidos são inválidos',
-    
-    // Campos específicos
-    'The name field is required': 'O campo nome é obrigatório',
-    'The cnpj field is required': 'O campo CNPJ é obrigatório',
-    'The cnpj has already been taken': 'Este CNPJ já está cadastrado',
-    'The email field is required': 'O campo e-mail é obrigatório',
-    'The email must be a valid email address': 'O e-mail deve ser um endereço válido',
-    'The email has already been taken': 'Este e-mail já está em uso',
-    'The legal representative email has already been taken': 'O e-mail do representante legal já está em uso',
-    'The operational representative email has already been taken': 'O e-mail do representante operacional já está em uso',
-    'The legal representative name field is required': 'O nome do representante legal é obrigatório',
-    'The legal representative cpf field is required': 'O CPF do representante legal é obrigatório',
-    'The legal representative position field is required': 'O cargo do representante legal é obrigatório',
-    'The legal representative email field is required': 'O e-mail do representante legal é obrigatório',
-    'The legal representative password field is required': 'A senha do representante legal é obrigatória',
-    'The operational representative name field is required': 'O nome do representante operacional é obrigatório',
-    'The operational representative cpf field is required': 'O CPF do representante operacional é obrigatório',
-    'The operational representative position field is required': 'O cargo do representante operacional é obrigatório',
-    'The operational representative email field is required': 'O e-mail do representante operacional é obrigatório',
-    'The operational representative password field is required': 'A senha do representante operacional é obrigatória',
-    'The address field is required': 'O campo endereço é obrigatório',
-    'The city field is required': 'O campo cidade é obrigatório',
-    'The state field is required': 'O campo estado é obrigatório',
-    'The postal code field is required': 'O campo CEP é obrigatório',
-    'The password must be at least 8 characters': 'A senha deve ter no mínimo 8 caracteres',
-    'The password confirmation does not match': 'A confirmação de senha não corresponde',
-    'The legal representative password confirmation does not match': 'A confirmação de senha do representante legal não corresponde',
-    'The operational representative password confirmation does not match': 'A confirmação de senha do representante operacional não corresponde',
-    'Validation failed': 'Falha na validação',
     'Unauthorized': 'Não autorizado',
+    'Access denied': 'Acesso negado',
+    'Not found': 'Não encontrado',
+
+    // Campos básicos
+    'The name field is required': 'O nome é obrigatório',
+    'The email field is required': 'O e-mail é obrigatório',
+    'The email must be a valid email address': 'O e-mail deve ser válido',
+    'The email has already been taken': 'Este e-mail já está em uso',
+    'The cnpj field is required': 'O CNPJ é obrigatório',
+    'The cnpj has already been taken': 'Este CNPJ já está cadastrado',
+    'The cnpj must be a valid cnpj': 'O CNPJ deve ser válido',
+    'The municipal_registration field is required': 'A inscrição municipal é obrigatória',
+    'The municipal_registration must be numeric': 'A inscrição municipal deve conter apenas números',
+    'The municipal_registration must not be greater than 15 characters': 'A inscrição municipal deve ter no máximo 15 caracteres',
+    'The ans_code field is required': 'O código ANS é obrigatório',
+    'The ans_code has already been taken': 'Este código ANS já está cadastrado',
+    'The description field is required': 'A descrição é obrigatória',
+
+    // Endereços
+    'The addresses field is required': 'É necessário informar pelo menos um endereço',
+    'The addresses field must be an array': 'O campo endereços deve ser uma lista',
+    'The addresses.*.type field is required': 'O tipo do endereço é obrigatório',
+    'The addresses.*.address field is required': 'O endereço é obrigatório',
+    'The addresses.*.city field is required': 'A cidade é obrigatória',
+    'The addresses.*.state field is required': 'O estado é obrigatório',
+    'The addresses.*.postal_code field is required': 'O CEP é obrigatório',
+    'The addresses.*.postal_code must be a valid postal code': 'O CEP deve ser válido',
+    'The addresses must contain at least one address': 'É necessário informar pelo menos um endereço',
+    'Invalid address type': 'Tipo de endereço inválido',
+
+    // Telefones
+    'The phones field is required': 'É necessário informar pelo menos um telefone',
+    'The phones.*.number field is required': 'O número do telefone é obrigatório',
+    'The phones.*.type field is required': 'O tipo do telefone é obrigatório',
+    'The phones.*.number must be a valid phone number': 'O número do telefone deve ser válido',
+    'Invalid phone type': 'Tipo de telefone inválido',
+
+    // Representante Legal
+    'The legal_representative_name field is required': 'O nome do representante legal é obrigatório',
+    'The legal_representative_cpf field is required': 'O CPF do representante legal é obrigatório',
+    'The legal_representative_cpf must be a valid cpf': 'O CPF do representante legal deve ser válido',
+    'The legal_representative_position field is required': 'O cargo do representante legal é obrigatório',
+    'The legal_representative_email field is required': 'O e-mail do representante legal é obrigatório',
+    'The legal_representative_email must be a valid email address': 'O e-mail do representante legal deve ser válido',
+    'The legal_representative_email has already been taken': 'Este e-mail do representante legal já está em uso',
+
+    // Representante Operacional
+    'The operational_representative_name field is required': 'O nome do representante operacional é obrigatório',
+    'The operational_representative_cpf field is required': 'O CPF do representante operacional é obrigatório',
+    'The operational_representative_cpf must be a valid cpf': 'O CPF do representante operacional deve ser válido',
+    'The operational_representative_position field is required': 'O cargo do representante operacional é obrigatório',
+    'The operational_representative_email field is required': 'O e-mail do representante operacional é obrigatório',
+    'The operational_representative_email must be a valid email address': 'O e-mail do representante operacional deve ser válido',
+    'The operational_representative_email has already been taken': 'Este e-mail do representante operacional já está em uso',
+
+    // Documentos
+    'The documents field is required': 'É necessário anexar os documentos obrigatórios',
+    'The documents.*.type_id field is required': 'O tipo do documento é obrigatório',
+    'The documents.*.file field is required': 'O arquivo do documento é obrigatório',
+    'The documents.*.expiration_date field is required': 'A data de expiração do documento é obrigatória',
+    'The documents.*.expiration_date must be a valid date': 'A data de expiração do documento deve ser válida',
+    'The documents.*.expiration_date must be a date after today': 'A data de expiração do documento deve ser futura',
+    'The documents.*.observation field is required': 'A observação do documento é obrigatória',
+    'Invalid document type': 'Tipo de documento inválido',
+    'Document file is too large': 'O arquivo do documento é muito grande',
+    'Invalid document file type': 'Tipo de arquivo inválido',
+
+    // Validações de formato
+    'must be a string': 'deve ser texto',
+    'must be a number': 'deve ser um número',
+    'must be a valid date': 'deve ser uma data válida',
+    'must be a valid email address': 'deve ser um e-mail válido',
+    'must be a valid phone number': 'deve ser um número de telefone válido',
+    'must be a valid postal code': 'deve ser um CEP válido',
+    'must be a valid cpf': 'deve ser um CPF válido',
+    'must be a valid cnpj': 'deve ser um CNPJ válido',
+    'is required': 'é obrigatório',
+    'has already been taken': 'já está em uso',
+    'must be at least': 'deve ter pelo menos',
+    'must not be greater than': 'não deve ser maior que',
+    'characters': 'caracteres',
+    'must be one of the following values': 'deve ser um dos seguintes valores',
+    'must be a valid': 'deve ser válido',
+    'Invalid value': 'Valor inválido',
+
+    // Erros de arquivo
     'The logo must be an image': 'O logo deve ser uma imagem',
     'The logo must not be greater than 2048 kilobytes': 'O logo deve ter no máximo 2MB',
-    'Failed to upload documents': 'Falha ao enviar documentos',
-    'Field is required': 'Campo obrigatório',
-    'must be string': 'deve ser texto',
-    'must be an email address': 'deve ser um endereço de e-mail válido',
-    'Documentos Obrigatórios': 'Documentos Obrigatórios',
-    
-    // Mensagens para o botão de debug
-    'Validação': 'Validação',
-    'Formulário contém erros. Verifique os campos.': 'Formulário contém erros. Verifique os campos destacados em vermelho.',
-    'Validação OK': 'Validação Bem-Sucedida',
-    'Falha na Validação': 'Falha na Validação',
-    'Todos os documentos obrigatórios foram fornecidos': 'Todos os documentos obrigatórios foram fornecidos corretamente.',
-    'Existem problemas com os documentos obrigatórios': 'Há problemas com os documentos obrigatórios. Verifique os campos destacados.'
+    'Failed to upload file': 'Falha ao enviar arquivo',
+    'File is too large': 'O arquivo é muito grande',
+    'Invalid file type': 'Tipo de arquivo inválido'
   };
 
   // Tentar encontrar tradução exata
@@ -313,81 +338,71 @@ const translateError = (errorMsg: string): string => {
 
   // Procurar por correspondências parciais
   for (const [key, translation] of Object.entries(errorTranslations)) {
-    if (errorMsg.includes(key)) {
-      return errorMsg.replace(key, translation);
+    if (errorMsg.toLowerCase().includes(key.toLowerCase())) {
+      return errorMsg.replace(new RegExp(key, 'i'), translation);
     }
   }
 
-  // Para erros de campo específicos no formato Laravel
-  const fieldRegex = /The (\w+) field is required/;
-  const match = errorMsg.match(fieldRegex);
-  if (match) {
-    const field = match[1];
-    const fieldTranslations: Record<string, string> = {
-      name: 'nome',
-      cnpj: 'CNPJ',
-      email: 'e-mail',
-      password: 'senha',
-      ans_code: 'código ANS',
-      description: 'descrição',
-      address: 'endereço',
-      city: 'cidade',
-      state: 'estado',
-      postal_code: 'CEP'
-    };
-    
-    const translatedField = fieldTranslations[field] || field;
-    return `O campo ${translatedField} é obrigatório`;
+  // Tratar erros de campo específicos
+  const fieldMatch = errorMsg.match(/The (\w+) field is required/i);
+  if (fieldMatch) {
+    const field = fieldMatch[1].replace(/_/g, ' ');
+    return `O campo ${field} é obrigatório`;
   }
 
-  // Retornar a mensagem original se não houver tradução
+  // Tratar erros de tamanho máximo
+  const maxLengthMatch = errorMsg.match(/The (\w+) may not be greater than (\d+) characters/i);
+  if (maxLengthMatch) {
+    const [, field, length] = maxLengthMatch;
+    const fieldName = field.replace(/_/g, ' ');
+    return `O campo ${fieldName} não pode ter mais que ${length} caracteres`;
+  }
+
+  // Tratar erros de tamanho mínimo
+  const minLengthMatch = errorMsg.match(/The (\w+) must be at least (\d+) characters/i);
+  if (minLengthMatch) {
+    const [, field, length] = minLengthMatch;
+    const fieldName = field.replace(/_/g, ' ');
+    return `O campo ${fieldName} deve ter pelo menos ${length} caracteres`;
+  }
+
+  // Se nenhuma tradução for encontrada, retornar a mensagem original
   return errorMsg;
 };
 
-// Função para processar e traduzir erros da API
+// Atualizar a função de processamento de erros da API
 const processApiErrors = (error: any): string => {
   console.log("Processando erro da API:", error);
   
-  if (error.response?.data?.errors) {
-    // Processar múltiplos erros de validação do Laravel
-    const errorMessages: string[] = [];
+  if (error.response?.status === 422 && error.response?.data?.errors) {
     const errors = error.response.data.errors;
+    const errorMessages: string[] = [];
     
-    Object.keys(errors).forEach(field => {
-      // Traduzir o nome do campo
-      const fieldTranslations: Record<string, string> = {
-        name: 'Nome',
-        cnpj: 'CNPJ',
-        email: 'E-mail',
-        password: 'Senha',
-        ans_code: 'Código ANS',
-        description: 'Descrição',
-        address: 'Endereço',
-        city: 'Cidade',
-        state: 'Estado',
-        postal_code: 'CEP',
-        legal_representative_name: 'Nome do Representante Legal',
-        legal_representative_cpf: 'CPF do Representante Legal',
-        legal_representative_email: 'E-mail do Representante Legal',
-        operational_representative_name: 'Nome do Representante Operacional',
-        operational_representative_cpf: 'CPF do Representante Operacional',
-        operational_representative_email: 'E-mail do Representante Operacional'
-      };
-      
-      const translatedField = fieldTranslations[field] || field;
-      
-      errors[field].forEach((errorMsg: string) => {
-        const translatedMsg = translateError(errorMsg);
-        errorMessages.push(`${translatedField}: ${translatedMsg}`);
-      });
+    Object.entries(errors).forEach(([field, messages]) => {
+      if (Array.isArray(messages)) {
+        messages.forEach((message: string) => {
+          const translatedMessage = translateError(message);
+          // Evitar mensagens duplicadas
+          if (!errorMessages.includes(translatedMessage)) {
+            errorMessages.push(translatedMessage);
+          }
+        });
+      } else if (typeof messages === 'string') {
+        const translatedMessage = translateError(messages);
+        if (!errorMessages.includes(translatedMessage)) {
+          errorMessages.push(translatedMessage);
+        }
+      }
     });
     
     return errorMessages.join('. ');
-  } else if (error.response?.data?.message) {
-    // Processar mensagem de erro única
+  }
+  
+  if (error.response?.data?.message) {
     return translateError(error.response.data.message);
-  } else if (error.message) {
-    // Processar mensagem de erro genérica
+  }
+  
+  if (error.message) {
     return translateError(error.message);
   }
   
@@ -450,7 +465,7 @@ const translateValidationError = (field: string, message: string): string => {
   return `${translatedField}: ${translatedMessage}`;
 };
 
-export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false, parentPlanId }: HealthPlanFormProps) {
+export function HealthPlanForm({ healthPlanId, initialData }: HealthPlanFormProps) {
   const router = useRouter();
   const { hasPermission } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -468,41 +483,41 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
   const FORM_STORAGE_KEY = `health-plan-form-${healthPlanId || 'new'}`;
   const canCreateHealthPlan = hasPermission("create health plans");
 
-  // Initialize form with the correct schema based on isChildPlan
+  // Initialize form with the updated schema
   const form = useForm<FormValues>({
-    resolver: zodResolver(getFormSchema(isChildPlan)),
+    resolver: zodResolver(getFormSchema()),
     defaultValues: {
       name: initialData?.name || "",
       email: initialData?.email || "",
-      address: initialData?.address || "",
-      city: initialData?.city || "",
-      state: initialData?.state || "",
-      postal_code: initialData?.postal_code || "",
-      phones: initialData?.phones || [{ number: "", type: "mobile" }],
-      ...(isChildPlan ? {} : {
-        cnpj: initialData?.cnpj || "",
-        municipal_registration: initialData?.municipal_registration || "",
-        password: "",
-        ans_code: initialData?.ans_code || "",
-        description: initialData?.description || "",
-        legal_representative_name: initialData?.legal_representative_name || "",
-        legal_representative_cpf: initialData?.legal_representative_cpf || "",
-        legal_representative_position: initialData?.legal_representative_position || "",
-        legal_representative_email: initialData?.legal_representative_email || "",
-        legal_representative_password: "",
-        legal_representative_password_confirmation: "",
-        operational_representative_name: initialData?.operational_representative_name || "",
-        operational_representative_cpf: initialData?.operational_representative_cpf || "",
-        operational_representative_position: initialData?.operational_representative_position || "",
-        operational_representative_email: initialData?.operational_representative_email || "",
-        operational_representative_password: "",
-        operational_representative_password_confirmation: "",
-        documents: initialData?.documents || [],
-      })
+      addresses: Array.isArray(initialData?.addresses) && initialData.addresses.length > 0 
+        ? initialData.addresses 
+        : [{ address: "", city: "", state: "", postal_code: "", type: "main" }],
+      phones: Array.isArray(initialData?.phones) && initialData.phones.length > 0
+        ? initialData.phones
+        : [{ number: "", type: "mobile" }],
+      cnpj: initialData?.cnpj || "",
+      municipal_registration: initialData?.municipal_registration || "",
+      ans_code: initialData?.ans_code || "",
+      description: initialData?.description || "",
+      legal_representative_name: initialData?.legal_representative_name || "",
+      legal_representative_cpf: initialData?.legal_representative_cpf || "",
+      legal_representative_position: initialData?.legal_representative_position || "",
+      legal_representative_email: initialData?.legal_representative_email || "",
+      operational_representative_name: initialData?.operational_representative_name || "",
+      operational_representative_cpf: initialData?.operational_representative_cpf || "",
+      operational_representative_position: initialData?.operational_representative_position || "",
+      operational_representative_email: initialData?.operational_representative_email || "",
+      documents: initialData?.documents || [],
     },
     mode: "onBlur",
     criteriaMode: "all",
     shouldFocusError: true
+  });
+
+  // Adicionar o useFieldArray para addresses similar ao phones
+  const { fields: addressFields, append: appendAddress, remove: removeAddress } = useFieldArray({
+    control: form.control,
+    name: "addresses"
   });
 
   // Handle form submission
@@ -525,9 +540,18 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
         data.append(`phones[${index}][number]`, phone.number);
         data.append(`phones[${index}][type]`, phone.type);
       });
+
+      // Add addresses
+      formData.addresses.forEach((address, index) => {
+        data.append(`addresses[${index}][address]`, address.address);
+        data.append(`addresses[${index}][city]`, address.city);
+        data.append(`addresses[${index}][state]`, address.state);
+        data.append(`addresses[${index}][postal_code]`, address.postal_code);
+        data.append(`addresses[${index}][type]`, address.type);
+      });
       
-      // Add documents for parent plans
-      if (!isChildPlan && 'documents' in formData) {
+      // Add documents
+      if ('documents' in formData) {
         formData.documents.forEach((doc, index) => {
           if (doc.file) {
             data.append(`documents[${index}][file]`, doc.file);
@@ -542,11 +566,6 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
             data.append(`documents[${index}][observation]`, doc.observation);
           }
         });
-      }
-      
-      // Add parent_id for child plans
-      if (isChildPlan && parentPlanId) {
-        data.append('parent_id', parentPlanId);
       }
       
       // Add logo if present
@@ -831,13 +850,11 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
       let tabToFocus = "basic-info";
       
       if (errors.name || errors.email || 
-          errors.address || errors.city || errors.state || 
-          errors.postal_code || errors.phones) {
+          errors.addresses || errors.phones) {
         tabToFocus = "basic-info";
       } 
       else if ('legal_representative_name' in errors || 'legal_representative_cpf' in errors || 
-               errors.address || errors.city || errors.state || 
-               errors.postal_code || errors.phones) {
+               errors.addresses || errors.phones) {
         tabToFocus = "additional-info";
       } 
       else if ('documents' in errors) {
@@ -942,31 +959,21 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
           const formValues = {
             name: initialData.name || "",
             email: initialData.email || "",
-            address: initialData.address || "",
-            city: initialData.city || "",
-            state: initialData.state || "",
-            postal_code: initialData.postal_code || "",
+            addresses: initialData.addresses || [{ address: "", city: "", state: "", postal_code: "", type: "main" }],
             phones: Array.isArray(initialData.phones) ? initialData.phones : [],
-            ...(isChildPlan ? {} : {
-              cnpj: initialData.cnpj || "",
-              municipal_registration: initialData.municipal_registration || "",
-              password: initialData.password || "",
-              ans_code: initialData.ans_code || "",
-              description: initialData.description || "",
-              legal_representative_name: initialData.legal_representative_name || "",
-              legal_representative_cpf: initialData.legal_representative_cpf || "",
-              legal_representative_position: initialData.legal_representative_position || "",
-              legal_representative_email: initialData.legal_representative?.email || "",
-              legal_representative_password: initialData.legal_representative_password || "",
-              legal_representative_password_confirmation: initialData.legal_representative_password_confirmation || "",
-              operational_representative_name: initialData.operational_representative_name || "",
-              operational_representative_cpf: initialData.operational_representative_cpf || "",
-              operational_representative_position: initialData.operational_representative_position || "",
-              operational_representative_email: initialData.operational_representative?.email || "",
-              operational_representative_password: initialData.operational_representative_password || "",
-              operational_representative_password_confirmation: initialData.operational_representative_password_confirmation || "",
-              documents: [],
-            }),
+            cnpj: initialData.cnpj || "",
+            municipal_registration: initialData.municipal_registration || "",
+            ans_code: initialData.ans_code || "",
+            description: initialData.description || "",
+            legal_representative_name: initialData.legal_representative_name || "",
+            legal_representative_cpf: initialData.legal_representative_cpf || "",
+            legal_representative_position: initialData.legal_representative_position || "",
+            legal_representative_email: initialData.legal_representative_email || "",
+            operational_representative_name: initialData.operational_representative_name || "",
+            operational_representative_cpf: initialData.operational_representative_cpf || "",
+            operational_representative_position: initialData.operational_representative_position || "",
+            operational_representative_email: initialData.operational_representative_email || "",
+            documents: [],
           };
           
           form.reset(formValues);
@@ -1002,31 +1009,21 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
           form.reset({
             name: "",
             email: "",
-            address: "",
-            city: "",
-            state: "",
-            postal_code: "",
+            addresses: [{ address: "", city: "", state: "", postal_code: "", type: "main" }],
             phones: [{ number: "", type: "mobile" }],
-            ...(isChildPlan ? {} : {
-              cnpj: "",
-              municipal_registration: "",
-              password: "",
-              ans_code: "",
-              description: "",
-              legal_representative_name: "",
-              legal_representative_cpf: "",
-              legal_representative_position: "",
-              legal_representative_email: "",
-              legal_representative_password: "",
-              legal_representative_password_confirmation: "",
-              operational_representative_name: "",
-              operational_representative_cpf: "",
-              operational_representative_position: "",
-              operational_representative_email: "",
-              operational_representative_password: "",
-              operational_representative_password_confirmation: "",
-              documents: [],
-            }),
+            cnpj: "",
+            municipal_registration: "",
+            ans_code: "",
+            description: "",
+            legal_representative_name: "",
+            legal_representative_cpf: "",
+            legal_representative_position: "",
+            legal_representative_email: "",
+            operational_representative_name: "",
+            operational_representative_cpf: "",
+            operational_representative_position: "",
+            operational_representative_email: "",
+            documents: [],
           });
           
           // Mark as initialized
@@ -1043,31 +1040,21 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
           form.reset({
             name: data.name || "",
             email: data.email || "",
-            address: data.address || "",
-            city: data.city || "",
-            state: data.state || "",
-            postal_code: data.postal_code || "",
+            addresses: data.addresses || [{ address: "", city: "", state: "", postal_code: "", type: "main" }],
             phones: data.phones || [],
-            ...(isChildPlan ? {} : {
-              cnpj: data.cnpj || "",
-              municipal_registration: data.municipal_registration || "",
-              password: data.password || "",
-              ans_code: data.ans_code || "",
-              description: data.description || "",
-              legal_representative_name: data.legal_representative_name || "",
-              legal_representative_cpf: data.legal_representative_cpf || "",
-              legal_representative_position: data.legal_representative_position || "",
-              legal_representative_email: data.legal_representative?.email || "",
-              legal_representative_password: data.legal_representative_password || "",
-              legal_representative_password_confirmation: data.legal_representative_password_confirmation || "",
-              operational_representative_name: data.operational_representative_name || "",
-              operational_representative_cpf: data.operational_representative_cpf || "",
-              operational_representative_position: data.operational_representative_position || "",
-              operational_representative_email: data.operational_representative?.email || "",
-              operational_representative_password: data.operational_representative_password || "",
-              operational_representative_password_confirmation: data.operational_representative_password_confirmation || "",
-              documents: [],
-            }),
+            cnpj: data.cnpj || "",
+            municipal_registration: data.municipal_registration || "",
+            ans_code: data.ans_code || "",
+            description: data.description || "",
+            legal_representative_name: data.legal_representative_name || "",
+            legal_representative_cpf: data.legal_representative_cpf || "",
+            legal_representative_position: data.legal_representative_position || "",
+            legal_representative_email: data.legal_representative?.email || "",
+            operational_representative_name: data.operational_representative_name || "",
+            operational_representative_cpf: data.operational_representative_cpf || "",
+            operational_representative_position: data.operational_representative_position || "",
+            operational_representative_email: data.operational_representative?.email || "",
+            documents: [],
           });
 
           // Atualizar o preview do logo se existir
@@ -1170,16 +1157,18 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
 
   // Efeito para atualizar as cidades quando o estado mudar
   useEffect(() => {
-    // Verificar estado inicial
-    const estadoAtual = form.getValues("state");
+    // Verificar estado inicial do primeiro endereço
+    const addresses = form.getValues("addresses");
+    const estadoAtual = addresses?.[0]?.state;
     if (estadoAtual) {
       atualizarCidadesPorEstado(estadoAtual);
     }
     
-    // Escutar mudanças no campo "state"
+    // Escutar mudanças no campo "state" do primeiro endereço
     const subscription = form.watch((formValues) => {
-      if (formValues && typeof formValues === 'object' && 'state' in formValues) {
-        const novoEstado = formValues.state as string;
+      if (formValues && typeof formValues === 'object' && 'addresses' in formValues) {
+        const addresses = formValues.addresses as { state: string }[];
+        const novoEstado = addresses?.[0]?.state;
         if (novoEstado && novoEstado !== estadoAtual) {
           atualizarCidadesPorEstado(novoEstado);
         }
@@ -1187,11 +1176,7 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
     });
     
     // Limpar subscription
-    return () => {
-      if (subscription && typeof subscription.unsubscribe === 'function') {
-        subscription.unsubscribe();
-      }
-    };
+    return () => subscription.unsubscribe();
   }, [form, atualizarCidadesPorEstado]);
 
   // Update the handlers to use form.setValue
@@ -1247,7 +1232,7 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
   };
 
   // Atualizar a função fetchAddressByCEP para usar as cidades do JSON
-  const fetchAddressByCEP = async (cep: string) => {
+  const fetchAddressByCEP = async (cep: string, addressIndex: number = 0) => {
     try {
       const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
       const data = await response.json();
@@ -1262,14 +1247,14 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
       }
       
       // Preencher os campos de endereço com os dados retornados
-      form.setValue("address" as any, `${data.logradouro}${data.complemento ? ', ' + data.complemento : ''}, ${data.bairro}`);
-      form.setValue("state" as any, data.uf);
+      form.setValue(`addresses.${addressIndex}.address`, `${data.logradouro}${data.complemento ? ', ' + data.complemento : ''}, ${data.bairro}`);
+      form.setValue(`addresses.${addressIndex}.state`, data.uf);
       
       // Atualizar as cidades do estado
       atualizarCidadesPorEstado(data.uf);
       
       // Definir a cidade
-      form.setValue("city" as any, data.localidade);
+      form.setValue(`addresses.${addressIndex}.city`, data.localidade);
       setCitySearchTerm(data.localidade);
       
       showToast({
@@ -1577,26 +1562,12 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
                 <Building2 className="h-4 w-4" /> Informações Básicas
               </TabsTrigger>
               <TabsTrigger value="additional-info" className="text-base flex items-center gap-2">
-                <User className="h-4 w-4" /> {isChildPlan ? 'Endereço e Contatos' : 'Informações Adicionais'}
+                <User className="h-4 w-4" /> Informações Adicionais
               </TabsTrigger>
-              {!isChildPlan && (
-                <TabsTrigger value="documents" className="text-base flex items-center gap-2">
-                  <FileText className="h-4 w-4" /> Documentos
-                </TabsTrigger>
-              )}
+              <TabsTrigger value="documents" className="text-base flex items-center gap-2">
+                <FileText className="h-4 w-4" /> Documentos
+              </TabsTrigger>
             </TabsList>
-
-            {/* Notice about child plan if applicable */}
-            {isChildPlan && parentPlanId && (
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-6">
-                <div className="flex items-center gap-2 text-blue-700">
-                  <GitBranch className="h-5 w-5" />
-                  <p className="text-sm font-medium">
-                    Você está criando um plano filho. Algumas configurações serão herdadas do plano pai.
-                  </p>
-                </div>
-              </div>
-            )}
 
             {/* Basic Info Tab */}
             <TabsContent value="basic-info">
@@ -1670,364 +1641,280 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
                     )}
                   />
 
-                  {/* Only show these fields for non-child plans */}
-                  {!isChildPlan && (
-                    <>
-                      {/* CNPJ */}
-                      <FormField
-                        control={form.control}
-                        name="cnpj"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>CNPJ<span className="text-red-500">*</span></FormLabel>
-                            <FormControl>
-                              <Input
-                                {...field}
-                                placeholder="Digite o CNPJ"
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  field.onChange(applyCNPJMask(value));
-                                }}
-                                maxLength={18}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                  {/* CNPJ */}
+                  <FormField
+                    control={form.control}
+                    name="cnpj"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>CNPJ<span className="text-red-500">*</span></FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder="Digite o CNPJ"
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              const maskedValue = applyCNPJMask(value);
+                              field.onChange(maskedValue);
+                            }}
+                            maxLength={18}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                      {/* Inscrição Municipal */}
-                      <FormField
-                        control={form.control}
-                        name="municipal_registration"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Inscrição Municipal<span className="text-red-500">*</span></FormLabel>
-                            <FormControl>
-                              <Input
-                                {...field}
-                                placeholder="Digite a inscrição municipal"
-                                maxLength={15}
-                                onChange={(e) => {
-                                  const value = e.target.value.replace(/\D/g, '');
-                                  field.onChange(value);
-                                }}
-                              />
-                            </FormControl>
-                            <FormDescription>
-                              Apenas números, máximo 15 caracteres
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                  {/* Inscrição Municipal */}
+                  <FormField
+                    control={form.control}
+                    name="municipal_registration"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Inscrição Municipal<span className="text-red-500">*</span></FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder="Digite a inscrição municipal"
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/\D/g, ''); // Remove caracteres não numéricos
+                              if (value.length <= 15) { // Limita a 15 caracteres
+                                field.onChange(value);
+                              }
+                            }}
+                            maxLength={15}
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Apenas números, máximo 15 dígitos
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                      {/* Código ANS */}
-                      <FormField
-                        control={form.control}
-                        name="ans_code"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Código ANS<span className="text-red-500">*</span></FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="Digite o código ANS" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                  {/* Código ANS */}
+                  <FormField
+                    control={form.control}
+                    name="ans_code"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Código ANS<span className="text-red-500">*</span></FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Digite o código ANS" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                      {/* Descrição */}
-                      <FormField
-                        control={form.control}
-                        name="description"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Descrição</FormLabel>
-                            <FormControl>
-                              <Textarea {...field} placeholder="Digite uma descrição" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </>
-                  )}
+                  {/* Descrição */}
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Descrição</FormLabel>
+                        <FormControl>
+                          <Textarea {...field} placeholder="Digite uma descrição para o plano" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
                 </CardContent>
               </Card>
             </TabsContent>
 
             {/* Additional Info Tab */}
             <TabsContent value="additional-info">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Only show Representatives section for non-child plans */}
-                {!isChildPlan && (
-                  <Card className="border-t-4 border-t-blue-500">
-                    <CardHeader className="bg-muted/50">
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <User className="h-5 w-5 text-blue-500" /> 
-                        Representantes
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-5 pt-6">
-                      {/* Representante Legal */}
-                      <div className="space-y-4">
-                        <h3 className="text-lg font-medium flex items-center gap-2">
-                          <Badge className="bg-blue-600">Legal</Badge> Representante Legal
-                        </h3>
-
-                        <FormField
-                          control={form.control}
-                          name="legal_representative_name"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Nome<span className="text-red-500">*</span></FormLabel>
-                              <FormControl>
-                                <Input {...field} placeholder="Nome do representante legal" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name="legal_representative_cpf"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>CPF<span className="text-red-500">*</span></FormLabel>
-                              <FormControl>
-                                <Input
-                                  {...field}
-                                  placeholder="CPF do representante legal"
-                                  onChange={(e) => {
-                                    const value = e.target.value;
-                                    field.onChange(applyCPFMask(value));
-                                  }}
-                                  maxLength={14}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name="legal_representative_position"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Cargo<span className="text-red-500">*</span></FormLabel>
-                              <FormControl>
-                                <Input {...field} placeholder="Cargo do representante legal" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name="legal_representative_email"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Email<span className="text-red-500">*</span></FormLabel>
-                              <FormControl>
-                                <Input {...field} type="email" placeholder="Email do representante legal" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-
-                      {/* Representante Operacional */}
-                      <div className="space-y-4 mt-8 pt-4 border-t">
-                        <h3 className="text-lg font-medium flex items-center gap-2">
-                          <Badge className="bg-blue-600">Operacional</Badge> Representante Operacional
-                        </h3>
-
-                        <FormField
-                          control={form.control}
-                          name="operational_representative_name"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Nome<span className="text-red-500">*</span></FormLabel>
-                              <FormControl>
-                                <Input {...field} placeholder="Nome do representante operacional" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name="operational_representative_cpf"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>CPF<span className="text-red-500">*</span></FormLabel>
-                              <FormControl>
-                                <Input
-                                  {...field}
-                                  placeholder="CPF do representante operacional"
-                                  onChange={(e) => {
-                                    const value = e.target.value;
-                                    field.onChange(applyCPFMask(value));
-                                  }}
-                                  maxLength={14}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name="operational_representative_position"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Cargo<span className="text-red-500">*</span></FormLabel>
-                              <FormControl>
-                                <Input {...field} placeholder="Cargo do representante operacional" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name="operational_representative_email"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Email<span className="text-red-500">*</span></FormLabel>
-                              <FormControl>
-                                <Input {...field} type="email" placeholder="Email do representante operacional" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Coluna da Esquerda - Informações de Contato */}
                 <div className="space-y-6">
                   {/* Endereço */}
-                  <Card className="border-t-4 border-t-green-500">
+                  <Card className="border-t-4 border-t-green-500 h-fit">
                     <CardHeader className="bg-muted/50">
                       <CardTitle className="flex items-center gap-2 text-lg">
                         <Building2 className="h-5 w-5 text-green-500" /> 
-                        Endereço
+                        Endereços
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-5 pt-6">
-                      <FormField
-                        control={form.control}
-                        name="postal_code"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>CEP<span className="text-red-500">*</span></FormLabel>
-                            <FormControl>
-                              <Input
-                                {...field}
-                                placeholder="Digite o CEP"
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  const maskedValue = applyCEPMask(value);
-                                  field.onChange(maskedValue);
-                                  
-                                  // Buscar endereço se CEP completo
-                                  if (unmask(maskedValue).length === 8) {
-                                    fetchAddressByCEP(unmask(maskedValue));
-                                  }
-                                }}
-                                maxLength={9}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-base font-medium">Lista de Endereços</h3>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const addresses = form.getValues("addresses") || [];
+                            form.setValue("addresses", [
+                              ...addresses,
+                              { address: "", city: "", state: "", postal_code: "", type: "main" }
+                            ]);
+                          }}
+                          className="bg-green-50 hover:bg-green-100 border-green-200"
+                        >
+                          <Plus className="w-4 h-4 mr-2 text-green-500" />
+                          Adicionar Endereço
+                        </Button>
+                      </div>
 
-                      <FormField
-                        control={form.control}
-                        name="address"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Endereço<span className="text-red-500">*</span></FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="Digite o endereço" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="state"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Estado<span className="text-red-500">*</span></FormLabel>
-                            <Select
-                              value={field.value}
-                              onValueChange={(value) => {
-                                field.onChange(value);
-                                form.setValue("city", "");
-                                atualizarCidadesPorEstado(value);
+                      {form.watch("addresses")?.map((_, index) => (
+                        <div key={index} className="space-y-4 p-4 border rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-sm font-medium">Endereço {index + 1}</h4>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                const addresses = form.getValues("addresses");
+                                if (addresses.length > 1) {
+                                  form.setValue(
+                                    "addresses",
+                                    addresses.filter((_, i) => i !== index)
+                                  );
+                                }
                               }}
+                              disabled={index === 0 || form.watch("addresses").length <= 1}
                             >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Selecione o estado" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {estadosCidadesData.estados.map((estado) => (
-                                  <SelectItem key={estado.sigla} value={estado.sigla}>
-                                    {estado.nome} ({estado.sigla})
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </Button>
+                          </div>
 
-                      <FormField
-                        control={form.control}
-                        name="city"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Cidade<span className="text-red-500">*</span></FormLabel>
-                            <Select
-                              value={field.value}
-                              onValueChange={field.onChange}
-                              disabled={!form.getValues("state") || cidadesDoEstado.length === 0}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Selecione a cidade" />
-                              </SelectTrigger>
-                              <SelectContent className="max-h-[300px]">
-                                {filteredCities.map((cidade) => (
-                                  <SelectItem key={cidade} value={cidade}>
-                                    {cidade}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                          <FormField
+                            control={form.control}
+                            name={`addresses.${index}.type`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Tipo<span className="text-red-500">*</span></FormLabel>
+                                <Select
+                                  value={field.value}
+                                  onValueChange={field.onChange}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="main">Principal</SelectItem>
+                                    <SelectItem value="billing">Cobrança</SelectItem>
+                                    <SelectItem value="correspondence">Correspondência</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name={`addresses.${index}.postal_code`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>CEP<span className="text-red-500">*</span></FormLabel>
+                                <FormControl>
+                                  <Input
+                                    {...field}
+                                    placeholder="Digite o CEP"
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      const maskedValue = applyCEPMask(value);
+                                      field.onChange(maskedValue);
+                                      
+                                      // Buscar endereço se CEP completo
+                                      if (unmask(maskedValue).length === 8) {
+                                        fetchAddressByCEP(unmask(maskedValue), index);
+                                      }
+                                    }}
+                                    maxLength={9}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name={`addresses.${index}.address`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Endereço<span className="text-red-500">*</span></FormLabel>
+                                <FormControl>
+                                  <Input {...field} placeholder="Digite o endereço" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name={`addresses.${index}.state`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Estado<span className="text-red-500">*</span></FormLabel>
+                                <Select
+                                  value={field.value}
+                                  onValueChange={(value) => {
+                                    field.onChange(value);
+                                    form.setValue(`addresses.${index}.city`, "");
+                                    atualizarCidadesPorEstado(value);
+                                  }}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Selecione o estado" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {estadosCidadesData.estados.map((estado) => (
+                                      <SelectItem key={estado.sigla} value={estado.sigla}>
+                                        {estado.nome} ({estado.sigla})
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name={`addresses.${index}.city`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Cidade<span className="text-red-500">*</span></FormLabel>
+                                <Select
+                                  value={field.value}
+                                  onValueChange={field.onChange}
+                                  disabled={!form.getValues(`addresses.${index}.state`) || cidadesDoEstado.length === 0}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Selecione a cidade" />
+                                  </SelectTrigger>
+                                  <SelectContent className="max-h-[300px]">
+                                    {filteredCities.map((cidade) => (
+                                      <SelectItem key={cidade} value={cidade}>
+                                        {cidade}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      ))}
                     </CardContent>
                   </Card>
 
                   {/* Telefones */}
-                  <Card className="border-t-4 border-t-orange-500">
+                  <Card className="border-t-4 border-t-orange-500 h-fit">
                     <CardHeader className="bg-muted/50">
                       <CardTitle className="flex items-center gap-2 text-lg">
                         <Phone className="h-5 w-5 text-orange-500" /> 
@@ -2113,50 +2000,211 @@ export function HealthPlanForm({ healthPlanId, initialData, isChildPlan = false,
                     </CardContent>
                   </Card>
                 </div>
+
+                {/* Coluna da Direita - Representantes */}
+                <div className="space-y-6">
+                  {/* Representante Legal */}
+                  <Card className="border-t-4 border-t-blue-500 h-fit">
+                    <CardHeader className="bg-muted/50">
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <User className="h-5 w-5 text-blue-500" /> 
+                        Representante Legal
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-5 pt-6">
+                      {/* Nome do Representante Legal */}
+                      <FormField
+                        control={form.control}
+                        name="legal_representative_name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Nome<span className="text-red-500">*</span></FormLabel>
+                            <FormControl>
+                              <Input {...field} placeholder="Digite o nome do representante legal" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* CPF do Representante Legal */}
+                      <FormField
+                        control={form.control}
+                        name="legal_representative_cpf"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>CPF<span className="text-red-500">*</span></FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                placeholder="Digite o CPF"
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  const maskedValue = applyCPFMask(value);
+                                  field.onChange(maskedValue);
+                                }}
+                                maxLength={14}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Cargo do Representante Legal */}
+                      <FormField
+                        control={form.control}
+                        name="legal_representative_position"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Cargo<span className="text-red-500">*</span></FormLabel>
+                            <FormControl>
+                              <Input {...field} placeholder="Digite o cargo" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Email do Representante Legal */}
+                      <FormField
+                        control={form.control}
+                        name="legal_representative_email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Email<span className="text-red-500">*</span></FormLabel>
+                            <FormControl>
+                              <Input {...field} type="email" placeholder="Digite o email" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </CardContent>
+                  </Card>
+
+                  {/* Representante Operacional */}
+                  <Card className="border-t-4 border-t-purple-500 h-fit">
+                    <CardHeader className="bg-muted/50">
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <User className="h-5 w-5 text-purple-500" /> 
+                        Representante Operacional
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-5 pt-6">
+                      {/* Nome do Representante Operacional */}
+                      <FormField
+                        control={form.control}
+                        name="operational_representative_name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Nome<span className="text-red-500">*</span></FormLabel>
+                            <FormControl>
+                              <Input {...field} placeholder="Digite o nome do representante operacional" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* CPF do Representante Operacional */}
+                      <FormField
+                        control={form.control}
+                        name="operational_representative_cpf"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>CPF<span className="text-red-500">*</span></FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                placeholder="Digite o CPF"
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  const maskedValue = applyCPFMask(value);
+                                  field.onChange(maskedValue);
+                                }}
+                                maxLength={14}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Cargo do Representante Operacional */}
+                      <FormField
+                        control={form.control}
+                        name="operational_representative_position"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Cargo<span className="text-red-500">*</span></FormLabel>
+                            <FormControl>
+                              <Input {...field} placeholder="Digite o cargo" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Email do Representante Operacional */}
+                      <FormField
+                        control={form.control}
+                        name="operational_representative_email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Email<span className="text-red-500">*</span></FormLabel>
+                            <FormControl>
+                              <Input {...field} type="email" placeholder="Digite o email" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
             </TabsContent>
 
             {/* Documents Tab */}
-            {!isChildPlan && (
-              <TabsContent value="documents">
-                <Card className="border-t-4 border-t-primary">
-                  <CardHeader className="bg-muted/50">
-                    <CardTitle className="flex items-center gap-2">
-                      <FileText className="h-5 w-5 text-primary" /> 
-                      Documentos Exigidos
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-6 pt-6">
-                    {/* Required Documents List */}
-                    <div className="bg-muted/30 p-4 rounded-lg mb-4">
-                      <div className="text-sm text-muted-foreground mb-2">
-                        Os seguintes documentos são obrigatórios para o cadastro do plano de saúde:
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {documentTypes
-                          ?.filter(type => type.is_required)
-                          .map(type => (
-                            <div key={type.id} className="flex items-start gap-2">
-                              <span className="text-red-500 font-bold">*</span>
-                              <div>
-                                <span className="font-medium">{type.name}</span>
-                                {type.description && (
-                                  <p className="text-sm text-muted-foreground">{type.description}</p>
-                                )}
-                              </div>
+            <TabsContent value="documents">
+              <Card className="border-t-4 border-t-primary">
+                <CardHeader className="bg-muted/50">
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-primary" /> 
+                    Documentos Exigidos
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6 pt-6">
+                  {/* Required Documents List */}
+                  <div className="bg-muted/30 p-4 rounded-lg mb-4">
+                    <div className="text-sm text-muted-foreground mb-2">
+                      Os seguintes documentos são obrigatórios para o cadastro do plano de saúde:
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {documentTypes
+                        ?.filter(type => type.is_required)
+                        .map(type => (
+                          <div key={type.id} className="flex items-start gap-2">
+                            <span className="text-red-500 font-bold">*</span>
+                            <div>
+                              <span className="font-medium">{type.name}</span>
+                              {type.description && (
+                                <p className="text-sm text-muted-foreground">{type.description}</p>
+                              )}
                             </div>
-                          ))}
-                      </div>
+                          </div>
+                        ))}
                     </div>
+                  </div>
 
-                    {/* Document Form Fields */}
-                    <div className="space-y-6">
-                      {renderDocuments()}
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            )}
+                  {/* Document Form Fields */}
+                  <div className="space-y-6">
+                    {renderDocuments()}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
           </Tabs>
 
           {/* Submit Buttons */}
