@@ -1,17 +1,15 @@
-export type NegotiationStatus = 
+type Role = 'commercial_manager' | 'super_admin' | 'director' | 'plan_admin' | 'professional' | 'clinic_admin';
+
+type NegotiationStatus = 
   | 'draft'
   | 'submitted'
   | 'pending'
-  | 'pending_approval'
-  | 'pending_director_approval'
   | 'approved'
   | 'complete'
   | 'partially_complete'
   | 'partially_approved'
   | 'rejected'
-  | 'cancelled'
-  | 'forked'
-  | 'expired';
+  | 'cancelled';
 
 export type NegotiationItemStatus = 
   | 'pending'
@@ -47,26 +45,14 @@ export interface TussProcedure {
   updated_at: string;
 }
 
-export interface NegotiationItem {
+interface NegotiationItem {
   id: number;
-  negotiation_id: number;
-  tuss: TussProcedure;
   tuss_id: number;
   proposed_value: number;
-  approved_value: number | null;
-  status: NegotiationItemStatus;
-  notes: string | null;
-  responded_at: string | null;
-  created_at: string;
-  updated_at: string;
-  created_by: {
-    id: number;
-    name: string;
-  };
-  can_respond: boolean;
-  is_approved: boolean;
-  is_rejected: boolean;
-  has_counter_offer: boolean;
+  approved_value?: number;
+  status: 'pending' | 'approved' | 'rejected' | 'counter_offered';
+  notes?: string;
+  responded_at?: string;
 }
 
 export interface ApprovalHistoryItem {
@@ -79,11 +65,12 @@ export interface ApprovalHistoryItem {
   created_at: string;
 }
 
-export interface Negotiation {
+interface Negotiation {
   id: number;
   title: string;
-  description: string | undefined;
+  description?: string;
   status: NegotiationStatus;
+  status_label: string;
   negotiable_type: string;
   negotiable_id: number;
   negotiable: {
@@ -101,23 +88,37 @@ export interface Negotiation {
   start_date: string;
   end_date: string;
   total_value: number;
-  notes: string | null;
+  notes?: string;
   created_at: string;
   updated_at: string;
   negotiation_cycle: number;
   max_cycles_allowed: number;
   is_fork: boolean;
-  forked_at: string | null;
+  forked_at?: string;
   fork_count: number;
-  parent_negotiation_id: number | null;
-  approved_at: string | null;
-  approval_notes: string | null;
-  rejected_at: string | null;
-  rejection_notes: string | null;
+  parent_negotiation_id?: number;
+  approved_at?: string;
+  approval_notes?: string;
+  rejected_at?: string;
+  rejection_notes?: string;
   can_approve: boolean;
   can_submit_for_approval: boolean;
   can_edit: boolean;
   formalization_status?: 'pending_aditivo' | 'formalized' | null;
+}
+
+interface ForkGroupItem {
+  name: string;
+  items: number[];
+}
+
+interface NegotiationApprovalRequest {
+  approved: boolean;
+  approval_notes?: string;
+  approved_items?: Array<{
+    item_id: number;
+    approved_value: number;
+  }>;
 }
 
 export type CreateNegotiationDto = {
@@ -156,21 +157,16 @@ export type UpdateNegotiationDto = Partial<{
   }[];
 }>;
 
-// Nome mais amigável para os status
-export const negotiationStatusLabels: Record<NegotiationStatus, string> = {
+const statusLabels: Record<NegotiationStatus, string> = {
   draft: 'Rascunho',
   submitted: 'Enviado',
   pending: 'Pendente',
-  pending_approval: 'Aguardando Aprovação',
-  pending_director_approval: 'Aguardando Aprovação do Diretor',
+  approved: 'Aprovado',
   complete: 'Completo',
   partially_complete: 'Parcialmente Completo',
-  approved: 'Aprovado',
   partially_approved: 'Parcialmente Aprovado',
   rejected: 'Rejeitado',
-  cancelled: 'Cancelado',
-  forked: 'Bifurcado',
-  expired: 'Expirado'
+  cancelled: 'Cancelado'
 };
 
 export const negotiationItemStatusLabels = {
@@ -208,4 +204,15 @@ export interface ItemResponse {
   status: NegotiationItemStatus;
   approved_value?: number;
   notes?: string;
-} 
+}
+
+export type {
+  Role,
+  NegotiationStatus,
+  NegotiationItem,
+  Negotiation,
+  ForkGroupItem,
+  NegotiationApprovalRequest
+};
+
+export { statusLabels }; 

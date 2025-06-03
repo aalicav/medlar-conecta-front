@@ -1,8 +1,11 @@
 export interface ApiResponse<T> {
-  success: boolean;
   data: T;
   message?: string;
-  meta?: {
+  success?: boolean;
+}
+
+export interface PaginatedApiResponse<T> extends ApiResponse<T[]> {
+  meta: {
     current_page: number;
     last_page: number;
     per_page: number;
@@ -10,18 +13,18 @@ export interface ApiResponse<T> {
   };
 }
 
-export interface ApiErrorResponse {
+export interface ErrorResponse {
   message: string;
   errors?: Record<string, string[]>;
 }
 
 export interface ForkGroupItem {
   items: number[];
-  title: string;
+  name: string;
   description?: string;
 }
 
-export const handleApiError = (error: ApiErrorResponse, defaultMessage: string): void => {
+export const handleApiError = (error: ErrorResponse, defaultMessage: string): void => {
   console.error('API Error:', error);
   
   if (error.errors) {

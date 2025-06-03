@@ -21,12 +21,11 @@ import {
 
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/toaster';
-import type { ApiResponse } from '@/app/types/api';
+import type { ApiResponse, ForkGroupItem } from '@/app/types/api';
 import { 
-  Negotiation, 
-  NegotiationStatus,
-  type ForkGroupItem
-} from '@/services/negotiationService';
+  type Negotiation, 
+  type NegotiationStatus,
+} from '@/types/negotiations';
 
 import { negotiationService } from '@/services/negotiationService';
 
@@ -79,6 +78,7 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Role, NegotiationApprovalRequest } from '../types/negotiations';
 
 interface PaginatedResponse<T> {
   data: T[];
@@ -88,6 +88,22 @@ interface PaginatedResponse<T> {
     per_page: number;
     total: number;
   };
+}
+
+interface PaginatedApiResponse<T> {
+  data: T[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+}
+
+interface User {
+  id: number;
+  entity_id?: number;
+  roles: string[];
 }
 
 // Updated status labels to match backend
@@ -104,18 +120,16 @@ const statusLabels: Record<NegotiationStatus, string> = {
 };
 
 // Updated status variant mapping
-const getStatusVariant = (status: NegotiationStatus): "default" | "secondary" | "destructive" | "outline" | "warning" => {
+const getStatusVariant = (status: NegotiationStatus): "default" | "secondary" | "destructive" | "outline" | null | "success" | "warning" => {
   switch (status) {
-    case 'draft': return 'outline';
-    case 'submitted': return 'secondary';
-    case 'pending': return 'warning';
-    case 'complete': return 'default';
-    case 'partially_complete': return 'warning';
-    case 'approved': return 'default';
-    case 'partially_approved': return 'warning';
-    case 'rejected': return 'destructive';
-    case 'cancelled': return 'outline';
-    default: return 'outline';
+    case 'approved':
+      return 'success';
+    case 'rejected':
+      return 'destructive';
+    case 'pending':
+      return 'warning';
+    default:
+      return 'secondary';
   }
 };
 
@@ -146,11 +160,12 @@ const getStatusDescription = (status: NegotiationStatus): string => {
 };
 
 export default function NegotiationList() {
+  const { user } = useAuth() as { user: User | null };
   const { toast } = useToast();
   const [negotiations, setNegotiations] = useState<Negotiation[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
-    status: '',
+    status: '' as NegotiationStatus | '',
     entity_type: '',
     search: ''
   });
@@ -171,22 +186,20 @@ export default function NegotiationList() {
     try {
       setLoading(true);
       const response = await negotiationService.getNegotiations({
-        status: filters.status as NegotiationStatus,
-        entity_type: filters.entity_type,
-        search: filters.search,
+        status: filters.status || undefined,
+        entity_type: filters.entity_type || undefined,
+        search: filters.search || undefined,
         page: pagination.currentPage,
         per_page: pagination.perPage
       });
 
-      if (response.data) {
-        setNegotiations(response.data);
-        setPagination(prev => ({
-          ...prev,
-          currentPage: response.meta?.current_page || prev.currentPage,
-          totalPages: response.meta?.last_page || prev.totalPages,
-          perPage: response.meta?.per_page || prev.perPage
-        }));
-      }
+      setNegotiations(response.data);
+      setPagination(prev => ({
+        ...prev,
+        currentPage: response.meta.current_page,
+        totalPages: response.meta.last_page,
+        perPage: response.meta.per_page
+      }));
     } catch (error) {
       console.error('Error loading negotiations:', error);
       toast({
@@ -204,7 +217,10 @@ export default function NegotiationList() {
   }, [loadNegotiations]);
 
   const handleStatusChange = (status: string) => {
-    setFilters(prev => ({ ...prev, status }));
+    setFilters(prev => ({ 
+      ...prev, 
+      status: status as NegotiationStatus | '' 
+    }));
     setPagination(prev => ({ ...prev, currentPage: 1 }));
   };
 
@@ -334,6 +350,74 @@ export default function NegotiationList() {
     }
   };
 
+  const canApproveInternally = useCallback(() => {
+    const allowedRoles: Role[] = ['commercial_manager', 'super_admin', 'director'];
+    return user?.roles.some(role => allowedRoles.includes(role as Role));
+  }, [user]);
+
+  const canApproveExternally = useCallback((negotiation: Negotiation) => {
+    if (!user) return false;
+
+    // Check if user belongs to the target entity
+    const isTargetEntity = negotiation.negotiable_id === user.entity_id;
+    
+    switch (negotiation.negotiable_type) {
+      case 'App\\Models\\HealthPlan':
+        return user.roles.includes('plan_admin' as Role) && isTargetEntity;
+      case 'App\\Models\\Professional':
+        return user.roles.includes('professional' as Role) && isTargetEntity;
+      case 'App\\Models\\Clinic':
+        return user.roles.includes('clinic_admin' as Role) && isTargetEntity;
+      default:
+        return false;
+    }
+  }, [user]);
+
+  const handleApproval = async (negotiation: Negotiation, approved: boolean, isInternal: boolean) => {
+    try {
+      setLoading(true);
+      
+      const approvalData: NegotiationApprovalRequest = {
+        approved,
+        approval_notes: approved ? 'Aprovado internamente' : 'Rejeitado internamente'
+      };
+      
+      if (isInternal) {
+        await negotiationService.processApproval(negotiation.id, approvalData);
+        
+        toast({
+          title: "Sucesso",
+          description: `Negociação ${approved ? 'aprovada' : 'rejeitada'} internamente com sucesso`,
+        });
+      } else {
+        await negotiationService.processExternalApproval(negotiation.id, {
+          ...approvalData,
+          approval_notes: approved ? 'Aprovado pela entidade' : 'Rejeitado pela entidade',
+          approved_items: negotiation.items.map(item => ({
+            item_id: item.id,
+            approved_value: item.proposed_value
+          }))
+        });
+        
+        toast({
+          title: "Sucesso",
+          description: `Negociação ${approved ? 'aprovada' : 'rejeitada'} pela entidade com sucesso`,
+        });
+      }
+      
+      await loadNegotiations();
+    } catch (error) {
+      console.error('Error processing approval:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao processar aprovação",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row gap-4">
@@ -387,10 +471,9 @@ export default function NegotiationList() {
           <TableHeader>
             <TableRow>
               <TableHead>Título</TableHead>
-              <TableHead>Entidade</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Data Início</TableHead>
-              <TableHead>Data Fim</TableHead>
+              <TableHead>Entidade</TableHead>
+              <TableHead>Data</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -421,18 +504,22 @@ export default function NegotiationList() {
                     </Link>
                   </TableCell>
                   <TableCell>
-                    {negotiation.negotiable?.name}
-                  </TableCell>
-                  <TableCell>
                     <Badge variant={getStatusVariant(negotiation.status)}>
-                      {statusLabels[negotiation.status]}
+                      {negotiation.status_label}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {format(new Date(negotiation.start_date), 'dd/MM/yyyy')}
+                    {negotiation.negotiable.name}
                   </TableCell>
                   <TableCell>
-                    {format(new Date(negotiation.end_date), 'dd/MM/yyyy')}
+                    <div className="flex flex-col gap-1">
+                      <span className="text-sm">
+                        Início: {format(new Date(negotiation.start_date), 'dd/MM/yyyy')}
+                      </span>
+                      <span className="text-sm">
+                        Fim: {format(new Date(negotiation.end_date), 'dd/MM/yyyy')}
+                      </span>
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
@@ -491,6 +578,46 @@ export default function NegotiationList() {
                             <GitFork className="mr-2 h-4 w-4" />
                             Bifurcar Negociação
                           </DropdownMenuItem>
+                        )}
+
+                        {/* Internal Approval Actions */}
+                        {canApproveInternally() && negotiation.status === 'pending' && (
+                          <>
+                            <DropdownMenuItem 
+                              onClick={() => handleApproval(negotiation, true, true)}
+                              className="text-green-600"
+                            >
+                              <CheckCircle className="mr-2 h-4 w-4" />
+                              Aprovar Internamente
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleApproval(negotiation, false, true)}
+                              className="text-red-600"
+                            >
+                              <XCircle className="mr-2 h-4 w-4" />
+                              Rejeitar Internamente
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                        
+                        {/* External Approval Actions */}
+                        {canApproveExternally(negotiation) && negotiation.status === 'approved' && (
+                          <>
+                            <DropdownMenuItem 
+                              onClick={() => handleApproval(negotiation, true, false)}
+                              className="text-green-600"
+                            >
+                              <CheckCircle className="mr-2 h-4 w-4" />
+                              Aprovar pela Entidade
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleApproval(negotiation, false, false)}
+                              className="text-red-600"
+                            >
+                              <XCircle className="mr-2 h-4 w-4" />
+                              Rejeitar pela Entidade
+                            </DropdownMenuItem>
+                          </>
                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>

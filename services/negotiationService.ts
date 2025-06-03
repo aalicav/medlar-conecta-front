@@ -2,6 +2,7 @@
 import { api } from "@/lib/api";
 import { ForkGroupItem } from '../app/services/types';
 import type * as Types from "@/types/negotiations";
+import type { ApiResponse, PaginatedApiResponse } from '@/app/types/api';
 
 /**
  * Status constants with descriptions:
@@ -240,166 +241,75 @@ export const approvalLevelLabels: Record<ApprovalLevel, string> = {
   approval: 'Aprovação'
 };
 
-export type NegotiationServiceType = {
-  getEstablishmentNegotiations: (establishmentId: number) => Promise<ApiResponse<Negotiation[]>>;
-  getNegotiations: (params: { status?: NegotiationStatus; entity_type?: string; search?: string; page?: number; per_page?: number; }) => Promise<ApiResponse<Negotiation[]>>;
-  create: (data: CreateNegotiationDto) => Promise<Negotiation>;
-  update: (id: number, data: UpdateNegotiationDto) => Promise<Negotiation>;
-  getById: (id: number) => Promise<Negotiation>;
-  getTussProcedures: (search: string) => Promise<ApiResponse<Tuss[]>>;
-  createException: (data: {
-    patient_id: number;
-    tuss_id: number;
-    proposed_value: number;
-    justification: string;
-  }) => Promise<Negotiation>;
-  getExceptions: () => Promise<ApiResponse<Negotiation[]>>;
-  approveException: (id: number) => Promise<Negotiation>;
-  rejectException: (id: number) => Promise<Negotiation>;
-  submitForApproval: (id: number) => Promise<Negotiation>;
-  cancelNegotiation: (id: number) => Promise<Negotiation>;
-  generateContract: (id: number) => Promise<ApiResponse<{ contract_id: number }>>;
-  processApproval: (id: number, action: 'approve' | 'reject') => Promise<Negotiation>;
-  resendNotifications: (id: number) => Promise<ApiResponse<void>>;
-  markAsComplete: (id: number) => Promise<Negotiation>;
-  markAsPartiallyComplete: (id: number) => Promise<Negotiation>;
-  startNewCycle: (negotiationId: number) => Promise<Negotiation>;
-  rollbackStatus: (
-    negotiationId: number, 
-    targetStatus: 'draft' | 'submitted' | 'pending',
-    reason: string
-  ) => Promise<Negotiation>;
-  forkNegotiation: (
-    negotiationId: number,
-    itemGroups: ForkGroupItem[]
-  ) => Promise<ApiResponse<{
-    original_negotiation: Negotiation;
-    forked_negotiations: Negotiation[];
-  }>>;
-  respondToItem: (itemId: number, data: {
-    status: NegotiationItemStatus;
-    approved_value?: number;
-    notes?: string;
-  }) => Promise<ApiResponse<NegotiationItem>>;
-};
-
-export interface ApiResponse<T> {
-  data: T;
-  message?: string;
-  errors?: Record<string, string[]>;
+interface GetNegotiationsParams {
+  status?: NegotiationStatus;
+  entity_type?: string;
+  search?: string;
+  page?: number;
+  per_page?: number;
 }
 
-export const negotiationService: NegotiationServiceType = {
-  getEstablishmentNegotiations: async (establishmentId) => {
-    const response = await api.get<Negotiation[]>(`${API_BASE_PATH}/establishment/${establishmentId}`);
-    return response;
-  },
+export interface NegotiationServiceType {
+  getNegotiations: (params: GetNegotiationsParams) => Promise<PaginatedApiResponse<Negotiation>>;
+  processApproval: (id: number, data: NegotiationApprovalRequest) => Promise<ApiResponse<Negotiation>>;
+  processExternalApproval: (id: number, data: NegotiationApprovalRequest) => Promise<ApiResponse<Negotiation>>;
+  forkNegotiation: (id: number, groups: ForkGroupItem[]) => Promise<ApiResponse<Negotiation>>;
+  submitForApproval: (id: number) => Promise<ApiResponse<Negotiation>>;
+  cancelNegotiation: (id: number) => Promise<ApiResponse<Negotiation>>;
+  markAsComplete: (id: number) => Promise<ApiResponse<Negotiation>>;
+  markAsPartiallyComplete: (id: number) => Promise<ApiResponse<Negotiation>>;
+  startNewCycle: (id: number) => Promise<ApiResponse<Negotiation>>;
+}
 
-  getNegotiations: async (params) => {
-    const response = await api.get<Negotiation[]>(`${API_BASE_PATH}`, { params });
-    return response;
-  },
+export interface NegotiationApprovalRequest {
+  approved: boolean;
+  approval_notes?: string;
+  approved_items?: Array<{
+    item_id: number;
+    approved_value: number;
+  }>;
+}
 
-  create: async (data) => {
-    const response = await api.post<Negotiation>(API_BASE_PATH, data);
-    return response;
-  },
+class NegotiationService implements NegotiationServiceType {
+  async getNegotiations(params: GetNegotiationsParams): Promise<PaginatedApiResponse<Negotiation>> {
+    const response = await api.get<PaginatedApiResponse<Negotiation>>('/negotiations', { params });
+    return response.data;
+  }
 
-  update: async (id, data) => {
-    const response = await api.put<Negotiation>(`${API_BASE_PATH}/${id}`, data);
-    return response;
-  },
+  async processApproval(id: number, data: NegotiationApprovalRequest): Promise<ApiResponse<Negotiation>> {
+    const response = await api.post<ApiResponse<Negotiation>>(`/negotiations/${id}/process-approval`, data);
+    return response.data;
+  }
 
-  getById: async (id) => {
-    const response = await api.get<Negotiation>(`${API_BASE_PATH}/${id}`);
-    return response;
-  },
+  async processExternalApproval(id: number, data: NegotiationApprovalRequest): Promise<ApiResponse<Negotiation>> {
+    const response = await api.post<ApiResponse<Negotiation>>(`/negotiations/${id}/process-external-approval`, data);
+    return response.data;
+  }
 
-  getTussProcedures: async (search) => {
-    const response = await api.get<ApiResponse<Tuss[]>>(`/tuss`, { params: { search } });
-    return response;
-  },
+  async forkNegotiation(id: number, groups: ForkGroupItem[]): Promise<ApiResponse<Negotiation>> {
+    const response = await api.post<ApiResponse<Negotiation>>(`/negotiations/${id}/fork`, { item_groups: groups });
+    return response.data;
+  }
 
-  createException: async (data) => {
-    const response = await api.post<Negotiation>(`${API_BASE_PATH}/exceptions`, data);
-    return response;
-  },
+  async submitForApproval(id: number): Promise<ApiResponse<Negotiation>> {
+    return api.post(`${API_BASE_PATH}/${id}/submit`);
+  }
 
-  getExceptions: async () => {
-    const response = await api.get<ApiResponse<Negotiation[]>>(`${API_BASE_PATH}/exceptions`);
-    return response;
-  },
+  async cancelNegotiation(id: number): Promise<ApiResponse<Negotiation>> {
+    return api.post(`${API_BASE_PATH}/${id}/cancel`);
+  }
 
-  approveException: async (id) => {
-    const response = await api.post<Negotiation>(`${API_BASE_PATH}/exceptions/${id}/approve`);
-    return response;
-  },
+  async markAsComplete(id: number): Promise<ApiResponse<Negotiation>> {
+    return api.post(`${API_BASE_PATH}/${id}/complete`);
+  }
 
-  rejectException: async (id) => {
-    const response = await api.post<Negotiation>(`${API_BASE_PATH}/exceptions/${id}/reject`);
-    return response;
-  },
+  async markAsPartiallyComplete(id: number): Promise<ApiResponse<Negotiation>> {
+    return api.post(`${API_BASE_PATH}/${id}/partially-complete`);
+  }
 
-  submitForApproval: async (id) => {
-    const response = await api.post<Negotiation>(`${API_BASE_PATH}/${id}/submit`);
-    return response;
-  },
+  async startNewCycle(id: number): Promise<ApiResponse<Negotiation>> {
+    return api.post(`${API_BASE_PATH}/${id}/new-cycle`);
+  }
+}
 
-  cancelNegotiation: async (id) => {
-    const response = await api.post<Negotiation>(`${API_BASE_PATH}/${id}/cancel`);
-    return response;
-  },
-
-  generateContract: async (id) => {
-    const response = await api.post<ApiResponse<{ contract_id: number }>>(`${API_BASE_PATH}/${id}/generate-contract`);
-    return response;
-  },
-
-  processApproval: async (id, action) => {
-    const response = await api.post<Negotiation>(`${API_BASE_PATH}/${id}/process-approval`, { action });
-    return response;
-  },
-
-  resendNotifications: async (id) => {
-    const response = await api.post<ApiResponse<void>>(`${API_BASE_PATH}/${id}/resend-notifications`);
-    return response;
-  },
-
-  markAsComplete: async (id) => {
-    const response = await api.post<Negotiation>(`${API_BASE_PATH}/${id}/mark-complete`);
-    return response;
-  },
-
-  markAsPartiallyComplete: async (id) => {
-    const response = await api.post<Negotiation>(`${API_BASE_PATH}/${id}/mark-partially-complete`);
-    return response;
-  },
-
-  startNewCycle: async (negotiationId) => {
-    const response = await api.post<Negotiation>(`${API_BASE_PATH}/${negotiationId}/cycles`);
-    return response;
-  },
-
-  rollbackStatus: async (negotiationId, targetStatus, reason) => {
-    const response = await api.post<Negotiation>(`${API_BASE_PATH}/${negotiationId}/rollback`, {
-      target_status: targetStatus,
-      reason
-    });
-    return response;
-  },
-
-  forkNegotiation: async (negotiationId, itemGroups) => {
-    const response = await api.post<ApiResponse<{
-      original_negotiation: Negotiation;
-      forked_negotiations: Negotiation[];
-    }>>(`${API_BASE_PATH}/${negotiationId}/fork`, {
-      item_groups: itemGroups
-    });
-    return response;
-  },
-
-  respondToItem: async (itemId, data) => {
-    const response = await api.post<ApiResponse<NegotiationItem>>(`${API_BASE_PATH}/items/${itemId}/respond`, data);
-    return response;
-  },
-}; 
+export const negotiationService = new NegotiationService(); 

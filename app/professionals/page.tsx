@@ -377,10 +377,10 @@ function ProfessionalsContent() {
                 columns={professionalColumns}
                 data={professionals}
                 isLoading={loading}
-                manualPagination
-                pageCount={professionalsMeta?.last_page || 1}
-                pageIndex={(professionalsMeta?.current_page || 1) - 1}
-                pageSize={professionalsMeta?.per_page || 10}
+                pageCount={tab === 'professionals' ? professionalsMeta?.last_page : clinicsMeta?.last_page}
+                currentPage={tab === 'professionals' ? professionalsMeta?.current_page : clinicsMeta?.current_page}
+                pageSize={tab === 'professionals' ? professionalsMeta?.per_page : clinicsMeta?.per_page}
+                totalItems={tab === 'professionals' ? professionalsMeta?.total : clinicsMeta?.total}
                 onPaginationChange={(page: number, size: number) => {
                   if (size !== professionalsMeta?.per_page) {
                     handleProfessionalsPageSizeChange(size)
@@ -405,10 +405,10 @@ function ProfessionalsContent() {
                 columns={clinicColumns}
                 data={clinics}
                 isLoading={loading}
-                manualPagination
                 pageCount={clinicsMeta?.last_page || 1}
-                pageIndex={(clinicsMeta?.current_page || 1) - 1}
+               currentPage={clinicsMeta?.current_page}
                 pageSize={clinicsMeta?.per_page || 10}
+                totalItems={clinicsMeta?.total}
                 onPaginationChange={(page: number, size: number) => {
                   if (size !== clinicsMeta?.per_page) {
                     handleClinicsPageSizeChange(size)
