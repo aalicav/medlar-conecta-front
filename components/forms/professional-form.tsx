@@ -1829,143 +1829,143 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
   };
 
   // Atualizar handleFormSubmit para incluir validação de documentos
-  const handleFormSubmit = async (data: FormValues) => {
-    const documentErrors = validateDocuments();
+  // const handleFormSubmit = async (data: FormValues) => {
+  //   const documentErrors = validateDocuments();
     
-    if (documentErrors.length > 0) {
-      toast({
-        title: "Documentos Pendentes",
-        description: (
-          <div className="flex flex-col gap-1">
-            {documentErrors.map((error, index) => (
-              <p key={index} className="text-sm">{error}</p>
-            ))}
-          </div>
-        ),
-        variant: "destructive"
-      });
-      return;
-    }
+  //   if (documentErrors.length > 0) {
+  //     toast({
+  //       title: "Documentos Pendentes",
+  //       description: (
+  //         <div className="flex flex-col gap-1">
+  //           {documentErrors.map((error, index) => (
+  //             <p key={index} className="text-sm">{error}</p>
+  //           ))}
+  //         </div>
+  //       ),
+  //       variant: "destructive"
+  //     });
+  //     return;
+  //   }
 
-    try {
-      setLoading(true);
+  //   try {
+  //     setLoading(true);
 
-      const formData = new FormData();
+  //     const formData = new FormData();
 
-      // Adicionar campos básicos
-      Object.entries(data).forEach(([key, value]) => {
-        if (key !== 'documents' && key !== 'addresses' && key !== 'phones' && value !== null && value !== undefined) {
-          if (key === 'cpf' && typeof value === 'string') {
-            formData.append(key, unmask(value));
-          } else if (key === 'cnpj' && typeof value === 'string') {
-            formData.append(key, unmask(value));
-          } else {
-            formData.append(key, String(value));
-          }
-        }
-      });
+  //     // Adicionar campos básicos
+  //     Object.entries(data).forEach(([key, value]) => {
+  //       if (key !== 'documents' && key !== 'addresses' && key !== 'phones' && value !== null && value !== undefined) {
+  //         if (key === 'cpf' && typeof value === 'string') {
+  //           formData.append(key, unmask(value));
+  //         } else if (key === 'cnpj' && typeof value === 'string') {
+  //           formData.append(key, unmask(value));
+  //         } else {
+  //           formData.append(key, String(value));
+  //         }
+  //       }
+  //     });
 
-      // Adicionar telefones
-      if (data.phones?.length) {
-        data.phones.forEach((phone, index) => {
-          formData.append(`phones[${index}][number]`, unmask(phone.number));
-          formData.append(`phones[${index}][type]`, phone.type);
-          formData.append(`phones[${index}][is_whatsapp]`, String(phone.is_whatsapp));
-          formData.append(`phones[${index}][is_primary]`, String(phone.is_main));
-        });
-      }
+  //     // Adicionar telefones
+  //     if (data.phones?.length) {
+  //       data.phones.forEach((phone, index) => {
+  //         formData.append(`phones[${index}][number]`, unmask(phone.number));
+  //         formData.append(`phones[${index}][type]`, phone.type);
+  //         formData.append(`phones[${index}][is_whatsapp]`, String(phone.is_whatsapp));
+  //         formData.append(`phones[${index}][is_primary]`, String(phone.is_main));
+  //       });
+  //     }
 
-      // Adicionar endereços
-      if (data.addresses?.length) {
-        data.addresses.forEach((address, index) => {
-          Object.entries(address).forEach(([key, value]) => {
-            if (key === 'postal_code') {
-              formData.append(`addresses[${index}][${key}]`, unmask(String(value)));
-            } else if (key === 'district') {
-              formData.append(`addresses[${index}][neighborhood]`, String(value));
-            } else if (key === 'is_main') {
-              formData.append(`addresses[${index}][is_primary]`, String(value));
-            } else {
-              formData.append(`addresses[${index}][${key}]`, String(value));
-            }
-          });
-        });
-      }
+  //     // Adicionar endereços
+  //     if (data.addresses?.length) {
+  //       data.addresses.forEach((address, index) => {
+  //         Object.entries(address).forEach(([key, value]) => {
+  //           if (key === 'postal_code') {
+  //             formData.append(`addresses[${index}][${key}]`, unmask(String(value)));
+  //           } else if (key === 'district') {
+  //             formData.append(`addresses[${index}][neighborhood]`, String(value));
+  //           } else if (key === 'is_main') {
+  //             formData.append(`addresses[${index}][is_primary]`, String(value));
+  //           } else {
+  //             formData.append(`addresses[${index}][${key}]`, String(value));
+  //           }
+  //         });
+  //       });
+  //     }
 
-      // Adicionar documentos
-      if (data.documents?.length) {
-        data.documents.forEach((doc, index) => {
-          if (doc.file instanceof File) {
-            formData.append(`documents[${index}][file]`, doc.file);
-          }
-          formData.append(`documents[${index}][type_id]`, String(doc.type_id));
-          if (doc.expiration_date) {
-            formData.append(`documents[${index}][expiration_date]`, doc.expiration_date);
-          }
-          if (doc.observation) {
-            formData.append(`documents[${index}][observation]`, doc.observation);
-          }
-        });
-      }
+  //     // Adicionar documentos
+  //     if (data.documents?.length) {
+  //       data.documents.forEach((doc, index) => {
+  //         if (doc.file instanceof File) {
+  //           formData.append(`documents[${index}][file]`, doc.file);
+  //         }
+  //         formData.append(`documents[${index}][type_id]`, String(doc.type_id));
+  //         if (doc.expiration_date) {
+  //           formData.append(`documents[${index}][expiration_date]`, doc.expiration_date);
+  //         }
+  //         if (doc.observation) {
+  //           formData.append(`documents[${index}][observation]`, doc.observation);
+  //         }
+  //       });
+  //     }
 
-      // Se for edição, adicionar método PUT
-      if (isEdit) {
-        formData.append('_method', 'PUT');
-      }
+  //     // Se for edição, adicionar método PUT
+  //     if (isEdit) {
+  //       formData.append('_method', 'PUT');
+  //     }
 
-      // Enviar requisição
-      const endpoint = documentType === 'cpf' ? 
-        (isEdit ? `/professionals/${entityId}` : '/professionals') : 
-        (isEdit ? `/clinics/${entityId}` : '/clinics');
+  //     // Enviar requisição
+  //     const endpoint = documentType === 'cpf' ? 
+  //       (isEdit ? `/professionals/${entityId}` : '/professionals') : 
+  //       (isEdit ? `/clinics/${entityId}` : '/clinics');
 
-      const response = await api.post(endpoint, formData, {
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+  //     const response = await api.post(endpoint, formData, {
+  //       headers: {
+  //         'Accept': 'application/json',
+  //         'Content-Type': 'multipart/form-data'
+  //       }
+  //     });
 
-      showToast(toast, {
-        title: "Sucesso",
-        description: isEdit 
-          ? "Profissional atualizado com sucesso!" 
-          : "Profissional cadastrado com sucesso!",
-        variant: "success"
-      });
+  //     showToast(toast, {
+  //       title: "Sucesso",
+  //       description: isEdit 
+  //         ? "Profissional atualizado com sucesso!" 
+  //         : "Profissional cadastrado com sucesso!",
+  //       variant: "success"
+  //     });
 
-      router.push('/professionals');
-    } catch (error: any) {
-      console.error("Erro ao enviar formulário:", error);
+  //     router.push('/professionals');
+  //   } catch (error: any) {
+  //     console.error("Erro ao enviar formulário:", error);
       
-      if (error.response?.data?.errors) {
-        const errorMessages = formatApiValidationErrors(error.response.data.errors);
+  //     if (error.response?.data?.errors) {
+  //       const errorMessages = formatApiValidationErrors(error.response.data.errors);
         
-        showToast(toast, {
-          title: "Erro de validação",
-          description: (
-            <div className="max-h-[200px] overflow-y-auto">
-              <p className="mb-2 font-semibold text-destructive">Por favor, corrija os seguintes erros:</p>
-              {errorMessages.map((message, index) => (
-                <div key={index} className="flex gap-2 items-start mb-1">
-                  <div className="mt-1 h-1.5 w-1.5 rounded-full bg-destructive shrink-0"></div>
-                  <p className="text-sm">{message}</p>
-                </div>
-              ))}
-            </div>
-          ),
-          variant: "destructive"
-        });
-      } else {
-        showToast(toast, {
-          title: "Erro",
-          description: translateError(error.message || "Erro ao processar o formulário"),
-          variant: "destructive"
-        });
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  //       showToast(toast, {
+  //         title: "Erro de validação",
+  //         description: (
+  //           <div className="max-h-[200px] overflow-y-auto">
+  //             <p className="mb-2 font-semibold text-destructive">Por favor, corrija os seguintes erros:</p>
+  //             {errorMessages.map((message, index) => (
+  //               <div key={index} className="flex gap-2 items-start mb-1">
+  //                 <div className="mt-1 h-1.5 w-1.5 rounded-full bg-destructive shrink-0"></div>
+  //                 <p className="text-sm">{message}</p>
+  //               </div>
+  //             ))}
+  //           </div>
+  //         ),
+  //         variant: "destructive"
+  //       });
+  //     } else {
+  //       showToast(toast, {
+  //         title: "Erro",
+  //         description: translateError(error.message || "Erro ao processar o formulário"),
+  //         variant: "destructive"
+  //       });
+  //     }
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   // Atualizar a função handleDocumentItemTypeChange para filtrar documentos ativos
   const handleDocumentItemTypeChange = (value: string, index: number) => {

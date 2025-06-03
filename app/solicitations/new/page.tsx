@@ -10,7 +10,7 @@ const NewSolicitationContent = () => {
   const { user, hasRole } = useAuth()
 
   const isPlanAdmin = hasRole("plan_admin")
-  const healthPlanId = isPlanAdmin ? user?.id : undefined;
+  const healthPlanId = isPlanAdmin ? user?.entity_id : undefined;
 
   return (
     <div className="space-y-6">
