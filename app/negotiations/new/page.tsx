@@ -126,7 +126,16 @@ const buscarEntidades = async (tipo: string, termo: string = '') => {
   if (!tipo) return [];
   
   try {
-    const response = await api.get(`/${tipo.toLowerCase()}s`, { 
+    let endpoint = '';
+    if (tipo === 'App\\Models\\Professional') {
+      endpoint = '/professionals';
+    } else if (tipo === 'App\\Models\\Clinic') {
+      endpoint = '/clinics';
+    } else {
+      return [];
+    }
+
+    const response = await api.get(endpoint, { 
       params: { search: termo } 
     });
     

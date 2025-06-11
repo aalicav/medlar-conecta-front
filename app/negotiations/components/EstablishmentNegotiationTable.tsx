@@ -27,84 +27,100 @@ export function EstablishmentNegotiationTable({
   onView,
 }: EstablishmentNegotiationTableProps) {
   const { hasPermission } = usePermissions();
-  const canEdit = hasPermission("edit negotiations");
+  const [loading, setLoading] = useState(false);
 
-  const getStatusBadge = (status: NegotiationStatus) => {
-    const variants = {
-      pending: "default",
-      approved: "success",
-      rejected: "destructive",
-    } as const;
-
-    const labels = {
-      pending: "Pendente",
-      approved: "Aprovado",
-      rejected: "Rejeitado",
-    } as const;
-
-    return (
-      <Badge variant={variants[status]}>
-        {status === "approved" && <CheckCircle className="w-4 h-4 mr-1" />}
-        {status === "rejected" && <AlertCircle className="w-4 h-4 mr-1" />}
-        {labels[status]}
-      </Badge>
-    );
+  const formatValue = (value: string | number): number => {
+    return typeof value === 'string' ? parseFloat(value) : value;
   };
 
   return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Código TUSS</TableHead>
-            <TableHead>Descrição</TableHead>
-            <TableHead className="text-right">Valor Proposto</TableHead>
-            <TableHead className="text-right">Valor Aprovado</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Última Atualização</TableHead>
-            <TableHead>Atualizado por</TableHead>
-            <TableHead className="text-right">Ações</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {items.map((item) => (
-            <TableRow key={item.id}>
-              <TableCell>{item.tuss.code}</TableCell>
-              <TableCell>{item.tuss.description}</TableCell>
-              <TableCell className="text-right">
-                {formatMoney(item.proposed_value)}
-              </TableCell>
-              <TableCell className="text-right">
-                {item.approved_value ? formatMoney(item.approved_value) : "-"}
-              </TableCell>
-              <TableCell>{getStatusBadge(item.status)}</TableCell>
-              <TableCell>{formatDate(new Date(item.created_at))}</TableCell>
-              <TableCell>{item.updated_by.name}</TableCell>
-              <TableCell className="text-right">
-                <div className="flex justify-end gap-2">
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Código TUSS</TableHead>
+          <TableHead>Procedimento</TableHead>
+          <TableHead>Especialidade</TableHead>
+          <TableHead className="text-right">Valor Proposto</TableHead>
+          <TableHead className="text-right">Valor Aprovado</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead className="text-right">Ações</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {items.map((item) => (
+          <TableRow key={item.id}>
+            <TableCell className="font-medium">
+              <Badge variant="outline" className="h-5 text-xs">
+                {item.tuss?.code}
+              </Badge>
+            </TableCell>
+            <TableCell>
+              <div className="font-medium">{item.tuss?.name}</div>
+              <div className="text-xs text-muted-foreground truncate max-w-[400px]">
+                {item.tuss?.description}
+              </div>
+            </TableCell>
+            <TableCell>
+              {item.medical_specialty ? (
+                <Badge variant="outline" className="text-xs">
+                  {item.medical_specialty.name}
+                </Badge>
+              ) : (
+                "-"
+              )}
+            </TableCell>
+            <TableCell className="text-right font-medium">
+              {formatMoney(formatValue(item.proposed_value))}
+            </TableCell>
+            <TableCell className="text-right font-medium">
+              {item.approved_value ? formatMoney(formatValue(item.approved_value)) : "-"}
+            </TableCell>
+            <TableCell>
+              <Badge
+                variant={
+                  item.status === "approved"
+                    ? "default"
+                    : item.status === "rejected"
+                    ? "destructive"
+                    : item.status === "counter_offered"
+                    ? "secondary"
+                    : "outline"
+                }
+              >
+                {item.status === "approved"
+                  ? "Aprovado"
+                  : item.status === "rejected"
+                  ? "Rejeitado"
+                  : item.status === "counter_offered"
+                  ? "Contra-proposta"
+                  : "Pendente"}
+              </Badge>
+            </TableCell>
+            <TableCell className="text-right">
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onView(item)}
+                  title="Visualizar"
+                >
+                  <EyeIcon className="h-4 w-4" />
+                </Button>
+                {hasPermission("negotiations.update") && (
                   <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onView(item)}
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onEdit(item)}
+                    title="Editar"
                   >
-                    <EyeIcon className="h-4 w-4" />
+                    <PencilIcon className="h-4 w-4" />
                   </Button>
-                  {canEdit && item.status === "pending" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onEdit(item)}
-                    >
-                      <PencilIcon className="h-4 w-4" />
-                      Editar
-                    </Button>
-                  )}
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+                )}
+              </div>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 } 

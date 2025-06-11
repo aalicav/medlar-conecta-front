@@ -29,6 +29,8 @@ import type {
 } from '@/types/negotiations';
 import type { ApiResponse, Tuss } from '@/services/types';
 import { apiClient } from '../../../services/apiClient';
+import { specialtyService } from '@/services/specialtyService';
+import type { MedicalSpecialty } from '@/types/specialties';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -126,6 +128,7 @@ interface FormValues {
     tuss_id: number;
     proposed_value: number;
     notes?: string;
+    medical_specialty_id?: number;
   }[];
 }
 
@@ -148,6 +151,8 @@ const EditNegotiationPage = ({ params }: { params: { id: string } }) => {
   const [tussSearchTerm, setTussSearchTerm] = useState('');
   const [entitySearchTerm, setEntitySearchTerm] = useState('');
   const [searchingEntities, setSearchingEntities] = useState(false);
+  const [specialties, setSpecialties] = useState<MedicalSpecialty[]>([]);
+  const [loadingSpecialties, setLoadingSpecialties] = useState(false);
   
   const form = useForm<FormValues>({
     defaultValues: {
@@ -281,6 +286,39 @@ const EditNegotiationPage = ({ params }: { params: { id: string } }) => {
     
     fetchEntities();
   }, [selectedEntityType, toast]);
+
+  // Carregar especialidades médicas quando necessário
+  const loadSpecialties = useCallback(async () => {
+    if (loadingSpecialties) return;
+    
+    setLoadingSpecialties(true);
+    try {
+      const response = await specialtyService.list();
+      setSpecialties(response);
+    } catch (error) {
+      console.error('Erro ao carregar especialidades:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar as especialidades médicas",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingSpecialties(false);
+    }
+  }, [loadingSpecialties, toast]);
+
+  // Efeito para carregar especialidades quando necessário
+  useEffect(() => {
+    const items = form.watch('items');
+    const needsSpecialties = items.some(item => {
+      const tuss = tussOptions.find(t => t.id === item.tuss_id);
+      return tuss?.code === '10101012';
+    });
+
+    if (needsSpecialties) {
+      loadSpecialties();
+    }
+  }, [form.watch('items'), tussOptions, loadSpecialties]);
 
   const handleEntityTypeChange = (value: string) => {
     setSelectedEntityType(value);
@@ -734,11 +772,13 @@ const EditNegotiationPage = ({ params }: { params: { id: string } }) => {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                {form.watch('items').map((item, index) => (
-                      <div 
-                        key={index} 
-                        className="p-5 border rounded-md space-y-4 bg-card shadow-sm hover:shadow-md transition-shadow relative"
-                      >
+                {form.watch('items').map((item, index) => {
+                  const tussSelected = tussOptions.find(t => t.id === item.tuss_id);
+                  const isTuss10101012 = tussSelected?.code === '10101012';
+
+                  return (
+                    <Card key={index} className="p-4">
+                      <div className="space-y-4">
                         <div className="flex justify-between items-center">
                           <div className="flex items-center">
                             <Badge variant="outline" className="px-3 py-1 rounded-md">
@@ -944,7 +984,9 @@ const EditNegotiationPage = ({ params }: { params: { id: string } }) => {
                           </div>
                         )}
                       </div>
-                    ))}
+                    </Card>
+                  );
+                })}
                   </div>
                 )}
               </div>

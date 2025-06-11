@@ -477,7 +477,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
         toast({
           title: "Aviso",
           description: "Somente negociações no status 'Submetido' podem ter notificações reenviadas.",
-          variant: "warning"
+          variant: "default"
         });
         return;
       }
@@ -579,8 +579,9 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
         )}
         
         {/* Resend notifications */}
-        {(negociacao.status === 'pending' || negociacao.status === 'submitted') && (
+        {negociacao.status === 'submitted' && hasPermission('create negotiations') && (
           <Button variant="outline" onClick={handleResendNotifications}>
+            <MoreHorizontal className="h-4 w-4 mr-2" />
             Reenviar Notificações
           </Button>
         )}
@@ -600,7 +601,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
         )}
 
         {/* Status rollback */}
-        {(['pending', 'approved'].includes(negociacao.status) && hasPermission('manage_negotiations')) && (
+        {(['pending', 'approved'].includes(negociacao.status) && hasPermission('manage negotiations')) && (
           <RollbackStatusDialog 
             negotiation={negociacao}
             onComplete={fetchNegotiation} 
@@ -618,7 +619,8 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
 
         {/* Fork negotiation */}
         {(negociacao.status === 'draft' && !negociacao.is_fork && 
-          negociacao.items.length > 1 && hasPermission('manage_negotiations')) && (
+          negociacao.items.filter(item => item.status === 'pending').length >= 2 && 
+          hasPermission('manage negotiations')) && (
           <NegotiationForkDialog 
             negotiation={negociacao}
             onComplete={fetchNegotiation} 
@@ -1156,6 +1158,13 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                       <div className="text-xs text-muted-foreground truncate max-w-[400px]">
                         {item.tuss?.description}
                       </div>
+                      {item.medical_specialty && (
+                        <div className="mt-1">
+                          <Badge variant="outline" className="text-xs">
+                            Especialidade: {item.medical_specialty.name}
+                          </Badge>
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="text-right font-medium">
                       {formatCurrency(item.proposed_value)}

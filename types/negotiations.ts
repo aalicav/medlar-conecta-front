@@ -20,6 +20,7 @@ export type ExceptionStatus = 'pending' | 'approved' | 'rejected' | 'formalized'
 export interface Tuss {
   id: number;
   code: string;
+  name: string;
   description: string;
 }
 
@@ -27,6 +28,11 @@ export interface NegotiationItem {
   id: number;
   negotiation_id: number;
   tuss: Tuss;
+  medical_specialty?: {
+    id: number;
+    name: string;
+    default_price: number;
+  };
   proposed_value: string | number;
   approved_value: string | number | null;
   status: NegotiationItemStatus;
