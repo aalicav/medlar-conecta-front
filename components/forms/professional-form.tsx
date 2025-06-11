@@ -40,6 +40,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
 import { DateInput } from "@/components/ui/date-input"
+import { specialtyService, MedicalSpecialty } from '@/services/specialtyService'
 
 // Add these interfaces after imports and before formSchema
 interface Clinic {
@@ -217,56 +218,28 @@ const addressSchema = z.object({
 
 // Update the form schema at the beginning of the file
 const formSchema = z.object({
-  documentType: z.enum(["cpf", "cnpj"]),
   name: z.string().min(1, "Nome é obrigatório"),
   email: z.string().email("Email inválido"),
-  phones: z.array(z.object({
-    number: z.string().min(1, "Número é obrigatório"),
-    is_main: z.boolean(),
-    type: z.enum(["mobile", "landline"]),
-    is_whatsapp: z.boolean()
-  })).min(1, "Pelo menos um telefone é obrigatório"),
-  addresses: z.array(z.object({
-    street: z.string().min(1, "Rua é obrigatória"),
-    number: z.string().min(1, "Número é obrigatório"),
-    complement: z.string().optional(),
-    district: z.string().min(1, "Bairro é obrigatório"),
-    city: z.string().min(1, "Cidade é obrigatória"),
-    state: z.string().min(1, "Estado é obrigatório"),
-    postal_code: z.string().min(1, "CEP é obrigatório"),
-    is_main: z.boolean()
-  })).min(1, "Pelo menos um endereço é obrigatório"),
-  
-  // Professional fields
-  cpf: z.string().optional(),
-  birth_date: z.string().optional(),
-  gender: z.enum(["male", "female", "other"]).optional(),
-  specialty: z.string().optional(),
-  council_type: z.string().optional(),
-  council_number: z.string().optional(),
-  council_state: z.string().optional(),
+  phone: z.string().min(1, "Telefone é obrigatório"),
+  documentType: z.enum(["cpf", "cnpj"]),
+  document: z.string().min(1, "Documento é obrigatório"),
+  clinicId: z.string().optional(),
+  birthDate: z.date().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  zip_code: z.string().optional(),
+  website: z.string().optional(),
   bio: z.string().optional(),
-  clinic_id: z.string().optional(),
-  
-  // Establishment fields
-  cnpj: z.string().optional(),
-  trading_name: z.string().optional(),
-  foundation_date: z.string().optional(),
-  business_hours: z.string().optional(),
-  services: z.string().optional(),
-  health_reg_number: z.string().optional(),
-  
-  // Documents
+  avatar: z.string().optional(),
   documents: z.array(z.object({
-    id: z.number().optional(),
-    type_id: z.number(),
-    file: z.any().optional(),
-    file_url: z.string().optional(),
-    expiration_date: z.string().optional(),
-    observation: z.string().optional()
-  }))
+    type: z.string(),
+    file: z.any(),
+    description: z.string().optional()
+  })).optional(),
 });
 
+type FormValues = z.infer<typeof formSchema>;
 
 // After the FormValues type definition, add field render types
 type FieldRenderProps<T extends FieldPath<FormValues> = FieldPath<FormValues>> = {
@@ -282,8 +255,8 @@ type FieldRenderProps<T extends FieldPath<FormValues> = FieldPath<FormValues>> =
 // Near TypedFormField declaration or where components are used
 // Create a typed wrapper for FormField
 
-interface UnifiedFormProps {
-  initialData?: ApiData;
+export interface UnifiedFormProps {
+  initialData?: Partial<FormValues>;
   onSubmit: (data: FormValues) => Promise<void>;
   isClinicAdmin?: boolean;
   clinicId?: string;
@@ -566,7 +539,7 @@ interface FormValues {
 }
 
 interface UnifiedFormProps {
-  initialData?: ApiData;
+  initialData?: Partial<FormValues>;
   onSubmit: (data: FormValues) => Promise<void>;
   isClinicAdmin?: boolean;
   clinicId?: string;
@@ -606,7 +579,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
   const [loading, setLoading] = useState(false)
   const [clinics, setClinics] = useState<Clinic[]>([])
   const [loadingClinics, setLoadingClinics] = useState(false)
-  const [specialties, setSpecialties] = useState<Specialty[]>([])
+  const [specialties, setSpecialties] = useState<MedicalSpecialty[]>([])
   const [loadingSpecialties, setLoadingSpecialties] = useState(false)
   const [documentType, setDocumentType] = useState<"cpf" | "cnpj">(initialData?.documentType || "cpf")
   const [formProgressed, setFormProgressed] = useState(false)
@@ -910,8 +883,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     const fetchSpecialties = async () => {
       setLoadingSpecialties(true)
       try {
-        const response = await api.get("/specialties")
-        const data = response.data?.data;
+        const data = await specialtyService.list();
         setSpecialties(data)
       } catch (error) {
         toast({

@@ -89,7 +89,7 @@ export default function AppointmentsReportsPage() {
       
       params.include_summary = true;
       
-      const response = await api.get('/api/reports/appointments', { params });
+      const response = await api.get('/reports'/appointments', { params });
       
       if (response.data.status === 'success') {
         setReportData(response.data.data);
@@ -134,7 +134,7 @@ export default function AppointmentsReportsPage() {
         }
       };
       
-      const response = await api.post('/api/reports/export', params);
+      const response = await api.post('/reports/export', params);
       
       if (response.data.status === 'success') {
         toast({

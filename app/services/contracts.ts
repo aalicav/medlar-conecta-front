@@ -114,9 +114,9 @@ export const getEntityData = async (entity_type: 'health_plan' | 'clinic' | 'pro
   try {
     // Map the entity types to their respective API endpoints
     const endpointMap = {
-      'health_plan': '/api/health-plans',
-      'clinic': '/api/clinics',
-      'professional': '/api/professionals'
+      'health_plan': '/health-plans',
+      'clinic': '/clinics',
+      'professional': '/professionals'
     };
     
     // Use the existing entity detail endpoints

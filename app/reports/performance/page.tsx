@@ -98,7 +98,7 @@ export default function PerformanceReportsPage() {
         params.professional_id = professionalId;
       }
       
-      const response = await api.get('/api/reports/performance', { params });
+      const response = await api.get('/reports'/performance', { params });
       
       if (response.data.status === 'success') {
         setReportData(response.data.data);
@@ -140,7 +140,7 @@ export default function PerformanceReportsPage() {
         }
       };
       
-      const response = await api.post('/api/reports/export', params);
+      const response = await api.post('/reports/export', params);
       
       if (response.data.status === 'success') {
         toast({

@@ -92,31 +92,31 @@ export default function HealthPlansDashboard() {
       setIsLoading(true);
       try {
         // Buscar estatísticas gerais
-        const statsResponse = await api.get('/api/health-plans/dashboard/stats');
+        const statsResponse = await api.get('/health-plans/dashboard/stats');
         if (statsResponse.data.success) {
           setStatsData(statsResponse.data.data);
         }
 
         // Buscar estatísticas de procedimentos
-        const proceduresResponse = await api.get('/api/health-plans/dashboard/procedures');
+        const proceduresResponse = await api.get('/health-plans/dashboard/procedures');
         if (proceduresResponse.data.success) {
           setProcedureStats(proceduresResponse.data.data);
         }
 
         // Buscar dados financeiros
-        const financialResponse = await api.get(`/api/health-plans/dashboard/financial?range=${timeRange}`);
+        const financialResponse = await api.get(`/health-plans/dashboard/financial?range=${timeRange}`);
         if (financialResponse.data.success) {
           setFinancialData(financialResponse.data.data);
         }
 
         // Buscar planos recentes
-        const recentPlansResponse = await api.get('/api/health-plans/dashboard/recent');
+        const recentPlansResponse = await api.get('/health-plans/dashboard/recent');
         if (recentPlansResponse.data.success) {
           setRecentPlans(recentPlansResponse.data.data);
         }
 
         // Buscar solicitações recentes
-        const solicitationsResponse = await api.get('/api/health-plans/dashboard/solicitations');
+        const solicitationsResponse = await api.get('/health-plans/dashboard/solicitations');
         if (solicitationsResponse.data.success) {
           setRecentSolicitations(solicitationsResponse.data.data);
         }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { RotateCw, PencilLine, Trash2, Plus } from "lucide-react";
+import { RotateCw, PencilLine, Trash2, Plus, Download, Eye } from "lucide-react";
 import { toast } from '@/components/ui/use-toast';
 import api from '../../services/api-client';
 import { formatDateTime } from '@/app/utils/formatters';
@@ -29,6 +29,7 @@ interface Report {
 interface Generation {
   id: number;
   completed_at: string;
+  download_url: string;
 }
 
 interface Params {
@@ -93,7 +94,7 @@ export default function ReportsPage() {
         params.is_scheduled = isScheduled === 'true';
       }
 
-      const response = await api.get('/api/reports', { params });
+      const response = await api.get('/reports', { params });
       if (response.data.status === 'success') {
         setReports(response.data.data.data);
         setTotal(response.data.meta.total);
@@ -134,7 +135,7 @@ export default function ReportsPage() {
 
   const handleGenerateReport = async (id: number) => {
     try {
-      const response = await api.post(`/api/reports/${id}/generate`);
+      const response = await api.post(`/reports/${id}/generate`);
       if (response.data.status === 'success') {
         toast({
           title: "Sucesso",
@@ -167,7 +168,7 @@ export default function ReportsPage() {
     if (!reportToDelete) return;
     
     try {
-      const response = await api.delete(`/api/reports/${reportToDelete.id}`);
+      const response = await api.delete(`/reports/${reportToDelete.id}`);
       if (response.data.status === 'success') {
         toast({
           title: "Sucesso",
@@ -212,6 +213,17 @@ export default function ReportsPage() {
       return <Badge variant="secondary">Agendado</Badge>;
     }
     return <Badge variant="default">Relatório</Badge>;
+  };
+
+  const handleDownload = async (report: Report) => {
+    if (report.generations && report.generations.length > 0) {
+      // Get the latest generation
+      const latestGeneration = report.generations[report.generations.length - 1];
+      window.open(latestGeneration.download_url, '_blank');
+    } else {
+      // If no generations exist, generate a new one
+      handleGenerateReport(report.id);
+    }
   };
 
   // Calculate total pages for pagination
@@ -309,9 +321,8 @@ export default function ReportsPage() {
                 <TableRow>
                   <TableHead>Nome</TableHead>
                   <TableHead>Tipo</TableHead>
-                  <TableHead>Status</TableHead>
                   <TableHead>Criado em</TableHead>
-                  <TableHead>Última geração</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -325,49 +336,47 @@ export default function ReportsPage() {
                 ) : (
                   reports.map((report) => (
                     <TableRow key={report.id}>
-                      <TableCell>
-                        <button 
-                          onClick={() => handleViewReport(report.id)}
-                          className="text-primary underline font-medium"
-                        >
-                          {report.name}
-                        </button>
-                      </TableCell>
+                      <TableCell>{report.name}</TableCell>
                       <TableCell>{getReportTypeLabel(report.type)}</TableCell>
-                      <TableCell>{renderStatusBadge(report)}</TableCell>
                       <TableCell>{formatDateTime(report.created_at)}</TableCell>
-                      <TableCell>
-                        {report.generations && report.generations.length > 0
-                          ? formatDateTime(report.generations[0].completed_at)
-                          : 'Nunca gerado'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end space-x-2">
-                          <Button 
-                            variant="outline" 
-                            size="icon" 
-                            onClick={() => handleGenerateReport(report.id)}
-                            title="Gerar relatório"
-                          >
-                            <RotateCw className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="icon" 
-                            onClick={() => handleEditReport(report.id)}
-                            title="Editar"
-                          >
-                            <PencilLine className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="icon" 
-                            onClick={() => handleDeleteClick(report)}
-                            title="Excluir"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                      <TableCell>{renderStatusBadge(report)}</TableCell>
+                      <TableCell className="text-right space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewReport(report.id)}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          Detalhes
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDownload(report)}
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download
+                        </Button>
+                        {user.role === 'admin' && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditReport(report.id)}
+                            >
+                              <PencilLine className="h-4 w-4 mr-2" />
+                              Editar
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDeleteClick(report)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Excluir
+                            </Button>
+                          </>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))

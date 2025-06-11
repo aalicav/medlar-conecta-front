@@ -15,6 +15,8 @@ export type NegotiationItemStatus =
   | 'rejected'
   | 'counter_offered';
 
+export type ExceptionStatus = 'pending' | 'approved' | 'rejected' | 'formalized';
+
 export interface Tuss {
   id: number;
   code: string;
@@ -142,14 +144,26 @@ export interface Negotiation {
   can_edit: boolean;
 }
 
-export interface CreateNegotiationDto {
-  establishment_id: number;
+export type CreateNegotiationDto = {
+  entity_type: string;  // App\Models\HealthPlan, App\Models\Professional, App\Models\Clinic
+  entity_id: number;
+  title: string;
+  description?: string;
+  start_date: string;
+  end_date: string;
+  notes?: string;
+  status?: NegotiationStatus;
   items: {
     tuss_id: number;
     proposed_value: number;
+    status?: NegotiationItemStatus;
+    approved_value?: number;
     notes?: string;
+    counter_value?: number;
+    counter_notes?: string;
+    medical_specialty_id?: number;
   }[];
-}
+};
 
 export interface UpdateNegotiationDto {
   items: {
@@ -170,6 +184,33 @@ export interface ApproveNegotiationDto {
 
 export interface RejectNegotiationDto {
   reason: string;
+}
+
+export interface CreateExceptionDto {
+  patient_id: number;
+  tuss_id: number;
+  proposed_value: number;
+  notes?: string;
+  urgency_level?: 'low' | 'medium' | 'high';
+  justification?: string;
+}
+
+export interface ExceptionNegotiation {
+  id: number;
+  patient_id: number;
+  tuss_id: number;
+  proposed_value: number;
+  approved_value?: number;
+  notes?: string;
+  urgency_level: 'low' | 'medium' | 'high';
+  justification?: string;
+  status: ExceptionStatus;
+  created_at: string;
+  updated_at: string;
+  approved_at?: string;
+  rejected_at?: string;
+  formalized_at?: string;
+  contract_id?: number;
 }
 
 export interface ApiResponse<T> {

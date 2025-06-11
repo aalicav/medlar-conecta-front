@@ -3,9 +3,8 @@
 import * as React from "react"
 import * as ToastPrimitives from "@radix-ui/react-toast"
 import { cva, type VariantProps } from "class-variance-authority"
-import { X, AlertCircle, CheckCircle, Info, AlertTriangle } from "lucide-react"
-
-import { cn } from "@/lib/utils"
+import { X } from "lucide-react"
+import { cn } from "@/utils/cn"
 
 const ToastProvider = ToastPrimitives.Provider
 
@@ -32,16 +31,6 @@ const toastVariants = cva(
         default: "border bg-background text-foreground",
         destructive:
           "destructive group border-destructive bg-destructive text-destructive-foreground",
-        success:
-          "success group border-green-500 bg-green-500 text-white",
-        warning:
-          "warning group border-amber-500 bg-amber-500 text-white",
-        info:
-          "info group border-sky-500 bg-sky-500 text-white",
-        network:
-          "network group border-rose-600 bg-rose-600 text-white",
-        auth:
-          "auth group border-red-500 bg-red-500 text-white",
       },
     },
     defaultVariants: {
@@ -87,7 +76,7 @@ const ToastClose = React.forwardRef<
   <ToastPrimitives.Close
     ref={ref}
     className={cn(
-      "absolute right-2 top-2 rounded-md p-1 text-foreground/50 opacity-0 transition-opacity hover:text-foreground focus:opacity-100 focus:outline-none focus:ring-2 group-hover:opacity-100 group-[.destructive]:text-white/50 group-[.destructive]:hover:text-white group-[.destructive]:focus:ring-white/20 group-[.success]:text-white/50 group-[.success]:hover:text-white group-[.warning]:text-white/50 group-[.warning]:hover:text-white group-[.info]:text-white/50 group-[.info]:hover:text-white group-[.network]:text-white/50 group-[.network]:hover:text-white group-[.auth]:text-white/50 group-[.auth]:hover:text-white",
+      "absolute right-2 top-2 rounded-md p-1 text-foreground/50 opacity-0 transition-opacity hover:text-foreground focus:opacity-100 focus:outline-none focus:ring-2 group-hover:opacity-100 group-[.destructive]:text-red-300 group-[.destructive]:hover:text-red-50 group-[.destructive]:focus:ring-red-400 group-[.destructive]:focus:ring-offset-red-600",
       className
     )}
     toast-close=""
@@ -104,7 +93,7 @@ const ToastTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <ToastPrimitives.Title
     ref={ref}
-    className={cn("text-sm font-semibold flex items-center gap-2", className)}
+    className={cn("text-sm font-semibold", className)}
     {...props}
   />
 ))
@@ -116,7 +105,7 @@ const ToastDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <ToastPrimitives.Description
     ref={ref}
-    className={cn("text-sm opacity-90 mt-1", className)}
+    className={cn("text-sm opacity-90", className)}
     {...props}
   />
 ))
@@ -136,12 +125,4 @@ export {
   ToastDescription,
   ToastClose,
   ToastAction,
-}
-
-// Helper components for error icons
-export const ToastIcon = {
-  Success: () => <CheckCircle className="h-5 w-5" />,
-  Error: () => <AlertCircle className="h-5 w-5" />,
-  Warning: () => <AlertTriangle className="h-5 w-5" />,
-  Info: () => <Info className="h-5 w-5" />
 }

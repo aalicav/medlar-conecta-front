@@ -278,66 +278,219 @@ export interface NegotiationApprovalRequest {
   }>;
 }
 
-class NegotiationService implements NegotiationServiceType {
-  async getNegotiations(params: GetNegotiationsParams): Promise<ApiResponse<Negotiation[]>> {
-    const response = await api.get<Negotiation[]>('/negotiations', { params });
-    return response;
-  }
+export const negotiationService = {
+  getNegotiations: async (params?: GetNegotiationsParams): Promise<ApiResponse<Negotiation[]>> => {
+    try {
+      const response = await api.get('/negotiations', { params });
+      return {
+        data: response.data.data,
+        meta: {
+          current_page: response.data.meta.current_page,
+          last_page: response.data.meta.last_page,
+          per_page: response.data.meta.per_page,
+          total: response.data.meta.total
+        }
+      };
+    } catch (error) {
+      console.error('Error fetching negotiations:', error);
+      throw error;
+    }
+  },
 
-  async getById(id: number): Promise<ApiResponse<Negotiation>> {
-    const response = await api.get<Negotiation>(`${API_BASE_PATH}/${id}`);
-    return response;
-  }
+  getById: async (id: number): Promise<ApiResponse<Negotiation>> => {
+    try {
+      const response = await api.get(`/negotiations/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching negotiation:', error);
+      throw error;
+    }
+  },
 
-  async processApproval(id: number, data: NegotiationApprovalRequest): Promise<ApiResponse<Negotiation>> {
-    const response = await api.post<ApiResponse<Negotiation>>(`${API_BASE_PATH}/${id}/process-approval`, data);
-    return response.data;
-  }
+  submitForApproval: async (id: number): Promise<ApiResponse<Negotiation>> => {
+    try {
+      const response = await api.post(`/negotiations/${id}/submit`);
+      return response.data;
+    } catch (error) {
+      console.error('Error submitting negotiation for approval:', error);
+      throw error;
+    }
+  },
 
-  async processExternalApproval(id: number, data: NegotiationApprovalRequest): Promise<ApiResponse<Negotiation>> {
-    const response = await api.post<ApiResponse<Negotiation>>(`${API_BASE_PATH}/${id}/process-external-approval`, data);
-    return response.data;
-  }
+  cancelNegotiation: async (id: number): Promise<ApiResponse<Negotiation>> => {
+    try {
+      const response = await api.post(`/negotiations/${id}/cancel`);
+      return response.data;
+    } catch (error) {
+      console.error('Error canceling negotiation:', error);
+      throw error;
+    }
+  },
 
-  async forkNegotiation(id: number, groups: ForkGroupItem[]): Promise<ApiResponse<Negotiation>> {
-    const response = await api.post<ApiResponse<Negotiation>>(`${API_BASE_PATH}/${id}/fork`, { item_groups: groups });
-    return response.data;
-  }
+  markAsComplete: async (id: number): Promise<ApiResponse<Negotiation>> => {
+    try {
+      const response = await api.post(`/negotiations/${id}/complete`);
+      return response.data;
+    } catch (error) {
+      console.error('Error marking negotiation as complete:', error);
+      throw error;
+    }
+  },
 
-  async submitForApproval(id: number): Promise<ApiResponse<Negotiation>> {
-    return api.post(`${API_BASE_PATH}/${id}/submit`);
-  }
+  markAsPartiallyComplete: async (id: number): Promise<ApiResponse<Negotiation>> => {
+    try {
+      const response = await api.post(`/negotiations/${id}/partially-complete`);
+      return response.data;
+    } catch (error) {
+      console.error('Error marking negotiation as partially complete:', error);
+      throw error;
+    }
+  },
 
-  async cancelNegotiation(id: number): Promise<ApiResponse<Negotiation>> {
-    return api.post(`${API_BASE_PATH}/${id}/cancel`);
-  }
+  startNewCycle: async (id: number): Promise<ApiResponse<Negotiation>> => {
+    try {
+      const response = await api.post(`/negotiations/${id}/new-cycle`);
+      return response.data;
+    } catch (error) {
+      console.error('Error starting new negotiation cycle:', error);
+      throw error;
+    }
+  },
 
-  async markAsComplete(id: number): Promise<ApiResponse<Negotiation>> {
-    return api.post(`${API_BASE_PATH}/${id}/complete`);
-  }
+  forkNegotiation: async (id: number, targetIds: number[]): Promise<ApiResponse<Negotiation>> => {
+    try {
+      const response = await api.post(`/negotiations/${id}/fork`, { target_ids: targetIds });
+      return response.data;
+    } catch (error) {
+      console.error('Error forking negotiation:', error);
+      throw error;
+    }
+  },
 
-  async markAsPartiallyComplete(id: number): Promise<ApiResponse<Negotiation>> {
-    return api.post(`${API_BASE_PATH}/${id}/partially-complete`);
-  }
+  processApproval: async (id: number, action: 'approve' | 'reject'): Promise<ApiResponse<Negotiation>> => {
+    try {
+      const response = await api.post(`/negotiations/${id}/${action}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error processing negotiation approval:', error);
+      throw error;
+    }
+  },
 
-  async startNewCycle(id: number): Promise<ApiResponse<Negotiation>> {
-    return api.post(`${API_BASE_PATH}/${id}/new-cycle`);
-  }
+  resendNotifications: async (id: number): Promise<ApiResponse<any>> => {
+    try {
+      const response = await api.post(`/negotiations/${id}/resend-notifications`);
+      return response.data;
+    } catch (error) {
+      console.error('Error resending notifications:', error);
+      throw error;
+    }
+  },
 
-  async resendNotifications(id: number): Promise<ApiResponse<any>> {
-    const response = await api.post<ApiResponse<any>>(`${API_BASE_PATH}/${id}/resend-notifications`);
-    return response.data;
-  }
+  generateContract: async (id: number): Promise<ApiResponse<{ contract_id: number }>> => {
+    try {
+      const response = await api.post(`/negotiations/${id}/generate-contract`);
+      return response.data;
+    } catch (error) {
+      console.error('Error generating contract:', error);
+      throw error;
+    }
+  },
 
-  async generateContract(id: number): Promise<ApiResponse<{ contract_id: number }>> {
-    const response = await api.post<ApiResponse<{ contract_id: number }>>(`${API_BASE_PATH}/${id}/generate-contract`);
-    return response.data;
-  }
+  update: async (id: number, data: any): Promise<ApiResponse<Negotiation>> => {
+    try {
+      const response = await api.put(`/negotiations/${id}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Error updating negotiation:', error);
+      throw error;
+    }
+  },
 
-  async update(id: number, data: any): Promise<ApiResponse<Negotiation>> {
-    const response = await api.put<ApiResponse<Negotiation>>(`${API_BASE_PATH}/${id}`, data);
-    return response.data;
-  }
-}
+  respondToItem: async (itemId: number, response: { status: NegotiationItemStatus; approved_value?: number; notes?: string }): Promise<ApiResponse<NegotiationItem>> => {
+    try {
+      const apiResponse = await api.post(`/negotiation-items/${itemId}/respond`, response);
+      return apiResponse.data;
+    } catch (error) {
+      console.error('Error responding to negotiation item:', error);
+      throw error;
+    }
+  },
 
-export const negotiationService = new NegotiationService(); 
+  counterItem: async (itemId: number, counterValue: number, notes?: string): Promise<ApiResponse<NegotiationItem>> => {
+    try {
+      const response = await api.post(`/negotiation-items/${itemId}/counter`, {
+        counter_value: counterValue,
+        notes
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error counter offering negotiation item:', error);
+      throw error;
+    }
+  },
+
+  createException: async (data: CreateExceptionDto): Promise<ApiResponse<ExceptionNegotiation>> => {
+    try {
+      const response = await api.post('/exception-negotiations', data);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating exception negotiation:', error);
+      throw error;
+    }
+  },
+
+  getExceptions: async (params?: {
+    status?: ExceptionStatus;
+    patient_id?: number;
+    search?: string;
+    page?: number;
+    per_page?: number;
+  }): Promise<ApiResponse<ExceptionNegotiation[]>> => {
+    try {
+      const response = await api.get('/exception-negotiations', { params });
+      return {
+        data: response.data.data,
+        meta: {
+          current_page: response.data.meta.current_page,
+          last_page: response.data.meta.last_page,
+          per_page: response.data.meta.per_page,
+          total: response.data.meta.total
+        }
+      };
+    } catch (error) {
+      console.error('Error fetching exception negotiations:', error);
+      throw error;
+    }
+  },
+
+  approveException: async (id: number, notes?: string): Promise<ApiResponse<ExceptionNegotiation>> => {
+    try {
+      const response = await api.post(`/exception-negotiations/${id}/approve`, { notes });
+      return response.data;
+    } catch (error) {
+      console.error('Error approving exception negotiation:', error);
+      throw error;
+    }
+  },
+
+  rejectException: async (id: number, notes?: string): Promise<ApiResponse<ExceptionNegotiation>> => {
+    try {
+      const response = await api.post(`/exception-negotiations/${id}/reject`, { notes });
+      return response.data;
+    } catch (error) {
+      console.error('Error rejecting exception negotiation:', error);
+      throw error;
+    }
+  },
+
+  markExceptionAsFormalized: async (id: number, contract_id: number): Promise<ApiResponse<ExceptionNegotiation>> => {
+    try {
+      const response = await api.post(`/exception-negotiations/${id}/formalize`, { contract_id });
+      return response.data;
+    } catch (error) {
+      console.error('Error marking exception negotiation as formalized:', error);
+      throw error;
+    }
+  }
+}; 

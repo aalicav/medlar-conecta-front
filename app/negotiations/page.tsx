@@ -193,13 +193,18 @@ export default function NegotiationList() {
         per_page: pagination.perPage
       });
 
-      setNegotiations(response.data);
-      setPagination(prev => ({
-        ...prev,
-        currentPage: response.meta.current_page,
-        totalPages: response.meta.last_page,
-        perPage: response.meta.per_page
-      }));
+      if (response?.data) {
+        setNegotiations(response.data);
+      }
+      
+      if (response?.meta) {
+        setPagination(prev => ({
+          ...prev,
+          currentPage: response.meta.current_page || 1,
+          totalPages: response.meta.last_page || 1,
+          perPage: response.meta.per_page || 10
+        }));
+      }
     } catch (error) {
       console.error('Error loading negotiations:', error);
       toast({

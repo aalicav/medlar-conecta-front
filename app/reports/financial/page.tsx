@@ -67,7 +67,7 @@ export default function FinancialReportsPage() {
       
       params.include_summary = true;
       
-      const response = await api.get('/api/reports/financials', { params });
+      const response = await api.get('/reports'/financials', { params });
       
       if (response.data.status === 'success') {
         setReportData(response.data.data);
@@ -109,7 +109,7 @@ export default function FinancialReportsPage() {
         }
       };
       
-      const response = await api.post('/api/reports/export', params);
+      const response = await api.post('/reports/export', params);
       
       if (response.data.status === 'success') {
         toast({

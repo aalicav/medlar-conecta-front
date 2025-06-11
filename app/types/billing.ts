@@ -60,4 +60,45 @@ export interface BillingItem {
   notes?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface DateRange {
+  from: Date | undefined
+  to: Date | undefined
+}
+
+export interface BillingOverview {
+  total_revenue: number
+  pending_payments: number
+  active_subscriptions: number
+  growth_rate: number
+  revenue_trend: RevenueTrend[]
+  clinic_revenue: number
+  professional_revenue: number
+  health_plan_revenue: number
+  total_revenue_reports: number
+  total_transaction_reports: number
+  total_subscription_reports: number
+}
+
+export interface RevenueTrend {
+  date: string
+  amount: number
+}
+
+export interface Transaction {
+  id: string
+  date: string
+  amount: number
+  status: 'pending' | 'completed' | 'failed'
+  type: 'payment' | 'refund' | 'subscription'
+  description: string
+  entity: {
+    id: string
+    name: string
+    type: 'clinic' | 'professional' | 'health_plan'
+  }
+  reference: string
+  payment_method?: string
+  metadata?: Record<string, any>
 } 

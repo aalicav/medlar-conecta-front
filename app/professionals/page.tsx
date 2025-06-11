@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ConditionalRender } from "@/components/conditional-render"
 import { getUsers } from "../admin/users/userService"
 import { fetchResource } from "@/services/resource-service"
+import { Professional } from '@/types/professional'
 
 // Update interfaces for Laravel pagination
 interface SimplePaginationMeta {
@@ -25,17 +26,6 @@ interface SimplePaginationMeta {
 interface ApiResponse<T> {
   data: T[]
   meta: SimplePaginationMeta
-}
-
-interface Professional {
-  id: number
-  name: string
-  specialty?: string
-  council_type?: string
-  council_number?: string
-  council_state?: string
-  status: string
-  created_at: string
 }
 
 interface Clinic {
@@ -150,71 +140,47 @@ function ProfessionalsContent() {
     }
   }
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'active':
+        return <Badge variant="default">Ativo</Badge>;
+      case 'pending':
+        return <Badge variant="secondary">Pendente</Badge>;
+      case 'inactive':
+        return <Badge variant="destructive">Inativo</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
   // Colunas para a tabela de profissionais
   const professionalColumns = [
     {
       accessorKey: "name",
       header: "Nome",
-      cell: ({ row }: { row: { original: Professional } }) => {
-        const professional = row.original
-        return (
-          <div>
-            <div>{professional.name}</div>
-            <div className="text-xs text-muted-foreground">
-              {professional.specialty}
-            </div>
-          </div>
-        )
-      }
     },
     {
-      accessorKey: "council_number",
-      header: "Registro",
-      cell: ({ row }: { row: { original: Professional } }) => {
-        const professional = row.original
-        return (
-          <div>
-            {professional.council_type}-{professional.council_number}/{professional.council_state}
-          </div>
-        )
-      }
+      accessorKey: "document",
+      header: "Documento",
     },
     {
       accessorKey: "status",
       header: "Status",
-      cell: ({ row }: { row: { original: TableRow } }) => {
-        const status = row.original.status
-        
-        switch (status) {
-          case 'active':
-            return <Badge variant="success">Ativo</Badge>
-          case 'pending':
-            return <Badge variant="warning">Pendente</Badge>
-          case 'inactive':
-            return <Badge variant="destructive">Inativo</Badge>
-          default:
-            return <Badge variant="outline">{status}</Badge>
-        }
-      }
-    },
-    {
-      accessorKey: "created_at",
-      header: "Data de Cadastro",
-      cell: ({ row }: { row: { original: TableRow } }) => formatDate(row.original.created_at)
+      cell: ({ row }: { row: { original: Professional } }) => getStatusBadge(row.original.status),
     },
     {
       id: "actions",
-      cell: ({ row }: { row: { original: Professional } }) => {
-        const professional = row.original
-        return (
-          <Button 
-            variant="ghost" 
-            onClick={() => router.push(`/professionals/${professional.id}?type=professional`)}
+      cell: ({ row }: { row: { original: Professional } }) => (
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push(`/professionals/${row.original.id}?type=professional`)}
           >
             Ver detalhes
           </Button>
-        )
-      }
+        </div>
+      ),
     }
   ]
 
@@ -248,9 +214,9 @@ function ProfessionalsContent() {
         
         switch (status) {
           case 'active':
-            return <Badge variant="success">Ativo</Badge>
+            return <Badge variant="default">Ativo</Badge>
           case 'pending':
-            return <Badge variant="warning">Pendente</Badge>
+            return <Badge variant="secondary">Pendente</Badge>
           case 'inactive':
             return <Badge variant="destructive">Inativo</Badge>
           default:

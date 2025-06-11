@@ -2,9 +2,10 @@ import axios from "axios";
 
 // Create a base API instance
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api',
   headers: {
     "Content-Type": "application/json",
+    "Accept": "application/json"
   },
 });
 
@@ -15,12 +16,14 @@ api.interceptors.request.use((config) => {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
+}, (error) => {
+  return Promise.reject(error);
 });
 
 // Add response interceptor to handle errors
 api.interceptors.response.use(
-  (response) => response.data,
-  (error) => {
+  (response) => response,
+  async (error) => {
     if (error.response?.status === 401) {
       // Handle unauthorized access
       localStorage.removeItem("token");

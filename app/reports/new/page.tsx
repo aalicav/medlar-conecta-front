@@ -17,6 +17,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { useAuth } from '@/contexts/auth-context';
 
 interface Clinic {
   id: number;
@@ -40,7 +41,7 @@ interface Professional {
 const NewReportContent = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const typeParam = searchParams.get('type');
+  const typeParam = searchParams?.get('type') || null;
   const [loading, setLoading] = useState(false);
   const [currentTab, setCurrentTab] = useState('report-type');
   
@@ -53,6 +54,7 @@ const NewReportContent = () => {
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [scheduleReport, setScheduleReport] = useState(false);
   const [scheduleFrequency, setScheduleFrequency] = useState('monthly');
+  const [reportFormat, setReportFormat] = useState('pdf');
   
   // Relatório Financeiro
   const [includeSummary, setIncludeSummary] = useState(true);
@@ -80,6 +82,57 @@ const NewReportContent = () => {
   const [cities, setCities] = useState<Record<string, string[]>>({});
   const [loadingOptions, setLoadingOptions] = useState(false);
 
+  const [user, setUser] = useState<any>({});
+  const { hasPermission, hasRole, user: authUser } = useAuth();
+
+  // Definir os tipos de relatórios e suas permissões necessárias
+  const reportTypes = [
+    { 
+      value: 'financial', 
+      label: 'Financeiro', 
+      permission: 'view financial reports',
+      icon: Receipt,
+      description: 'Visualize receitas, despesas e transações financeiras',
+      roles: ['super_admin', 'plan_admin']
+    },
+    { 
+      value: 'appointment', 
+      label: 'Agendamentos', 
+      permission: 'view appointments',
+      icon: Calendar,
+      description: 'Acompanhe agendamentos, taxa de comparecimento e cancelamentos',
+      roles: ['super_admin', 'plan_admin', 'clinic_admin']
+    },
+    { 
+      value: 'performance', 
+      label: 'Desempenho', 
+      permission: 'view reports',
+      icon: BarChart3,
+      description: 'Analise o desempenho dos profissionais e satisfação dos pacientes',
+      roles: ['super_admin', 'clinic_admin']
+    }
+  ];
+
+  // Verificar se o usuário tem acesso ao tipo de relatório
+  const hasAccessToReportType = (type: string) => {
+    const reportType = reportTypes.find(t => t.value === type);
+    if (!reportType) return false;
+
+    // Super admin tem acesso a tudo
+    if (hasRole('super_admin')) return true;
+
+    // Verifica se o usuário tem a permissão necessária
+    // const hasRequiredPermission = hasPermission(reportType.permission);
+
+    // Verifica se o usuário tem uma das roles necessárias
+    const hasRequiredRole = hasRole(reportType.roles);
+
+    return hasRequiredRole;
+  };
+
+  // Filtrar os tipos de relatórios baseado nas permissões e roles
+  const allowedReportTypes = reportTypes.filter(type => hasAccessToReportType(type.value));
+
   const getDefaultReportName = () => {
     const today = new Date();
     const formattedDate = today.toLocaleDateString('pt-BR');
@@ -100,9 +153,9 @@ const NewReportContent = () => {
       try {
         // Carregar todas as opções de uma vez
         const [clinicsResponse, healthPlansResponse, professionalsResponse] = await Promise.all([
-          api.get('/api/clinics', { params: { per_page: 100 } }),
-          api.get('/api/health-plans', { params: { per_page: 100 } }),
-          api.get('/api/professionals', { params: { per_page: 100 } })
+          api.get('/clinics', { params: { per_page: 100 } }),
+          api.get('/health-plans', { params: { per_page: 100 } }),
+          api.get('/professionals', { params: { per_page: 100 } })
         ]);
 
         // Processar dados de clínicas e extrair estados e cidades
@@ -151,12 +204,40 @@ const NewReportContent = () => {
   }, []);
 
   useEffect(() => {
+    // Safely access localStorage only on client side
+    if (typeof window !== 'undefined') {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+          
+          // Se o usuário não tem acesso ao tipo selecionado, seleciona o primeiro tipo permitido
+          if (!hasAccessToReportType(reportType) && allowedReportTypes.length > 0) {
+            setReportType(allowedReportTypes[0].value);
+          }
+        } catch (error) {
+          console.error('Error parsing user data:', error);
+        }
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     // Se tivermos um tipo na URL, já configuramos o nome padrão
     if (typeParam && ['financial', 'appointment', 'performance'].includes(typeParam)) {
       setReportType(typeParam);
       setReportName(getDefaultReportName());
     }
   }, [typeParam]);
+
+  // Função para obter o health_plan_id baseado no papel do usuário
+  const getHealthPlanId = () => {
+    if (hasRole(['plan_admin', 'health_plan'])) {
+      return authUser?.entity_id?.toString();
+    }
+    return healthPlanIdFinancial || healthPlanIdAppointment || null;
+  };
 
   const handleCreateReport = async () => {
     if (!reportName) {
@@ -168,41 +249,75 @@ const NewReportContent = () => {
       return;
     }
 
+    if (!reportType) {
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: "Por favor, selecione o tipo de relatório"
+      });
+      return;
+    }
+
     setLoading(true);
     try {
+      const healthPlanId = getHealthPlanId();
+
+      // Mapear o tipo de relatório para o formato esperado pelo backend
+      const reportTypeMap: { [key: string]: string } = {
+        'financial': 'financial',
+        'appointment': 'appointment',
+        'performance': 'performance'
+      };
+
       const params: any = {
         name: reportName,
         description: reportDescription || `Relatório gerado em ${new Date().toLocaleDateString('pt-BR')}`,
-        type: reportType,
+        type: reportTypeMap[reportType],
+        report_type: reportTypeMap[reportType],
         is_template: saveAsTemplate,
         is_scheduled: scheduleReport,
         schedule_frequency: scheduleReport ? scheduleFrequency : null,
+        format: reportFormat,
         parameters: {
           start_date: startDate ? startDate.toISOString().split('T')[0] : null,
           end_date: endDate ? endDate.toISOString().split('T')[0] : null,
+          health_plan_id: healthPlanId
         }
       };
 
       // Adicionar parâmetros específicos de cada tipo de relatório
       if (reportType === 'financial') {
-        params.parameters.include_summary = includeSummary;
-        params.parameters.health_plan_id = healthPlanIdFinancial || null;
+        params.parameters = {
+          ...params.parameters,
+          include_summary: includeSummary,
+          type: 'financial'
+        };
       } else if (reportType === 'appointment') {
-        params.parameters.clinic_id = clinicId || null;
-        params.parameters.professional_id = professionalId || null;
-        params.parameters.health_plan_id = healthPlanIdAppointment || null;
-        params.parameters.status = appointmentStatus !== 'all' ? appointmentStatus : null;
-        params.parameters.include_summary = true;
-        params.parameters.city = cityAppointment || null;
-        params.parameters.state = stateAppointment || null;
+        params.parameters = {
+          ...params.parameters,
+          clinic_id: clinicId || null,
+          professional_id: professionalId || null,
+          status: appointmentStatus !== 'all' ? appointmentStatus : null,
+          include_summary: true,
+          city: cityAppointment || null,
+          state: stateAppointment || null,
+          type: 'appointment'
+        };
       } else if (reportType === 'performance') {
-        params.parameters.professional_id = professionalIdPerformance || null;
-        params.parameters.clinic_id = clinicIdPerformance || null;
-        params.parameters.city = cityPerformance || null;
-        params.parameters.state = statePerformance || null;
+        params.parameters = {
+          ...params.parameters,
+          professional_id: professionalIdPerformance || null,
+          clinic_id: clinicIdPerformance || null,
+          city: cityPerformance || null,
+          state: statePerformance || null,
+          type: 'performance'
+        };
       }
 
-      const response = await api.post('/api/reports', params);
+      console.log('Enviando parâmetros:', params); // Log para debug
+
+      // Criar o relatório
+      const response = await api.post('/reports/export', params);
       
       if (response.data.status === 'success') {
         toast({
@@ -214,16 +329,11 @@ const NewReportContent = () => {
         if (scheduleReport) {
           router.push('/reports');
         } else {
-          // Se não for agendado, gera o relatório imediatamente e oferece download
-          const generateResponse = await api.post(`/api/reports/${response.data.data.id}/generate`);
-          if (generateResponse.data.status === 'success') {
-            toast({
-              title: "Sucesso",
-              description: "Relatório gerado com sucesso"
-            });
-            window.open(generateResponse.data.data.download_url, '_blank');
-            router.push('/reports');
+          // Se não for agendado, abre o download do relatório
+          if (response.data.data.download_url) {
+            window.open(response.data.data.download_url, '_blank');
           }
+          router.push('/reports');
         }
       } else {
         toast({
@@ -292,6 +402,35 @@ const NewReportContent = () => {
     return filtered;
   };
 
+  // Modificar o componente para esconder o select de plano de saúde quando for usuário do plano
+  const renderHealthPlanSelect = () => {
+    if (hasRole(['plan_admin', 'health_plan'])) {
+      return null; // Não mostra o select para usuários do plano
+    }
+
+    return (
+      <div className="space-y-2">
+        <Label htmlFor="healthPlanIdFinancial">Plano de Saúde</Label>
+        <Select
+          value={healthPlanIdFinancial}
+          onValueChange={setHealthPlanIdFinancial}
+          disabled={loadingOptions}
+        >
+          <SelectTrigger id="healthPlanIdFinancial">
+            <SelectValue placeholder="Selecione o plano de saúde" />
+          </SelectTrigger>
+          <SelectContent>
+            {healthPlans.map((plan) => (
+              <SelectItem key={plan.id} value={plan.id.toString()}>
+                {plan.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  };
+
   return (
     <div className="container mx-auto py-8 space-y-6">
       <div className="flex justify-between items-center">
@@ -316,45 +455,32 @@ const NewReportContent = () => {
               <CardDescription>Selecione o tipo de relatório que deseja gerar</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className={`cursor-pointer border-2 ${reportType === 'financial' ? 'border-primary' : 'border-transparent'}`}
-                      onClick={() => setReportType('financial')}>
-                  <CardHeader className="text-center">
-                    <Receipt className="w-12 h-12 mx-auto text-primary" />
-                    <CardTitle>Financeiro</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground text-center">
-                      Visualize receitas, despesas e transações financeiras
-                    </p>
-                  </CardContent>
-                </Card>
+              <div className="flex flex-wrap justify-center gap-4 max-w-5xl mx-auto">
+                {allowedReportTypes.map((type) => (
+                  <Card 
+                    key={type.value}
+                    className={`cursor-pointer border-2 ${reportType === type.value ? 'border-primary' : 'border-transparent'} w-full md:w-[calc(33.33%-1rem)] min-w-[280px] max-w-[350px]`}
+                    onClick={() => setReportType(type.value)}
+                  >
+                    <CardHeader className="text-center">
+                      <type.icon className="w-12 h-12 mx-auto text-primary" />
+                      <CardTitle>{type.label}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground text-center">
+                        {type.description}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))}
                 
-                <Card className={`cursor-pointer border-2 ${reportType === 'appointment' ? 'border-primary' : 'border-transparent'}`}
-                      onClick={() => setReportType('appointment')}>
-                  <CardHeader className="text-center">
-                    <Calendar className="w-12 h-12 mx-auto text-primary" />
-                    <CardTitle>Agendamentos</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground text-center">
-                      Acompanhe agendamentos, taxa de comparecimento e cancelamentos
+                {allowedReportTypes.length === 0 && (
+                  <div className="w-full text-center py-8">
+                    <p className="text-muted-foreground">
+                      Você não tem permissão para gerar relatórios.
                     </p>
-                  </CardContent>
-                </Card>
-                
-                <Card className={`cursor-pointer border-2 ${reportType === 'performance' ? 'border-primary' : 'border-transparent'}`}
-                      onClick={() => setReportType('performance')}>
-                  <CardHeader className="text-center">
-                    <BarChart3 className="w-12 h-12 mx-auto text-primary" />
-                    <CardTitle>Desempenho</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground text-center">
-                      Analise o desempenho dos profissionais e satisfação dos pacientes
-                    </p>
-                  </CardContent>
-                </Card>
+                  </div>
+                )}
               </div>
             </CardContent>
             <CardFooter className="flex justify-between">
@@ -454,25 +580,7 @@ const NewReportContent = () => {
                           </AccordionTrigger>
                           <AccordionContent>
                             <div className="space-y-4 mt-2">
-                              <div className="space-y-2">
-                                <Label htmlFor="healthPlanIdFinancial">Plano de Saúde</Label>
-                                <Select
-                                  value={healthPlanIdFinancial}
-                                  onValueChange={setHealthPlanIdFinancial}
-                                  disabled={loadingOptions}
-                                >
-                                  <SelectTrigger id="healthPlanIdFinancial">
-                                    <SelectValue placeholder="Selecione o plano de saúde" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {healthPlans.map((plan) => (
-                                      <SelectItem key={plan.id} value={plan.id.toString()}>
-                                        {plan.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
+                              {renderHealthPlanSelect()}
                             </div>
                           </AccordionContent>
                         </AccordionItem>
@@ -503,25 +611,27 @@ const NewReportContent = () => {
                           </Select>
                         </div>
                         
-                        <div className="space-y-2">
-                          <Label htmlFor="healthPlanIdAppointment">Plano de Saúde</Label>
-                          <Select
-                            value={healthPlanIdAppointment}
-                            onValueChange={setHealthPlanIdAppointment}
-                            disabled={loadingOptions}
-                          >
-                            <SelectTrigger id="healthPlanIdAppointment">
-                              <SelectValue placeholder="Selecione o plano de saúde" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {healthPlans.map((plan) => (
-                                <SelectItem key={plan.id} value={plan.id.toString()}>
-                                  {plan.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                        {!hasRole(['plan_admin', 'health_plan']) && (
+                          <div className="space-y-2">
+                            <Label htmlFor="healthPlanIdAppointment">Plano de Saúde</Label>
+                            <Select
+                              value={healthPlanIdAppointment}
+                              onValueChange={setHealthPlanIdAppointment}
+                              disabled={loadingOptions}
+                            >
+                              <SelectTrigger id="healthPlanIdAppointment">
+                                <SelectValue placeholder="Selecione o plano de saúde" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {healthPlans.map((plan) => (
+                                  <SelectItem key={plan.id} value={plan.id.toString()}>
+                                    {plan.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </div>
                       
                       <Accordion type="single" collapsible className="w-full">
@@ -811,6 +921,22 @@ const NewReportContent = () => {
                   </div>
                 )}
                 
+                <div className="space-y-2">
+                  <Label htmlFor="reportFormat">Formato do Relatório</Label>
+                  <Select
+                    value={reportFormat}
+                    onValueChange={setReportFormat}
+                  >
+                    <SelectTrigger id="reportFormat">
+                      <SelectValue placeholder="Selecione o formato" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pdf">PDF</SelectItem>
+                      <SelectItem value="csv">CSV</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
                 <div className="bg-muted p-4 rounded-lg mt-4">
                   <h3 className="font-medium mb-2 flex items-center">
                     <FileText className="mr-2 h-4 w-4" />
@@ -918,6 +1044,15 @@ const NewReportContent = () => {
                         </span>
                       </div>
                     )}
+                    
+                    <div className="grid grid-cols-3 gap-2">
+                      <span className="text-muted-foreground">Formato:</span>
+                      <span className="col-span-2">
+                        {reportFormat === 'pdf' ? 'PDF' : 
+                         reportFormat === 'excel' ? 'Excel' : 
+                         'CSV'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
