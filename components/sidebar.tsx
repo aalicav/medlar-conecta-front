@@ -108,16 +108,34 @@ export function Sidebar({ className, items }: SidebarProps) {
       roles: ["super_admin", "admin", "director", "commercial_manager", "network_manager"],
     },
     {
+      title: "Faturamentos",
+      href: "/health-plans/billing",
+      icon: CreditCard,
+      roles: ["plan_admin"],
+    },
+    {
+      title: "Pacientes",
+      href: "/health-plans/patients",
+      icon: Users,
+      roles: ["plan_admin"],
+    },
+    {
+      title: "Documentos",
+      href: "/health-plans/documents",
+      icon: FileText,
+      roles: ["plan_admin"],
+    },
+    {
+      title: "Configurações",
+      href: "/health-plans/settings",
+      icon: Settings,
+      roles: ["plan_admin"],
+    },
+    {
       title: "Cadastros",
       href: "/professionals",
       icon: Users,
       roles: ["super_admin", "admin", "director", "commercial_manager", "operational", "clinic_admin", "clinic", "network_manager"],
-    },
-    {
-      title: "Pacientes",
-      href: "/patients",
-      icon: Users,
-      roles: ["super_admin", "admin", "director", "plan_admin", "operational", "professional", "clinic", "network_manager"],
     },
     {
       title: "Solicitações",
@@ -142,12 +160,6 @@ export function Sidebar({ className, items }: SidebarProps) {
       href: "/value-verifications",
       icon: FileText,
       roles: ["super_admin", "admin", "director", "commercial_manager", "financial"],
-    },
-    {
-      title: "Faturamento",
-      href: "/billing",
-      icon: CreditCard,
-      roles: ["super_admin", "admin", "director", "financial", "plan_admin", "clinic_admin"],
     },
     {
       title: "Regras de Faturamento",
@@ -202,13 +214,6 @@ export function Sidebar({ className, items }: SidebarProps) {
       href: "/audit-logs",
       icon: FileText,
       roles: ["super_admin", "admin", "director"],
-    },
-    {
-      title: "Configurações",
-      href: "/settings",
-      icon: Settings,
-      roles: ["super_admin", "admin", "director"],
-      permission: "edit settings",
     },
     {
       title: "Tipos de Documentos",
