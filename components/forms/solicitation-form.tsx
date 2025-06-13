@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
+import { useForm, UseFormProps } from "react-hook-form"
 import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -58,6 +58,7 @@ const formSchema = z.object({
   health_plan_id: z.string().min(1, "Selecione um plano de saúde"),
   patient_id: z.string().min(1, "Selecione um paciente"),
   tuss_id: z.string().min(1, "Selecione uma especialidade"),
+  medical_specialty_id: z.string().optional(),
   description: z.string().optional(),
   preferred_date: z.date().optional(),
   state: z.string().optional(),
@@ -67,6 +68,7 @@ const formSchema = z.object({
 // Infer the type from the schema
 type FormValues = z.infer<typeof formSchema>
 
+// Define the form props
 interface SolicitationFormProps {
   initialData?: Partial<FormValues>
   isEditing?: boolean
@@ -123,6 +125,18 @@ interface TussProcedure {
   [key: string]: any // Allow other properties that might be in the API response
 }
 
+interface MedicalSpecialty {
+  id: number
+  name: string
+  description?: string
+  default_price: number
+  tuss_code: string
+  tuss_description: string
+  active: boolean
+  created_at?: string
+  updated_at?: string
+}
+
 // Type for procedure data including price
 interface ProcedureWithPrice {
   procedure: {
@@ -157,10 +171,13 @@ export function SolicitationForm({
   const [searchPatientTerm, setSearchPatientTerm] = useState("")
   const [searchProcedureTerm, setSearchProcedureTerm] = useState("")
   const [selectedProcedurePrice, setSelectedProcedurePrice] = useState<number | null>(null)
-  const [tussProcedures, setTussProcedures] = useState<{ value: string; label: string; price?: number }[]>([])
+  const [tussProcedures, setTussProcedures] = useState<{ value: string; label: string; price?: number; code: string }[]>([])
   const [isLoadingTuss, setIsLoadingTuss] = useState(false)
   const [selectedState, setSelectedState] = useState<string>("")
   const [availableCities, setAvailableCities] = useState<string[]>([])
+  const [specialties, setSpecialties] = useState<{ value: string; label: string }[]>([])
+  const [loadingSpecialties, setLoadingSpecialties] = useState(false)
+  const [selectedTussCode, setSelectedTussCode] = useState<string>("")
 
   // Read query params
   const healthPlanIdFromQuery = searchParams?.get('health_plan_id')
@@ -174,15 +191,13 @@ export function SolicitationForm({
       health_plan_id: isPlanAdmin ? healthPlanId : initialData?.health_plan_id || "",
       patient_id: initialData?.patient_id || "",
       tuss_id: initialData?.tuss_id || "",
+      medical_specialty_id: initialData?.medical_specialty_id || "",
       description: initialData?.description || "",
       preferred_date: initialData?.preferred_date ? new Date(initialData.preferred_date) : undefined,
-      secondary_contact_name: initialData?.secondary_contact_name || "",
-      secondary_contact_phone: initialData?.secondary_contact_phone || "",
-      secondary_contact_relationship: initialData?.secondary_contact_relationship || "",
       state: initialData?.state || "",
       city: initialData?.city || ""
     },
-  })
+  });
 
   // Watch health plan ID to fetch procedures
   const selectedHealthPlanId = form.watch("health_plan_id");
@@ -223,7 +238,8 @@ export function SolicitationForm({
           const options = (response.data).map((item: any) => ({
             value: item.id.toString(),
             label: `${item.code} - ${item.description}`,
-            description: item.description
+            description: item.description,
+            code: item.code
           }));
           
           setTussProcedures(options);
@@ -231,6 +247,7 @@ export function SolicitationForm({
           // Clear the current selection unless it's from a query param
           if (!tussIdFromQuery && !isPlanAdmin) {
             form.setValue('tuss_id', '')
+            form.setValue('medical_specialty_id', '')
           }
         }
       } catch (error) {
@@ -275,26 +292,36 @@ export function SolicitationForm({
     try {
       const params: QueryParams = { 
         per_page: 20,
-        health_plan_id: healthPlanId
+        health_plan_id: healthPlanId // Ensure health plan ID is included
       }
       
       if (search && search.length >= 3) {
         params.search = search
       }
       
+      console.log('Fetching patients with params:', params) // Debug log
+      
       const response = await fetchResource("patients", params as any) as ResourceResponse<Patient[]>
       
       if (response?.data && Array.isArray(response.data)) {
-        // @ts-ignore
-        const options = response.data.map((patient: Patient) => ({
-          value: patient.id.toString(),
-          label: patient.name
-        }))
+        const options = response.data
+          .filter((patient): patient is Patient => 
+            patient != null && 
+            typeof patient === 'object' && 
+            'id' in patient && 
+            patient.id != null && 
+            'name' in patient && 
+            patient.name != null
+          )
+          .map((patient: Patient) => ({
+            value: String(patient.id),
+            label: patient.name
+          }))
         setPatients(options)
       }
     } catch (error) {
       console.error("Error fetching patients for health plan:", error)
-      useToastToast({
+      toast({
         title: "Erro",
         description: "Não foi possível carregar os pacientes para este plano de saúde.",
         variant: "destructive",
@@ -326,12 +353,20 @@ export function SolicitationForm({
         } as any) as ResourceResponse<HealthPlan[]>
         
         if (response && response.data) {
-          // @ts-ignore
-          const options = (response.data).map((plan: any) => ({
-            value: plan.id.toString(),
-            label: plan.name
-          }))
-          setHealthPlans(options)
+          const options = response.data
+            .filter((plan): plan is HealthPlan => 
+              plan != null && 
+              typeof plan === 'object' && 
+              'id' in plan && 
+              plan.id != null && 
+              'name' in plan && 
+              plan.name != null
+            )
+            .map((plan: HealthPlan) => ({
+              value: String(plan.id),
+              label: plan.name || 'Unnamed Plan' // Fallback for empty names
+            }));
+          setHealthPlans(options);
         }
       } catch (error) {
         console.error("Error fetching health plans:", error)
@@ -404,7 +439,7 @@ export function SolicitationForm({
   const searchPatients = debounce((query: string) => {
     const currentHealthPlanId = form.watch("health_plan_id")
     if (!currentHealthPlanId) {
-      useToastToast({
+      toast({
         title: "Selecione um plano",
         description: "Por favor, selecione um plano de saúde primeiro.",
         variant: "destructive",
@@ -419,12 +454,36 @@ export function SolicitationForm({
     }
   }, 300)
 
-  // Search health plans
-  const searchHealthPlans = debounce(async (query: string) => {
-    if (!query || query.length < 3) return
-    setSearchHealthPlanTerm(query)
+  // Handle health plan selection
+  const handleHealthPlanChange = (value: string) => {
+    if (!value) return;
+    
+    // Ensure we're working with a string ID
+    const healthPlanId = String(value);
+    
+    // Update form with the selected health plan ID
+    form.setValue("health_plan_id", healthPlanId, {
+      shouldValidate: true,
+      shouldDirty: true
+    });
+    
+    // Reset dependent fields
+    form.setValue("patient_id", "");
+    form.setValue("tuss_id", "");
+    setPatients([]);
+    
+    // Fetch patients for the selected health plan
+    if (healthPlanId) {
+      fetchPatientsForHealthPlan(healthPlanId);
+    }
+  }
 
-    setLoadingHealthPlans(true)
+  // Update health plans fetching to include ID in label
+  const searchHealthPlans = debounce(async (query: string) => {
+    if (!query || query.length < 3) return;
+    setSearchHealthPlanTerm(query);
+
+    setLoadingHealthPlans(true);
     try {
       const params: QueryParams = {
         per_page: 20,
@@ -432,22 +491,41 @@ export function SolicitationForm({
         status: 'approved'
       };
       
-      const response = await fetchResource("health-plans", params as any) as ResourceResponse<HealthPlan[]>
+      const response = await fetchResource("health-plans", params as any) as ResourceResponse<HealthPlan[]>;
       
       if (response?.data && Array.isArray(response.data)) {
-        // @ts-ignore
-        const options = response.data.map((plan: HealthPlan) => ({
-          value: plan.id.toString(),
-          label: plan.name
-        }));
-        setHealthPlans(options);
+        const searchResults = response.data
+          .filter((plan): plan is HealthPlan => 
+            plan != null && 
+            typeof plan === 'object' && 
+            'id' in plan && 
+            plan.id != null && 
+            'name' in plan && 
+            plan.name != null
+          )
+          .map((plan: HealthPlan) => ({
+            value: String(plan.id),
+            label: `${plan.name} (ID: ${plan.id})`
+          }));
+        
+        // Ensure no duplicates by ID
+        const uniquePlans = searchResults.filter((plan, index, self) =>
+          index === self.findIndex((p) => p.value === plan.value)
+        );
+        
+        setHealthPlans(uniquePlans);
       }
     } catch (error) {
-      console.error("Error searching health plans:", error)
+      console.error("Error searching health plans:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível pesquisar os planos de saúde.",
+        variant: "destructive",
+      });
     } finally {
-      setLoadingHealthPlans(false)
+      setLoadingHealthPlans(false);
     }
-  }, 300)
+  }, 300);
 
   // Handle patient creation modal
   const handlePatientCreated = (patientData: any) => {
@@ -469,63 +547,61 @@ export function SolicitationForm({
   }
 
   // Handle form submission
-  const handleSubmit = async (data: FormValues) => {
+  const handleSubmit = form.handleSubmit(async (values: FormValues) => {
     setLoading(true)
     try {
+      const payload = {
+        health_plan_id: parseInt(values.health_plan_id),
+        patient_id: parseInt(values.patient_id),
+        tuss_id: parseInt(values.tuss_id),
+        medical_specialty_id: values.medical_specialty_id ? parseInt(values.medical_specialty_id) : undefined,
+        description: values.description,
+        preferred_date: values.preferred_date,
+        state: values.state,
+        city: values.city
+      }
+
       if (isEditing && solicitationId) {
-        await updateResource(`solicitations/${solicitationId}`, data)
-        useToastToast({
+        await updateResource(`solicitations/${solicitationId}`, payload)
+        toast({
           title: "Sucesso",
           description: "Solicitação atualizada com sucesso",
         })
       } else {
-        await createResource('solicitations', data)
-        useToastToast({
+        await createResource("solicitations", payload)
+        toast({
           title: "Sucesso",
           description: "Solicitação criada com sucesso",
         })
       }
-      
-      router.push('/solicitations')
+
+      router.push("/solicitations")
     } catch (error) {
-      useToastToast({
+      console.error("Error submitting form:", error)
+      toast({
         title: "Erro",
-        description: "Não foi possível processar a solicitação",
+        description: "Não foi possível salvar a solicitação",
         variant: "destructive",
       })
-      setProcedures([])
     } finally {
       setLoading(false)
     }
-  }
-
-  // Handle health plan selection
-  const handleHealthPlanChange = (value: string) => {
-    form.setValue("health_plan_id", value)
-    form.setValue("patient_id", "") // Reset patient selection
-    form.setValue("tuss_id", "") // Reset TUSS selection
-    setPatients([]) // Clear patients list
-    
-    if (value) {
-      // Only fetch patients if a health plan is selected
-      fetchPatientsForHealthPlan(value)
-    }
-  }
+  })
 
   // Add search functionality for TUSS procedures
-  const searchTussProcedures = debounce(async (query: string) => {
-    if (!query || query.length < 3) return;
-    
+  const searchTussProcedures = debounce(async (term: string) => {
+    if (!term || term.length < 3) return;
+
     setIsLoadingTuss(true);
     try {
-      const response = await fetchResource(`tuss?search=${encodeURIComponent(query)}`);
-      
+      const response = await fetchResource(`tuss?search=${term}`);
       if (response && response.data) {
         // @ts-ignore
-        const options = (response.data).map((item: any) => ({
+        const options = response.data.map((item: any) => ({
           value: item.id.toString(),
           label: `${item.code} - ${item.description}`,
-          description: item.description
+          description: item.description,
+          code: item.code
         }));
         setTussProcedures(options);
       }
@@ -533,7 +609,7 @@ export function SolicitationForm({
       console.error("Error searching TUSS procedures:", error);
       toast({
         title: "Erro",
-        description: "Não foi possível pesquisar as especialidades.",
+        description: "Não foi possível pesquisar os procedimentos",
         variant: "destructive",
       });
     } finally {
@@ -570,27 +646,87 @@ export function SolicitationForm({
     return () => subscription.unsubscribe()
   }, [form, selectedState])
 
+  // Handle TUSS selection
+  const handleTussChange = (value: string) => {
+    const selectedTuss = tussProcedures.find(t => t.value === value);
+    if (selectedTuss) {
+      form.setValue('tuss_id', value);
+      setSelectedTussCode(selectedTuss.code);
+      
+      // Clear specialty if TUSS is not 10101012
+      if (selectedTuss.code !== "10101012") {
+        form.setValue('medical_specialty_id', '');
+        setSpecialties([]);
+      } else {
+        // Load specialties if TUSS is 10101012
+        loadSpecialties();
+      }
+    }
+  };
+
+  // Carregar especialidades médicas
+  const loadSpecialties = async () => {
+    if (loadingSpecialties) return;
+    
+    setLoadingSpecialties(true);
+    try {
+      const response = await fetchResource("medical-specialties") as ResourceResponse<MedicalSpecialty[]>;
+      if (response?.data && Array.isArray(response.data)) {
+        const specialtyOptions = (response.data as MedicalSpecialty[])
+          .filter((specialty: MedicalSpecialty): specialty is MedicalSpecialty => 
+            specialty != null && 
+            typeof specialty === 'object' && 
+            'id' in specialty && 
+            specialty.id != null && 
+            'name' in specialty && 
+            specialty.name != null
+          )
+          .map((specialty: MedicalSpecialty) => ({
+            value: String(specialty.id),
+            label: specialty.name || 'Unnamed Specialty'
+          }));
+        setSpecialties(specialtyOptions);
+      }
+    } catch (error) {
+      console.error("Erro ao carregar especialidades:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar as especialidades médicas",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingSpecialties(false);
+    }
+  };
+
+  // Carregar especialidades médicas quando necessário
+  useEffect(() => {
+    if (selectedTussCode === "10101012") {
+      loadSpecialties();
+    }
+  }, [selectedTussCode]);
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{isEditing ? "Editar Solicitação" : "Nova Solicitação"}</CardTitle>
+        <CardTitle>
+          {isEditing ? "Editar Solicitação" : "Nova Solicitação"}
+        </CardTitle>
         <CardDescription>
-          {isEditing
-            ? "Atualize as informações da solicitação"
-            : "Preencha as informações para criar uma nova solicitação"}
+          Preencha os dados abaixo para {isEditing ? "editar a" : "criar uma nova"} solicitação
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[calc(100vh-16rem)]">
+        <ScrollArea className="h-[500px] pr-4">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-4">
               {/* Alert about automatic scheduling */}
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Agendamento Automático</AlertTitle>
                 <AlertDescription>
-                  Após criar a solicitação, o sistema tentará agendar automaticamente com o prestador mais adequado.
-                  Caso não seja possível realizar o agendamento automático, você será notificado por email.
+                  O sistema tentará agendar automaticamente a consulta com base nas informações fornecidas.
+                  Se não for possível, entraremos em contato para agendar manualmente.
                 </AlertDescription>
               </Alert>
 
@@ -607,11 +743,14 @@ export function SolicitationForm({
                             <Combobox
                               options={healthPlans}
                               value={field.value}
-                              onValueChange={handleHealthPlanChange}
+                              onValueChange={(value) => {
+                                console.log('Selected health plan value:', value); // Debug log
+                                handleHealthPlanChange(value);
+                              }}
                               placeholder="Pesquise pelo nome do plano"
                               onSearch={searchHealthPlans}
                               loading={loadingHealthPlans}
-                              disabled={loadingHealthPlans}
+                              disabled={loadingHealthPlans || isPlanAdmin}
                             />
                           </div>
                         </div>
@@ -669,7 +808,7 @@ export function SolicitationForm({
                         <Combobox
                           options={tussProcedures}
                           value={field.value}
-                          onValueChange={field.onChange}
+                          onValueChange={handleTussChange}
                           placeholder="Pesquise pela especialidade ou procedimento"
                           onSearch={searchTussProcedures}
                           loading={isLoadingTuss}
@@ -680,6 +819,37 @@ export function SolicitationForm({
                   </FormItem>
                 )}
               />
+
+              {selectedTussCode === "10101012" && (
+                <FormField
+                  control={form.control}
+                  name="medical_specialty_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Especialidade Médica</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                        disabled={loadingSpecialties}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione a especialidade médica" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {specialties.map((specialty) => (
+                            <SelectItem key={specialty.value} value={specialty.value}>
+                              {specialty.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               <FormField
                 control={form.control}

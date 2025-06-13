@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/data-table/data-table"
 import { Badge } from "@/components/ui/badge"
 import { fetchResource, type QueryParams } from "@/services/resource-service"
-import { Plus, FileText, Edit, CheckCircle, XCircle, Search, Calendar } from "lucide-react"
+import { Plus, FileText, Edit, CheckCircle, XCircle, Search, Calendar, Clock } from "lucide-react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { formatDateTime } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,6 +20,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import api from "@/services/api-client"
 
 interface Appointment {
@@ -37,6 +45,27 @@ interface Appointment {
   status: string
   scheduled_for: string
   created_at: string
+}
+
+interface Solicitation {
+  id: number
+  patient_name: string
+  procedure_name: string
+  preferred_date_start: string
+  preferred_date_end: string
+  status: string
+}
+
+interface ProfessionalAvailability {
+  id: number
+  professional: {
+    id: number
+    name: string
+  }
+  available_date: string
+  available_time: string
+  notes: string
+  status: string
 }
 
 export default function AppointmentsPage() {
@@ -61,6 +90,10 @@ export default function AppointmentsPage() {
     created_from: "",
     created_to: "",
   })
+  const [solicitations, setSolicitations] = useState<Solicitation[]>([])
+  const [selectedSolicitation, setSelectedSolicitation] = useState<Solicitation | null>(null)
+  const [availabilities, setAvailabilities] = useState<ProfessionalAvailability[]>([])
+  const [showAvailabilities, setShowAvailabilities] = useState(false)
 
   const fetchData = async () => {
     setIsLoading(true)
@@ -144,41 +177,57 @@ export default function AppointmentsPage() {
     })
   }
 
-  const handleConfirmAppointment = async (id: number) => {
-    setIsActionLoading(true)
+  useEffect(() => {
+    fetchSolicitations()
+  }, [])
+
+  const fetchSolicitations = async () => {
     try {
-      await api.post(`/appointments/${id}/confirm`)
-      toast({
-        title: "Sucesso",
-        description: "Agendamento confirmado com sucesso",
+      const response = await api.get("/solicitations", {
+        params: {
+          status: "waiting_professional_response"
+        }
       })
-      fetchData()
+      setSolicitations(response.data.data)
     } catch (error) {
-      console.error("Error confirming appointment:", error)
+      console.error("Error fetching solicitations:", error)
       toast({
         title: "Erro",
-        description: "Não foi possível confirmar o agendamento",
+        description: "Não foi possível carregar as solicitações",
         variant: "destructive"
       })
-    } finally {
-      setIsActionLoading(false)
     }
   }
 
-  const handleCancelAppointment = async (id: number) => {
-    setIsActionLoading(true)
+  const fetchAvailabilities = async (solicitationId: number) => {
     try {
-      await api.post(`/appointments/${id}/cancel`)
-      toast({
-        title: "Sucesso",
-        description: "Agendamento cancelado com sucesso",
-      })
-      fetchData()
+      const response = await api.get(`/solicitations/${solicitationId}/availabilities`)
+      setAvailabilities(response.data.data)
     } catch (error) {
-      console.error("Error cancelling appointment:", error)
+      console.error("Error fetching availabilities:", error)
       toast({
         title: "Erro",
-        description: "Não foi possível cancelar o agendamento",
+        description: "Não foi possível carregar as disponibilidades",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleCreateAppointment = async (availabilityId: number) => {
+    setIsActionLoading(true)
+    try {
+      await api.post(`/availabilities/${availabilityId}/select`)
+      toast({
+        title: "Sucesso",
+        description: "Agendamento criado com sucesso"
+      })
+      setShowAvailabilities(false)
+      fetchData()
+    } catch (error) {
+      console.error("Error creating appointment:", error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível criar o agendamento",
         variant: "destructive"
       })
     } finally {
@@ -399,10 +448,112 @@ export default function AppointmentsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Agendamentos</h1>
           <p className="text-muted-foreground">Gerencie os agendamentos de procedimentos médicos</p>
         </div>
-        <Button onClick={() => router.push("/appointments/new")}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Agendamento
-        </Button>
+        <Dialog open={showAvailabilities} onOpenChange={setShowAvailabilities}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Novo Agendamento
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Novo Agendamento</DialogTitle>
+              <DialogDescription>
+                Selecione uma solicitação para ver as disponibilidades dos profissionais
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <h3 className="font-medium">Solicitações Pendentes</h3>
+                <div className="space-y-2">
+                  {solicitations.map((solicitation) => (
+                    <Card
+                      key={solicitation.id}
+                      className={`cursor-pointer transition-colors ${
+                        selectedSolicitation?.id === solicitation.id
+                          ? "border-primary"
+                          : "hover:border-muted-foreground"
+                      }`}
+                      onClick={() => {
+                        setSelectedSolicitation(solicitation)
+                        fetchAvailabilities(solicitation.id)
+                      }}
+                    >
+                      <CardContent className="pt-6">
+                        <div className="space-y-2">
+                          <div className="font-medium">{solicitation.patient_name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {solicitation.procedure_name}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Período preferido: {formatDateTime(solicitation.preferred_date_start)} -{" "}
+                            {formatDateTime(solicitation.preferred_date_end)}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {solicitations.length === 0 && (
+                    <div className="text-center text-muted-foreground py-4">
+                      Nenhuma solicitação pendente
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="font-medium">Disponibilidades</h3>
+                <div className="space-y-2">
+                  {selectedSolicitation ? (
+                    availabilities.map((availability) => (
+                      <Card key={availability.id}>
+                        <CardContent className="pt-6">
+                          <div className="space-y-4">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <div className="font-medium">{availability.professional.name}</div>
+                                <div className="text-sm text-muted-foreground">
+                                  {formatDateTime(availability.available_date)} às{" "}
+                                  {availability.available_time}
+                                </div>
+                              </div>
+                              {getStatusBadge(availability.status)}
+                            </div>
+
+                            {availability.notes && (
+                              <div className="text-sm text-muted-foreground">
+                                {availability.notes}
+                              </div>
+                            )}
+
+                            {availability.status === "pending" && (
+                              <Button
+                                className="w-full"
+                                onClick={() => handleCreateAppointment(availability.id)}
+                                disabled={isActionLoading}
+                              >
+                                {isActionLoading ? "Criando..." : "Criar Agendamento"}
+                              </Button>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  ) : (
+                    <div className="text-center text-muted-foreground py-4">
+                      Selecione uma solicitação para ver as disponibilidades
+                    </div>
+                  )}
+                  {selectedSolicitation && availabilities.length === 0 && (
+                    <div className="text-center text-muted-foreground py-4">
+                      Nenhuma disponibilidade registrada
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Card>

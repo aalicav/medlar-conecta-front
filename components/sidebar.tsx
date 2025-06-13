@@ -34,12 +34,18 @@ import {
   Building
 } from "lucide-react"
 import { NavigationMenuItem, NavigationMenuLink, NavigationMenu, NavigationMenuList } from "@/components/ui/navigation-menu"
+import { LucideIcon } from 'lucide-react'
 
 interface SidebarProps {
   className?: string
+  items: {
+    title: string;
+    href: string;
+    icon: LucideIcon;
+  }[];
 }
 
-export function Sidebar({ className }: SidebarProps) {
+export function Sidebar({ className, items }: SidebarProps) {
   const { user, hasRole, hasPermission, logout } = useAuth()
   const pathname = usePathname() || ""
   const [isOpen, setIsOpen] = useState(false)
