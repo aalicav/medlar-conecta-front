@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useToast } from "@/components/ui/use-toast"
-import { Loader2, Plus, Trash2, Check, User, Building2, ArrowLeft, AlertTriangle, InfoIcon, CheckCircle, AlertCircle, Trash, FileText } from "lucide-react"
+import { Loader2, Plus, Trash2, Check, User, Building2, ArrowLeft, AlertTriangle, InfoIcon, CheckCircle, AlertCircle } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { getStorageUrl } from "@/lib/utils"
 import { applyCNPJMask, applyCPFMask, applyPhoneMask, applyCEPMask } from "@/utils/masks"
@@ -38,9 +38,6 @@ import estadosCidadesData from '@/hooks/estados-cidades.json'
 import api from "@/services/api-client"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
-import { Label } from "@/components/ui/label"
-import { DateInput } from "@/components/ui/date-input"
-import { specialtyService, MedicalSpecialty } from '@/services/specialtyService'
 
 // Add these interfaces after imports and before formSchema
 interface Clinic {
@@ -193,10 +190,6 @@ interface Address {
   state: string;
   postal_code: string;
   is_main: boolean;
-  neighborhood?: string;
-  is_primary?: boolean;
-  latitude?: number | null;
-  longitude?: number | null;
 }
 
 // Utility to unmask a string (remove non-digits)
@@ -216,30 +209,165 @@ const addressSchema = z.object({
   is_main: z.boolean()
 });
 
-// Update the form schema at the beginning of the file
+// Modificar o schema do formulário
 const formSchema = z.object({
+  // Common fields
+  documentType: z.enum(["cpf", "cnpj"], {
+    required_error: "Tipo de documento é obrigatório",
+  }),
   name: z.string().min(1, "Nome é obrigatório"),
+  phone: z.string().min(10, "Telefone deve ter pelo menos 10 dígitos"),
   email: z.string().email("Email inválido"),
-  phone: z.string().min(1, "Telefone é obrigatório"),
-  documentType: z.enum(["cpf", "cnpj"]),
-  document: z.string().min(1, "Documento é obrigatório"),
-  clinicId: z.string().optional(),
-  birthDate: z.date().optional(),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  zip_code: z.string().optional(),
-  website: z.string().optional(),
+  
+  // Novo campo de endereços múltiplos
+  addresses: z.array(addressSchema).min(1, "Pelo menos um endereço é necessário"),
+  
+  // Campos para profissionais (CPF)
+  cpf: z.string().optional(),
+  birth_date: z.string().optional(),
+  gender: z.enum(["male", "female", "other"]).optional(),
+  specialty: z.string().optional(),
+  council_type: z.string().optional(),
+  council_number: z.string().optional(),
+  council_state: z.string().optional(),
   bio: z.string().optional(),
-  avatar: z.string().optional(),
-  documents: z.array(z.object({
-    type: z.string(),
-    file: z.any(),
-    description: z.string().optional()
-  })).optional(),
+  clinic_id: z.string().optional(),
+  
+  // Campos para estabelecimentos (CNPJ)
+  cnpj: z.string().optional(),
+  trading_name: z.string().optional(),
+  foundation_date: z.string().optional(),
+  business_hours: z.string().optional(),
+  services: z.string().optional(),
+  health_reg_number: z.string().optional(),
+  
+  // Documentos
+  documents: z.array(documentSchema)
+})
+.superRefine((data, ctx) => {
+  // Based on document type, validate required fields
+
+  // Common validations for both types
+  if (!data.name) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Nome é obrigatório",
+      path: ["name"]
+    });
+  }
+  
+  if (!data.email || !data.email.includes('@')) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Email válido é obrigatório",
+      path: ["email"]
+    });
+  }
+  
+  if (!data.phone || data.phone.replace(/\D/g, '').length < 10) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Telefone é obrigatório e deve ter pelo menos 10 dígitos",
+      path: ["phone"]
+    });
+  }
+
+  // Professional (CPF) specific validations
+  if (data.documentType === "cpf") {
+    if (!data.cpf || data.cpf.replace(/\D/g, '').length !== 11) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "CPF válido é obrigatório",
+        path: ["cpf"]
+      });
+    }
+    
+    if (!data.birth_date) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Data de nascimento é obrigatória",
+        path: ["birth_date"]
+      });
+    }
+    
+    if (!data.gender) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Gênero é obrigatório",
+        path: ["gender"]
+      });
+    }
+    
+    if (!data.specialty) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Especialidade é obrigatória",
+        path: ["specialty"]
+      });
+    }
+    
+    if (!data.council_type) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Tipo de conselho é obrigatório",
+        path: ["council_type"]
+      });
+    }
+    
+    if (!data.council_number) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Número do conselho é obrigatório",
+        path: ["council_number"]
+      });
+    }
+    
+    if (!data.council_state) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Estado do conselho é obrigatório",
+        path: ["council_state"]
+      });
+    }
+  } 
+  // Establishment (CNPJ) specific validations
+  else if (data.documentType === "cnpj") {
+    if (!data.cnpj || data.cnpj.replace(/\D/g, '').length !== 14) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "CNPJ válido é obrigatório",
+        path: ["cnpj"]
+      });
+    }
+    
+    if (!data.trading_name) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Nome fantasia é obrigatório",
+        path: ["trading_name"]
+      });
+    }
+    
+    if (!data.foundation_date) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Data de fundação é obrigatória",
+        path: ["foundation_date"]
+      });
+    }
+    
+    if (!data.health_reg_number) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Registro sanitário é obrigatório",
+        path: ["health_reg_number"]
+      });
+    }
+  }
 });
 
-type FormValues = z.infer<typeof formSchema>;
+// Definir o tipo para os valores do formulário
+type FormValues = z.infer<typeof formSchema>
 
 // After the FormValues type definition, add field render types
 type FieldRenderProps<T extends FieldPath<FormValues> = FieldPath<FormValues>> = {
@@ -254,14 +382,15 @@ type FieldRenderProps<T extends FieldPath<FormValues> = FieldPath<FormValues>> =
 
 // Near TypedFormField declaration or where components are used
 // Create a typed wrapper for FormField
+const TypedFormField = FormField as any;
 
-export interface UnifiedFormProps {
-  initialData?: Partial<FormValues>;
-  onSubmit: (data: FormValues) => Promise<void>;
-  isClinicAdmin?: boolean;
-  clinicId?: string;
-  entityId?: string;
-  isEdit?: boolean;
+interface UnifiedFormProps {
+  initialData?: Partial<FormValues>
+  onSubmit: (data: FormValues) => Promise<void>
+  isClinicAdmin?: boolean
+  clinicId?: string
+  entityId?: string
+  isEdit?: boolean
 }
 
 // Add this helper function before the ProfessionalForm component
@@ -426,144 +555,6 @@ const showToast = (toastInstance: any, props: {
   });
 };
 
-// Add interfaces at the beginning of the file, before any usage
-interface Phone {
-  id?: number;
-  number: string;
-  country_code?: string;
-  type: string;
-  is_whatsapp: boolean;
-  is_primary: boolean;
-  formatted_number?: string;
-}
-
-interface Address {
-  id?: number;
-  street: string;
-  number: string;
-  complement?: string;
-  district: string;
-  city: string;
-  state: string;
-  postal_code: string;
-  is_main: boolean;
-  latitude?: number | null;
-  longitude?: number | null;
-}
-
-interface ApiAddress {
-  id?: number;
-  street: string;
-  number: string;
-  complement?: string;
-  neighborhood: string;
-  city: string;
-  state: string;
-  postal_code: string;
-  is_primary: boolean;
-  latitude?: number | null;
-  longitude?: number | null;
-}
-
-interface Document {
-  id?: number;
-  type_id: number;
-  file?: File | null;
-  file_url?: string;
-  expiration_date?: string;
-  observation?: string;
-}
-
-interface ApiData {
-  id?: number;
-  name: string;
-  documentType?: "cpf" | "cnpj";
-  professional_type?: "individual" | "clinic";
-  cpf?: string;
-  cnpj?: string;
-  description?: string;
-  cnes?: string;
-  created_at?: string;
-  phones: Phone[];
-  addresses: ApiAddress[];
-  documents: Document[];
-  birth_date?: string;
-  gender?: "male" | "female" | "other";
-  specialty?: string;
-  council_type?: string;
-  council_number?: string;
-  council_state?: string;
-  bio?: string;
-  clinic_id?: string;
-  business_hours?: string;
-  services?: string;
-  email?: string;
-}
-
-// Remove duplicate FormValues interface and update type definitions
-type DocumentType = "cpf" | "cnpj";
-
-interface FormValues {
-  documentType: "cpf" | "cnpj";
-  name: string;
-  phones: {
-    number: string;
-    is_main: boolean;
-    type: "mobile" | "landline";
-    is_whatsapp: boolean;
-  }[];
-  email: string;
-  addresses: Address[];
-  
-  // Professional fields
-  cpf?: string;
-  birth_date?: string;
-  gender?: "male" | "female" | "other";
-  specialty?: string;
-  council_type?: string;
-  council_number?: string;
-  council_state?: string;
-  bio?: string;
-  clinic_id?: string;
-  
-  // Establishment fields
-  cnpj?: string;
-  trading_name?: string;
-  foundation_date?: string;
-  business_hours?: string;
-  services?: string;
-  health_reg_number?: string;
-  
-  // Documents
-  documents: Document[];
-}
-
-interface UnifiedFormProps {
-  initialData?: Partial<FormValues>;
-  onSubmit: (data: FormValues) => Promise<void>;
-  isClinicAdmin?: boolean;
-  clinicId?: string;
-  entityId?: string;
-  isEdit?: boolean;
-}
-
-// Near the top of the file, after imports and before other code
-interface TypedFormFieldProps<T extends FieldPath<FormValues>> {
-  name: T;
-  control: Control<FormValues>;
-  render: (props: {
-    field: ControllerRenderProps<FormValues, T>;
-    fieldState: {
-      invalid: boolean;
-      isTouched: boolean;
-      isDirty: boolean;
-      error?: FieldError;
-    };
-  }) => React.ReactElement;
-}
-
-const TypedFormField = FormField as any;
-
 // Export the form as a forwarded ref component
 export const ProfessionalForm = forwardRef(function ProfessionalForm({
   initialData,
@@ -579,7 +570,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
   const [loading, setLoading] = useState(false)
   const [clinics, setClinics] = useState<Clinic[]>([])
   const [loadingClinics, setLoadingClinics] = useState(false)
-  const [specialties, setSpecialties] = useState<MedicalSpecialty[]>([])
+  const [specialties, setSpecialties] = useState<Specialty[]>([])
   const [loadingSpecialties, setLoadingSpecialties] = useState(false)
   const [documentType, setDocumentType] = useState<"cpf" | "cnpj">(initialData?.documentType || "cpf")
   const [formProgressed, setFormProgressed] = useState(false)
@@ -605,46 +596,34 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     7: "other"
   };
 
-  // Update form initialization
   const form = useForm<FormValues>({
-    resolver: isEdit ? undefined : zodResolver(formSchema),
-    mode: "onBlur",
+    resolver: isEdit ? undefined : zodResolver(formSchema) as any,
     defaultValues: {
-      documentType: initialData?.documentType || (initialData?.cpf ? "cpf" : "cnpj"),
+      documentType: documentType, // Use o estado local como valor inicial
       name: initialData?.name || "",
+      phone: initialData?.phone ? applyPhoneMask(initialData.phone) : "",
       email: initialData?.email || "",
-      phones: initialData?.phones?.map(phone => ({
-        number: phone.number ? applyPhoneMask(phone.number) : "",
-        is_main: phone.is_primary || false,
-        type: phone.type as "mobile" | "landline",
-        is_whatsapp: phone.is_whatsapp || false
-      })) || [{
-        number: "",
-        is_main: true,
-        type: "mobile",
-        is_whatsapp: false
-      }],
-      addresses: initialData?.addresses?.map(addr => ({
-        street: addr.street || "",
-        number: addr.number || "",
-        complement: addr.complement || "",
-        district: addr.neighborhood || "",
-        city: addr.city || "",
-        state: addr.state || "",
-        postal_code: addr.postal_code ? applyCEPMask(addr.postal_code) : "",
-        is_main: addr.is_primary || false
-      })) || [{
-        street: "",
-        number: "",
-        complement: "",
-        district: "",
-        city: "",
-        state: "",
-        postal_code: "",
-        is_main: true
-      }],
+      addresses: initialData?.addresses?.length
+        ? initialData.addresses.map(addr => ({
+            ...addr,
+            postal_code: addr.postal_code ? applyCEPMask(addr.postal_code) : "",
+            is_main: addr.is_main === undefined ? false : addr.is_main
+          }))
+        : [
+            {
+              street: "",
+              number: "",
+              complement: "",
+              district: "",
+              city: "",
+              state: "",
+              postal_code: "",
+              is_main: true
+            }
+          ],
+      
+      // Professional fields
       cpf: initialData?.cpf ? applyCPFMask(initialData.cpf) : "",
-      cnpj: initialData?.cnpj ? applyCNPJMask(initialData.cnpj) : "",
       birth_date: initialData?.birth_date || "",
       gender: initialData?.gender || undefined,
       specialty: initialData?.specialty || "",
@@ -652,45 +631,47 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
       council_number: initialData?.council_number || "",
       council_state: initialData?.council_state || "",
       bio: initialData?.bio || "",
-      clinic_id: initialData?.clinic_id || clinicId || "",
+      clinic_id: isClinicAdmin ? clinicId : initialData?.clinic_id || "",
+      
+      // Establishment fields
+      cnpj: initialData?.cnpj ? applyCNPJMask(initialData.cnpj) : "",
+      trading_name: initialData?.trading_name || "",
+      foundation_date: initialData?.foundation_date || "",
       business_hours: initialData?.business_hours || "",
       services: initialData?.services || "",
-      documents: initialData?.documents || []
-    }
-  });
-
-  // Add effect to handle document initialization in edit mode
-  useEffect(() => {
-    if (isEdit && initialData?.documents?.length) {
-      // Initialize document files from existing documents
-      const files = initialData.documents.map(doc => {
-        if (doc.file_url) {
-          // Create a placeholder for existing files
-          return new File([], doc.file_url.split('/').pop() || 'document', {
-            type: 'application/octet-stream'
-          });
-        }
-        return null;
-      });
-      setDocumentFiles(files);
-    }
-  }, [isEdit, initialData]);
-
-  // Update document type handling for edit mode
+      health_reg_number: initialData?.health_reg_number || "",
+      
+      // Documents
+      documents: initialData?.documents || [],
+    },
+  })
+  
+  // Sincronizar o estado local com o valor do formulário quando o componente é montado
   useEffect(() => {
     if (!formInitializedRef.current) {
-      const currentDocType = initialData?.documentType || form.getValues("documentType");
+      const currentDocType = form.getValues("documentType");
       if (currentDocType) {
         setDocumentType(currentDocType);
-        if (!isEdit) {
-          // Only reset documents for new entries
-          form.setValue("documents", []);
-          setDocumentFiles([]);
-        }
       }
       formInitializedRef.current = true;
     }
-  }, [form, isEdit, initialData]);
+  }, [form]);
+
+  // Update documentType state when form value changes
+  useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      if (name === "documentType" && value.documentType) {
+        setDocumentType(value.documentType as "cpf" | "cnpj");
+        // Reset form initialization flag to force document reinitialization
+        formInitializedRef.current = false;
+        // Reset documents array
+        form.setValue("documents", []);
+        // Reset document files
+        setDocumentFiles([]);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form, form.watch]);
 
   // Atualizar o estado de progresso do formulário
   useEffect(() => {
@@ -720,6 +701,16 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     control: form.control,
     name: "addresses"
   });
+
+  // Update documentType state when form value changes
+  useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      if (name === "documentType") {
+        setDocumentType(value.documentType as "cpf" | "cnpj");
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form.watch]);
 
   // Document validation functions
   const validateDocument = (file: File): { isValid: boolean; error?: string } => {
@@ -752,8 +743,8 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
   
   // Validate required documents
   const validateRequiredDocuments = useCallback(() => {
-    if (isEdit || !documentTypes?.length) {
-      return true; // Skip validation in edit mode or when there are no document types
+    if (!documentTypes?.length) {
+      return true; // Nothing to validate
     }
 
     const entityType = documentType === "cpf" ? "professional" : "clinic";
@@ -854,7 +845,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     }
     
     return true;
-  }, [documentTypes, form, toast, documentType, isEdit]);
+  }, [documentTypes, form, toast, documentType]);
 
   useEffect(() => {
     const fetchClinics = async () => {
@@ -866,8 +857,8 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
 
       setLoadingClinics(true)
       try {
-        const response = await api.get("/clinics")
-        const data = response.data?.data;
+        const response = await fetch("/api/clinics")
+        const data = await response.json()
         setClinics(data)
       } catch (error) {
         toast({
@@ -883,7 +874,8 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     const fetchSpecialties = async () => {
       setLoadingSpecialties(true)
       try {
-        const data = await specialtyService.list();
+        const response = await fetch("/api/specialties")
+        const data = await response.json()
         setSpecialties(data)
       } catch (error) {
         toast({
@@ -932,15 +924,17 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
   // Effect to initialize required documents
   useEffect(() => {
     if (documentTypes?.length && !documentFields.length) {
+      // Filter only required document types based on current document type
       const entityType = documentType === "cpf" ? "professional" : "clinic";
-      const requiredDocsTypes = documentTypes.filter(dt => 
-        dt.is_required && 
-        dt.is_active && 
-        dt.entity_type === entityType
-      );
+      const requiredDocsTypes = documentTypes
+        .filter(dt => dt.is_required && dt.entity_type === entityType);
       
+      console.log('Required docs for', entityType, ':', requiredDocsTypes);
+      
+      // Reset documents array
       form.setValue("documents", []);
       
+      // Add all required documents
       requiredDocsTypes.forEach(docType => {
         appendDocument({
           type_id: docType.id,
@@ -950,6 +944,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
         });
       });
       
+      // Mark that documents have been initialized
       formInitializedRef.current = true;
     }
   }, [documentTypes, appendDocument, form, documentType]);
@@ -1016,7 +1011,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
           errors.documentType || 
           errors.name || 
           errors.email || 
-          errors.phones || 
+          errors.phone || 
           errors.cpf || 
           errors.cnpj || 
           errors.addresses
@@ -1032,11 +1027,10 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     }
   };
 
-  // Update validateTab to skip validation in edit mode
+  // Update validateTab to show toast on validation failure
   const validateTab = async (currentTab: string, nextTab: string) => {
-    // Se estiver em modo de edição ou indo para uma aba anterior, não precisa validar
+    // Se estiver indo para uma aba anterior, não precisa validar
     if (
-      isEdit ||
       (currentTab === "additional-info" && nextTab === "basic-info") ||
       (currentTab === "documents" && (nextTab === "basic-info" || nextTab === "additional-info"))
     ) {
@@ -1072,7 +1066,8 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                 ))}
               </div>
             ),
-            variant: "destructive"
+            variant: "destructive",
+            duration: 5000
           });
         }
         
@@ -1080,7 +1075,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
       } 
       else if (currentTab === "additional-info") {
         // Validate additional info fields
-        const commonFields = ["phones"];
+        const commonFields = ["phone"];
         const cpfFields = ["specialty", "council_type", "council_number", "council_state", "bio"];
         const cnpjFields = ["health_reg_number"];
         
@@ -1166,20 +1161,11 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     form.setValue("cnpj", maskedValue);
   };
 
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
-    try {
-      const value = e.target.value;
-      const maskedValue = applyPhoneMask(value);
-      const phones = form.getValues("phones");
-      phones[index].number = maskedValue;
-      form.setValue("phones", phones);
-    } catch (error) {
-      showToast(toast, {
-        title: "Erro",
-        description: "Erro ao formatar o número de telefone",
-        variant: "destructive"
-      });
-    }
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const maskedValue = applyPhoneMask(value);
+    e.target.value = maskedValue;
+    form.setValue("phone", maskedValue);
   };
 
   // Atualizar o onSubmit para usar FormData corretamente
@@ -1187,41 +1173,53 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     try {
       setLoading(true);
 
+      // Validar documentos obrigatórios primeiro
+      if (!validateRequiredDocuments()) {
+        setLoading(false);
+        return;
+      }
+
+      // Criar FormData
       const formData = new FormData();
 
+      // Adicionar professional_type baseado no documentType
+      formData.append('professional_type', documentType === "cpf" ? "individual" : "clinic");
+      
       // Adicionar campos básicos
       Object.entries(data).forEach(([key, value]) => {
-        if (key !== 'documents' && key !== 'addresses' && key !== 'phones' && value !== null && value !== undefined) {
+        if (key !== 'documents' && key !== 'addresses' && value !== null && value !== undefined) {
           if (key === 'cpf' && typeof value === 'string') {
             formData.append(key, unmask(value));
           } else if (key === 'cnpj' && typeof value === 'string') {
             formData.append(key, unmask(value));
-          } else {
+          } else if (typeof value !== 'object') {
             formData.append(key, String(value));
           }
         }
       });
 
-      // Adicionar telefones
-      if (data.phones?.length) {
-        data.phones.forEach((phone, index) => {
-          formData.append(`phones[${index}][number]`, unmask(phone.number));
-          formData.append(`phones[${index}][type]`, phone.type);
-          formData.append(`phones[${index}][is_whatsapp]`, String(phone.is_whatsapp));
-          formData.append(`phones[${index}][is_primary]`, String(phone.is_main));
-        });
+      // Adicionar endereço principal como campo simples "address"
+      const mainAddress = data.addresses?.find(addr => addr.is_main === true) || (data.addresses?.[0]);
+      if (mainAddress) {
+        // Formato do endereço: rua, número - complemento, bairro
+        const fullAddress = `${mainAddress.street}, ${mainAddress.number}${mainAddress.complement ? ' - ' + mainAddress.complement : ''}, ${mainAddress.district}`;
+        formData.append('address', fullAddress);
+        formData.append('city', mainAddress.city);
+        formData.append('state', mainAddress.state);
+        formData.append('postal_code', unmask(String(mainAddress.postal_code)));
+      }
+
+      // Adicionar telefone
+      if ('phone' in data && data.phone) {
+        formData.append('phone', unmask(String(data.phone)));
       }
 
       // Adicionar endereços
-      if (data.addresses?.length) {
-        data.addresses.forEach((address, index) => {
+      if (data.addresses) {
+        data.addresses.forEach((address: any, index: number) => {
           Object.entries(address).forEach(([key, value]) => {
             if (key === 'postal_code') {
               formData.append(`addresses[${index}][${key}]`, unmask(String(value)));
-            } else if (key === 'district') {
-              formData.append(`addresses[${index}][neighborhood]`, String(value));
-            } else if (key === 'is_main') {
-              formData.append(`addresses[${index}][is_primary]`, String(value));
             } else {
               formData.append(`addresses[${index}][${key}]`, String(value));
             }
@@ -1229,33 +1227,61 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
         });
       }
 
-      // Adicionar documentos
-      if (data.documents?.length) {
-        data.documents.forEach((doc, index) => {
-          if (doc.file instanceof File) {
-            formData.append(`documents[${index}][file]`, doc.file);
-          }
-          formData.append(`documents[${index}][type_id]`, String(doc.type_id));
-          if (doc.expiration_date) {
-            formData.append(`documents[${index}][expiration_date]`, doc.expiration_date);
-          }
-          if (doc.observation) {
-            formData.append(`documents[${index}][observation]`, doc.observation);
-          }
-        });
+      // Adicionar documentos com os tipos corretos e prevenir duplicações
+      let documentCount = 0;
+      const processedTypeIds = new Set(); // Track processed type_ids to prevent duplicates
+
+      for (let i = 0; i < documentFiles.length; i++) {
+        const docFile = documentFiles[i];
+        const docItem = data.documents[i];
+        
+        if (!docItem || !docItem.type_id) continue;
+        
+        // Skip if we've already processed this type_id
+        if (processedTypeIds.has(docItem.type_id)) continue;
+        processedTypeIds.add(docItem.type_id);
+        
+        // Mapear o type_id para o valor aceito pela API
+        const docType = documentTypeApiMap[Number(docItem.type_id)] || 'other';
+        
+        // Adicionar o type_id e type para o documento
+        formData.append(`documents[${documentCount}][type_id]`, String(docItem.type_id));
+        formData.append(`documents[${documentCount}][type]`, docType);
+        
+        // Se tiver arquivo, adiciona o arquivo
+        if (docFile instanceof File && docFile.size > 0) {
+          formData.append(`documents[${documentCount}][file]`, docFile);
+        }
+        
+        if (docItem.expiration_date) {
+          formData.append(`documents[${documentCount}][expiration_date]`, docItem.expiration_date);
+        }
+        
+        if (docItem.observation) {
+          formData.append(`documents[${documentCount}][observation]`, docItem.observation);
+        }
+        
+        documentCount++;
       }
 
-      // Se for edição, adicionar método PUT
-      if (isEdit) {
-        formData.append('_method', 'PUT');
+      // Log para debug
+      console.log('==== CONTEÚDO FINAL DO FORMDATA ====');
+      for (let pair of formData.entries()) {
+        if (typeof pair[1] === 'object') {
+          if ('name' in pair[1] && 'type' in pair[1] && 'size' in pair[1]) {
+            console.log(`${pair[0]}: File: ${(pair[1] as any).name} (${(pair[1] as any).size} bytes, tipo: ${(pair[1] as any).type})`);
+          } else if ('size' in pair[1] && 'type' in pair[1]) {
+            console.log(`${pair[0]}: Blob: blob (${(pair[1] as any).size} bytes, tipo: ${(pair[1] as any).type})`);
+          } else {
+            console.log(`${pair[0]}: ${String(pair[1])}`);
+          }
+        } else {
+          console.log(`${pair[0]}: ${String(pair[1])}`);
+        }
       }
 
       // Enviar requisição
-      const endpoint = documentType === 'cpf' ? 
-        (isEdit ? `/professionals/${entityId}` : '/professionals') : 
-        (isEdit ? `/clinics/${entityId}` : '/clinics');
-
-      const response = await api.post(endpoint, formData, {
+      const response = await api.post(documentType === 'cpf' ? '/professionals' : '/clinics', formData, {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'multipart/form-data'
@@ -1264,17 +1290,23 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
 
       showToast(toast, {
         title: "Sucesso",
-        description: isEdit 
-          ? "Profissional atualizado com sucesso!" 
-          : "Profissional cadastrado com sucesso!",
+        description: "Profissional cadastrado com sucesso",
         variant: "success"
       });
 
       router.push('/professionals');
+
     } catch (error: any) {
       console.error("Erro ao enviar formulário:", error);
       
-      if (error.response?.data?.errors) {
+      // Verificar se é um erro específico de campo faltando
+      if (error.message && error.message.includes("Field 'address' doesn't have a default value")) {
+        showToast(toast, {
+          title: "Erro de Dados",
+          description: "O campo de endereço é obrigatório. Por favor, verifique se há pelo menos um endereço cadastrado e tente novamente.",
+          variant: "destructive"
+        });
+      } else if (error.response?.data?.errors) {
         const errorMessages = formatApiValidationErrors(error.response.data.errors);
         
         showToast(toast, {
@@ -1293,9 +1325,10 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
           variant: "destructive"
         });
       } else {
+        const errorMessage = error.message || "Erro ao cadastrar profissional";
         showToast(toast, {
           title: "Erro",
-          description: translateError(error.message || "Erro ao processar o formulário"),
+          description: translateError(errorMessage),
           variant: "destructive"
         });
       }
@@ -1307,123 +1340,172 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
   // Atualizar o handleFormSubmit para usar a função correta
   const handleFormSubmit = async (data: FormValues) => {
     try {
-      setLoading(true);
-
-      // Validar se há pelo menos um telefone
-      if (!data.phones || data.phones.length === 0) {
-        showToast(toast, {
-          title: "Erro de validação",
-          description: "É necessário adicionar pelo menos um telefone.",
-          variant: "destructive"
+      if (isEdit) {
+        // Se estiver editando, use o endpoint PUT
+        const formData = new FormData();
+        
+        // Compare com initialData para enviar apenas campos modificados
+        const changedFields = new Set<string>();
+        
+        // Comparar campos básicos
+        Object.keys(data).forEach(key => {
+          if (key !== 'documents' && key !== 'addresses') {
+            const initialValue = initialData?.[key as keyof FormValues];
+            const newValue = data[key as keyof FormValues];
+            
+            // Verificar se o valor mudou
+            if (JSON.stringify(initialValue) !== JSON.stringify(newValue) && newValue !== undefined && newValue !== null) {
+              changedFields.add(key);
+            }
+          }
         });
-        return;
-      }
 
-      // Validar se há pelo menos um endereço
-      if (!data.addresses || data.addresses.length === 0) {
-        showToast(toast, {
-          title: "Erro de validação",
-          description: "É necessário adicionar pelo menos um endereço.",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Mostrar toast de carregamento
-      showToast(toast, {
-        title: "Processando",
-        description: "Salvando as informações...",
-        variant: "default"
-      });
-
-      // Preparar os dados para envio
-      const formData = new FormData();
-
-      // Adicionar campos básicos
-      Object.entries(data).forEach(([key, value]) => {
-        if (key !== 'documents' && key !== 'addresses' && key !== 'phones' && value !== null && value !== undefined) {
-          if (key === 'cpf' && typeof value === 'string') {
-            formData.append(key, unmask(value));
-          } else if (key === 'cnpj' && typeof value === 'string') {
-            formData.append(key, unmask(value));
-          } else {
-            formData.append(key, String(value));
+        // Comparar endereços
+        if (data.addresses) {
+          const initialAddresses = initialData?.addresses || [];
+          const hasAddressChanges = data.addresses.some((addr: any, index: number) => {
+            const initialAddr = initialAddresses[index];
+            if (!initialAddr) return true; // Novo endereço
+            
+            return Object.keys(addr).some(key => addr[key] !== initialAddr[key]);
+          });
+          
+          if (hasAddressChanges) {
+            changedFields.add('addresses');
           }
         }
-      });
 
-      // Adicionar telefones
-      if (data.phones?.length) {
-        data.phones.forEach((phone, index) => {
-          formData.append(`phones[${index}][number]`, unmask(phone.number));
-          formData.append(`phones[${index}][type]`, phone.type);
-          formData.append(`phones[${index}][is_whatsapp]`, String(phone.is_whatsapp));
-          formData.append(`phones[${index}][is_primary]`, String(phone.is_main));
-          formData.append(`phones[${index}][country_code]`, '+55');
+        // Adicionar professional_type se estiver nos campos alterados
+        if (changedFields.has('documentType')) {
+          formData.append('professional_type', data.documentType === "cpf" ? "individual" : "clinic");
+        }
+        
+        // Adicionar apenas campos básicos alterados
+        changedFields.forEach(key => {
+          const value = data[key as keyof FormValues];
+          if (value !== null && value !== undefined) {
+            if (key === 'cpf' && typeof value === 'string') {
+              formData.append(key, unmask(value));
+            } else if (key === 'cnpj' && typeof value === 'string') {
+              formData.append(key, unmask(value));
+            } else if (key === 'phone' && typeof value === 'string') {
+              formData.append(key, unmask(value));
+            } else if (typeof value !== 'object') {
+              formData.append(key, String(value));
+            }
+          }
         });
-      }
 
-      // Adicionar endereços
-      if (data.addresses?.length) {
-        data.addresses.forEach((address, index) => {
-          Object.entries(address).forEach(([key, value]) => {
-            if (key === 'postal_code') {
-              formData.append(`addresses[${index}][${key}]`, unmask(String(value)));
-            } else if (key === 'district') {
-              formData.append(`addresses[${index}][neighborhood]`, String(value));
-            } else if (key === 'is_main') {
-              formData.append(`addresses[${index}][is_primary]`, String(value));
-            } else {
-              formData.append(`addresses[${index}][${key}]`, String(value));
+        // Adicionar endereços apenas se foram alterados
+        if (changedFields.has('addresses') && data.addresses) {
+          // Adicionar endereço principal como campos legados para compatibilidade
+          const mainAddress = data.addresses.find((addr: any) => addr.is_main === true) || data.addresses[0];
+          if (mainAddress) {
+            const fullAddress = `${mainAddress.street}, ${mainAddress.number}${mainAddress.complement ? ' - ' + mainAddress.complement : ''}, ${mainAddress.district}`;
+            formData.append('address', fullAddress);
+            formData.append('city', mainAddress.city);
+            formData.append('state', mainAddress.state);
+            formData.append('postal_code', unmask(mainAddress.postal_code));
+          }
+
+          // Adicionar array de endereços
+          data.addresses.forEach((address: any, index: number) => {
+            Object.entries(address).forEach(([key, value]) => {
+              if (key === 'postal_code') {
+                formData.append(`addresses[${index}][${key}]`, unmask(String(value)));
+              } else if (key === 'is_main') {
+                formData.append(`addresses[${index}][is_primary]`, value ? "1" : "0");
+              } else if (key === 'district') {
+                formData.append(`addresses[${index}][neighborhood]`, String(value));
+              } else {
+                formData.append(`addresses[${index}][${key}]`, String(value));
+              }
+            });
+          });
+        }
+
+        // Adicionar apenas documentos novos ou modificados
+        if (data.documents) {
+          let docCount = 0;
+          const processedTypeIds = new Set(); // Rastrear type_ids processados para evitar duplicatas
+
+          for (let i = 0; i < documentFiles.length; i++) {
+            const docFile = documentFiles[i];
+            const docItem = data.documents[i];
+            
+            if (!docItem || !docItem.type_id) continue;
+            
+            // Pular se já processamos este type_id
+            if (processedTypeIds.has(docItem.type_id)) continue;
+            processedTypeIds.add(docItem.type_id);
+            
+            // Verificar se o documento foi modificado
+            const initialDoc = initialData?.documents?.[i];
+            const isModified = docFile instanceof File || 
+              !initialDoc || 
+              docItem.type_id !== initialDoc.type_id ||
+              docItem.expiration_date !== initialDoc.expiration_date ||
+              docItem.observation !== initialDoc.observation;
+
+            if (isModified) {
+              // Mapear o type_id para o valor aceito pela API
+              const docType = documentTypeApiMap[Number(docItem.type_id)] || 'other';
+              
+              formData.append(`documents[${docCount}][type_id]`, String(docItem.type_id));
+              formData.append(`documents[${docCount}][type]`, docType);
+              
+              if (docFile instanceof File && docFile.size > 0) {
+                formData.append(`documents[${docCount}][file]`, docFile);
+              }
+              
+              if (docItem.expiration_date) {
+                formData.append(`documents[${docCount}][expiration_date]`, docItem.expiration_date);
+              }
+              
+              if (docItem.observation) {
+                formData.append(`documents[${docCount}][observation]`, docItem.observation);
+              }
+              
+              docCount++;
+            }
+          }
+        }
+
+        // Adicionar método _method para simular PUT
+        formData.append('_method', 'PUT');
+
+        // Enviar apenas se houver alterações
+        if (Array.from(formData.entries()).length > 1) { // > 1 porque _method é sempre adicionado
+          const endpoint = documentType === "cpf" ? `/professionals/${entityId}` : `/clinics/${entityId}`;
+          
+          await api.put(endpoint, formData, {
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'multipart/form-data'
             }
           });
-        });
-      }
 
-      // Adicionar documentos
-      if (data.documents?.length) {
-        data.documents.forEach((doc, index) => {
-          if (doc.file instanceof File) {
-            formData.append(`documents[${index}][file]`, doc.file);
-          }
-          formData.append(`documents[${index}][type_id]`, String(doc.type_id));
-          if (doc.expiration_date) {
-            formData.append(`documents[${index}][expiration_date]`, doc.expiration_date);
-          }
-          if (doc.observation) {
-            formData.append(`documents[${index}][observation]`, doc.observation);
-          }
-        });
-      }
+          showToast(toast, {
+            title: "Sucesso",
+            description: documentType === "cpf" ? "Profissional atualizado com sucesso" : "Clínica atualizada com sucesso",
+            variant: "success"
+          });
 
-      // Se for edição, adicionar método PUT
-      if (isEdit) {
-        formData.append('_method', 'PUT');
-      }
-
-      // Enviar requisição
-      const endpoint = documentType === 'cpf' ? 
-        (isEdit ? `/professionals/${entityId}` : '/professionals') : 
-        (isEdit ? `/clinics/${entityId}` : '/clinics');
-
-      const response = await api.post(endpoint, formData, {
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'multipart/form-data'
+          router.push(documentType === "cpf" ? '/professionals' : '/clinics');
+        } else {
+          showToast(toast, {
+            title: "Nenhuma alteração",
+            description: "Nenhuma alteração foi detectada nos dados",
+            variant: "info"
+          });
+          router.push(documentType === "cpf" ? '/professionals' : '/clinics');
         }
-      });
-
-      showToast(toast, {
-        title: "Sucesso",
-        description: isEdit 
-          ? "Profissional atualizado com sucesso!" 
-          : "Profissional cadastrado com sucesso!",
-        variant: "success"
-      });
-
-      router.push('/professionals');
+      } else {
+        // Se não estiver editando, use a função original de criação
+        await onSubmit(data);
+      }
     } catch (error: any) {
-      console.error("Erro ao enviar formulário:", error);
+      console.error("Erro ao processar formulário:", error);
       
       if (error.response?.data?.errors) {
         const errorMessages = formatApiValidationErrors(error.response.data.errors);
@@ -1446,12 +1528,14 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
       } else {
         showToast(toast, {
           title: "Erro",
-          description: translateError(error.message || "Erro ao processar o formulário"),
+          description: error.message || "Ocorreu um erro ao processar o formulário",
           variant: "destructive"
         });
       }
-    } finally {
-      setLoading(false);
+      
+      if (!isEdit) {
+        throw error; // Re-throw para o parent lidar se não estiver em modo de edição
+      }
     }
   };
 
@@ -1591,370 +1675,2150 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
 
   // Render document fields
   const renderDocuments = () => {
-    // Filtrar apenas documentos ativos
-    const activeDocumentTypes = documentTypes?.filter(type => type.is_active) || [];
-    
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-medium">Documentos</h3>
-            <p className="text-sm text-muted-foreground">
-              Adicione os documentos necessários
-            </p>
+    console.log("documentFields", documentFields);
+    return documentFields.map((field, index) => {
+      const currentTypeId = form.getValues(`documents.${index}.type_id`);
+      const currentDocType = documentTypes?.find(dt => dt.id === currentTypeId);
+      const hasExistingFile = !!form.getValues(`documents.${index}.file_url`);
+      const hasError = form.formState.errors.documents?.[index];
+      
+      return (
+        <div 
+          key={field.id} 
+          className={cn(
+            "space-y-4 p-4 border rounded-lg",
+            hasError && "border-destructive bg-destructive/5"
+          )}
+          data-error={hasError ? "true" : "false"}
+        >
+          <div className="flex items-end gap-4">
+            <TypedFormField
+              control={form.control}
+              name={`documents.${index}.type_id` as any}
+              render={({ field: fieldProps }) => (
+                <FormItem className="flex-1">
+                  <FormLabel className="flex items-center gap-2">
+                    {currentDocType?.name || "Tipo de Documento"}
+                    {currentDocType?.is_required && (
+                      <Badge variant="destructive" className="text-[10px]">Obrigatório</Badge>
+                    )}
+                  </FormLabel>
+                  <FormControl>
+                    <Input type="hidden" {...fieldProps} />
+                  </FormControl>
+                  <FormDescription>
+                    {currentDocType?.description}
+                  </FormDescription>
+                  <FormMessage className={formErrorStyles} />
+                </FormItem>
+              )}
+            />
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleAddDocument}
-            className="flex items-center"
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Adicionar Documento
-          </Button>
-        </div>
 
-        <div className="space-y-4">
-          {documentFields.map((field, index) => {
-            const selectedType = activeDocumentTypes.find(
-              type => type.id === Number(field.type_id)
-            );
-
-            return (
-              <div key={field.id} className={cn(
-                "flex flex-col gap-4 p-4 border rounded-lg",
-                selectedType?.is_required && "border-red-100 bg-red-50/30"
-              )}>
-                <div className="flex justify-between items-start">
-                  <div className="space-y-1">
-                    <Label>
-                      Tipo de Documento
-                      {selectedType?.is_required && (
-                        <span className="ml-1 text-destructive">*</span>
-                      )}
-                    </Label>
-                    <Select
-                      value={field.type_id?.toString() || ""}
-                      onValueChange={(value) => handleDocumentItemTypeChange(value, index)}
-                    >
-                      <SelectTrigger className="w-[300px]">
-                        <SelectValue placeholder="Selecione o tipo de documento" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {activeDocumentTypes.map((type) => (
-                          <SelectItem key={type.id} value={type.id.toString()}>
-                            <div className="flex items-center justify-between w-full">
-                              <span>{type.name}</span>
-                              {type.is_required && (
-                                <span className="text-xs text-destructive ml-2">*Obrigatório</span>
-                              )}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {selectedType?.description && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {selectedType.description}
-                      </p>
-                    )}
-                  </div>
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeDocument(index)}
-                    className="text-destructive hover:text-destructive/90"
-                  >
-                    <Trash className="h-4 w-4" />
-                  </Button>
+          {hasExistingFile && (
+            (() => {
+              const fileUrl = form.getValues(`documents.${index}.file_url`);
+              let existingFileName = 'Arquivo existente';
+              if (fileUrl) {
+                try {
+                  existingFileName = decodeURIComponent(fileUrl.substring(fileUrl.lastIndexOf('/') + 1));
+                } catch (e) {
+                  existingFileName = fileUrl.substring(fileUrl.lastIndexOf('/') + 1);
+                }
+              }
+              return (
+                <div className="text-sm text-green-600 flex items-center gap-2 mb-2 p-2 bg-green-50 rounded-md border border-green-200">
+                  <Check className="h-4 w-4 flex-shrink-0" />
+                  <span>Documento enviado: <strong>{existingFileName}</strong></span>
                 </div>
+              );
+            })()
+          )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Arquivo</Label>
-                    <Input
-                      type="file"
-                      onChange={(e) => handleDocumentChange(e, index)}
-                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                    />
-                    {field.file_url && (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <FileText className="h-4 w-4" />
-                        <a 
-                          href={field.file_url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="hover:underline"
-                        >
-                          Ver arquivo atual
-                        </a>
-                      </div>
-                    )}
+          <TypedFormField
+            control={form.control}
+            name={`documents.${index}.file` as any}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  Arquivo
+                  {currentDocType?.is_required && !hasExistingFile && <span className="text-red-500">*</span>}
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                    onChange={(e) => handleDocumentChange(e, index)}
+                  />
+                </FormControl>
+                {documentFiles[index] && !hasExistingFile ? (
+                  <div className="mt-2 text-sm text-muted-foreground p-2 bg-blue-50 rounded-md border border-blue-200">
+                    <p>Arquivo selecionado: <strong>{documentFiles[index]?.name || ''}</strong></p>
+                    {documentFiles[index]?.size ? (
+                      <p>Tamanho: ({(documentFiles[index]!.size / 1024).toFixed(2)} KB)</p>
+                    ) : null}
                   </div>
+                ) : null}
+                <FormDescription>
+                  {hasExistingFile ? "Você pode substituir o arquivo existente selecionando um novo." : "Formatos aceitos: PDF, DOC, DOCX, JPG, PNG. Tamanho máximo: 10MB"}
+                </FormDescription>
+                <FormMessage className={formErrorStyles} />
+              </FormItem>
+            )}
+          />
 
-                  {selectedType?.expiration_alert_days !== null && (
-                    <div className="space-y-2">
-                      <Label>
-                        Data de Vencimento
-                        {selectedType?.expiration_alert_days && (
-                          <span className="ml-1 text-destructive">*</span>
-                        )}
-                      </Label>
-                      <DateInput
-                        value={field.expiration_date ? new Date(field.expiration_date) : null}
-                        onChange={(date) => {
-                          updateDocument(index, {
-                            ...field,
-                            expiration_date: date?.toISOString()
-                          });
-                        }}
-                      />
-                      {selectedType?.expiration_alert_days && (
-                        <p className="text-xs text-muted-foreground">
-                          Alerta {selectedType.expiration_alert_days} dias antes do vencimento
-                        </p>
+          {currentDocType?.expiration_alert_days && (
+            <TypedFormField
+              control={form.control}
+              name={`documents.${index}.expiration_date` as any}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    Data de Expiração
+                    <span className="text-red-500">*</span>
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      type="date"
+                      {...field}
+                      value={field.value || ''}
+                      min={new Date().toISOString().split('T')[0]}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Este documento requer alerta de expiração {currentDocType.expiration_alert_days} dias antes do vencimento
+                  </FormDescription>
+                  <FormMessage className={formErrorStyles} />
+                </FormItem>
+              )}
+            />
+          )}
+
+          <TypedFormField
+            control={form.control}
+            name={`documents.${index}.observation` as any}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Observação</FormLabel>
+                <FormControl>
+                  <Textarea {...field} value={field.value || ''} />
+                </FormControl>
+                <FormMessage className={formErrorStyles} />
+              </FormItem>
+            )}
+          />
+        </div>
+      );
+    });
+  };
+
+  // Add these new functions to handle tab navigation with validation
+  // Add before the return statement in the ProfessionalForm component
+  
+  // Add a new state to track if form progression has started
+  // const [formProgressed, setFormProgressed] = useState(false);
+
+  // Adicionar botão para novo endereço
+  const handleAddAddress = () => {
+    appendAddress({
+      street: "",
+      number: "",
+      complement: "",
+      district: "",
+      city: "",
+      state: "",
+      postal_code: "",
+      is_main: false
+    });
+  };
+
+  // Expose form methods to parent component
+  useImperativeHandle(ref, () => ({
+    validateTab,
+    getForm: () => form
+  }), [form]);
+
+  // Add key for localStorage
+  const FORM_STORAGE_KEY = `professional-form-${entityId || 'new'}`;
+
+  // Inside the ProfessionalForm component
+  // Add state for navigation confirmation dialog
+  const [showExitDialog, setShowExitDialog] = useState(false);
+  const [navigationPath, setNavigationPath] = useState<string | null>(null);
+
+  // Add function to handle navigation attempt
+  const handleNavigation = (path: string) => {
+    const formHasChanges = Object.keys(form.formState.dirtyFields).length > 0;
+    
+    if (formHasChanges) {
+      setNavigationPath(path);
+      setShowExitDialog(true);
+    } else {
+      router.push(path);
+    }
+  };
+
+  // Add function to handle confirmed exit
+  const handleConfirmExit = () => {
+    localStorage.removeItem(FORM_STORAGE_KEY);
+    if (navigationPath) {
+      router.push(navigationPath);
+    } else {
+      router.back();
+    }
+    setShowExitDialog(false);
+  };
+
+  // Inside the component, add these useEffect hooks for localStorage persistence
+  useEffect(() => {
+    // Load form data from localStorage on mount
+    const savedFormData = localStorage.getItem(FORM_STORAGE_KEY);
+    if (savedFormData) {
+      try {
+        const parsedData = JSON.parse(savedFormData);
+        // Only load data if we don't already have initialData
+        if (!initialData) {
+          // Don't reset form if there's initialData (editing)
+          form.reset(parsedData);
+          // Set the document type from loaded data
+          if (parsedData.documentType) {
+            setDocumentType(parsedData.documentType);
+          }
+        }
+      } catch (error) {
+        console.error("Error parsing saved form data:", error);
+        // If error parsing, remove invalid data
+        localStorage.removeItem(FORM_STORAGE_KEY);
+      }
+    }
+  }, [form, FORM_STORAGE_KEY, initialData]);
+
+  // Save form data to localStorage on form change
+  useEffect(() => {
+    // Watch for form changes and save to localStorage
+    const subscription = form.watch((data) => {
+      if (Object.keys(form.formState.dirtyFields).length > 0) {
+        localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(data));
+      }
+    });
+    
+    return () => subscription.unsubscribe();
+  }, [form, FORM_STORAGE_KEY]);
+
+  // Inside component
+  const [cidadesDoEstado, setCidadesDoEstado] = useState<string[]>([]);
+
+  // Define the memoized function to update cities based on selected state
+  const atualizarCidadesPorEstado = useCallback((uf: string) => {
+    if (!uf) {
+      setCidadesDoEstado([]);
+      return;
+    }
+
+    // Find the state in the data
+    const estadoEncontrado = estadosCidadesData.estados.find(
+      estado => estado.sigla === uf
+    );
+
+    if (estadoEncontrado) {
+      setCidadesDoEstado(estadoEncontrado.cidades);
+    } else {
+      setCidadesDoEstado([]);
+    }
+  }, []);
+
+  // Fix the document type change handler for specific document items
+  const handleDocumentItemTypeChange = (value: string, index: number) => {
+    const typeId = parseInt(value);
+    const docType = documentTypes?.find(dt => dt.id === typeId);
+    
+    if (docType) {
+      form.setValue(`documents.${index}.type_id` as any, typeId);
+    }
+  };
+
+  // Add CEP change handler
+  const handleCEPChange = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
+    const value = e.target.value;
+    const maskedValue = applyCEPMask(value);
+    e.target.value = maskedValue;
+    form.setValue(`addresses.${index}.postal_code` as any, maskedValue);
+    
+    // Fetch address by CEP if it has 8 digits
+    if (unmask(maskedValue).length === 8) {
+      fetchAddressByCEP(unmask(maskedValue), index);
+    }
+  };
+
+  // Add CEP lookup function
+  const fetchAddressByCEP = async (cep: string, index: number) => {
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      const data = await response.json();
+      
+      if (data.erro) {
+        showToast(toast, {
+          title: "CEP não encontrado",
+          description: "Verifique o CEP informado",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Fill address fields with returned data
+      form.setValue(`addresses.${index}.street` as any, data.logradouro);
+      form.setValue(`addresses.${index}.district` as any, data.bairro);
+      form.setValue(`addresses.${index}.state` as any, data.uf);
+      
+      // Update cities for the state
+      atualizarCidadesPorEstado(data.uf);
+      
+      // Set city
+      form.setValue(`addresses.${index}.city` as any, data.localidade);
+      
+      showToast(toast, {
+        title: "Endereço preenchido",
+        description: "Os dados de endereço foram preenchidos automaticamente",
+        variant: "success"
+      });
+    } catch (error) {
+      console.error("Erro ao buscar CEP:", error);
+      showToast(toast, {
+        title: "Erro ao buscar CEP",
+        description: "Não foi possível buscar o endereço pelo CEP",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Update the effect to initialize cities when state changes
+  useEffect(() => {
+    // Process addresses if they exist
+    const addresses = form.getValues("addresses");
+    if (addresses && addresses.length > 0) {
+      addresses.forEach((address, index) => {
+        if (address.state) {
+          atualizarCidadesPorEstado(address.state);
+        }
+      });
+    }
+    
+    // Listen for changes in addresses
+    const subscription = form.watch((formValues) => {
+      if (formValues && formValues.addresses) {
+        formValues.addresses.forEach((address: any, index: number) => {
+          if (address && address.state) {
+            atualizarCidadesPorEstado(address.state);
+          }
+        });
+      }
+    });
+    
+    // Clean up subscription
+    return () => {
+      if (subscription && typeof subscription.unsubscribe === 'function') {
+        subscription.unsubscribe();
+      }
+    };
+  }, [form, atualizarCidadesPorEstado]);
+
+  // Update the TypedFormField component interface
+  interface TypedFormFieldProps<T extends FieldPath<FormValues>> {
+    name: T;
+    control: Control<FormValues>;
+    render: (props: {
+      field: ControllerRenderProps<FormValues, T>;
+      fieldState: {
+        invalid: boolean;
+        isTouched: boolean;
+        isDirty: boolean;
+        error?: FieldError;
+      };
+    }) => React.ReactElement;
+  }
+
+  function TypedFormField<T extends FieldPath<FormValues>>({
+    name,
+    control,
+    render,
+  }: TypedFormFieldProps<T>) {
+    return (
+      <FormField
+        control={control as any}
+        name={name}
+        render={render as any}
+      />
+    );
+  }
+
+  // Also fix document fields where we use "as any"
+  interface TypedDocumentFieldProps {
+    name: string;
+    control: Control<FormValues>;
+    render: (props: {
+      field: ControllerRenderProps<FormValues, any>;
+      fieldState: {
+        invalid: boolean;
+        isTouched: boolean;
+        isDirty: boolean;
+        error?: FieldError;
+      };
+    }) => React.ReactElement;
+  }
+
+  function TypedDocumentField({
+    name,
+    control,
+    render,
+  }: TypedDocumentFieldProps) {
+    return (
+      <FormField
+        control={control as any}
+        name={name as any}
+        render={render as any}
+      />
+    );
+  }
+
+  // Add this function after other handlers but before the return statement
+  // Function to get specialties based on selected council type
+  const getSpecialtiesForCouncilType = (councilType: string) => {
+    switch (councilType) {
+      case "CRM":
+        return MEDICAL_SPECIALTIES;
+      case "CRO":
+        return DENTAL_SPECIALTIES;
+      case "CREFITO":
+        return PHYSICAL_THERAPY_SPECIALTIES;
+      case "CRP":
+        return PSYCHOLOGY_SPECIALTIES;
+      case "COREN":
+        return NURSING_SPECIALTIES;
+      case "CRN":
+        return NUTRITION_SPECIALTIES;
+      default:
+        return MEDICAL_SPECIALTIES; // Default to medical specialties
+    }
+  };
+
+  // Add state to store filtered specialties
+  const [filteredSpecialties, setFilteredSpecialties] = useState(MEDICAL_SPECIALTIES);
+
+  // Update council type change handler
+  const handleCouncilTypeChange = (value: string) => {
+    form.setValue("council_type", value);
+    setFilteredSpecialties(getSpecialtiesForCouncilType(value));
+    // Clear specialty when changing council type
+    form.setValue("specialty", "");
+  };
+
+  // Add this section right after the CardHeader, before the form content
+  {process.env.NODE_ENV === 'development' && (
+    <div className="mb-6 p-4 bg-muted/30 rounded-lg border border-dashed">
+      <h3 className="text-sm font-semibold mb-3">Teste de Notificações</h3>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            showToast(toast, {
+              title: "Sucesso",
+              description: "Profissional cadastrado com sucesso!",
+              variant: "success"
+            });
+          }}
+        >
+          Testar Sucesso
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            showToast(toast, {
+              title: "Erro de Validação",
+              description: (
+                <div className="max-h-[200px] overflow-y-auto">
+                  <p className="mb-2 font-semibold text-destructive">Por favor, corrija os seguintes erros:</p>
+                  <div className="flex gap-2 items-start mb-1">
+                    <div className="mt-1 h-1.5 w-1.5 rounded-full bg-destructive shrink-0"></div>
+                    <p className="text-sm">Nome: Campo obrigatório</p>
+                  </div>
+                  <div className="flex gap-2 items-start mb-1">
+                    <div className="mt-1 h-1.5 w-1.5 rounded-full bg-destructive shrink-0"></div>
+                    <p className="text-sm">CPF: CPF inválido</p>
+                  </div>
+                  <div className="flex gap-2 items-start mb-1">
+                    <div className="mt-1 h-1.5 w-1.5 rounded-full bg-destructive shrink-0"></div>
+                    <p className="text-sm">Email: Email inválido</p>
+                  </div>
+                </div>
+              ),
+              variant: "destructive",
+              duration: 5000,
+            });
+          }}
+        >
+          Testar Erro de Validação
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            showToast(toast, {
+              title: "Documentos Obrigatórios",
+              description: (
+                <div className="max-h-[200px] overflow-y-auto">
+                  <p className="mb-2 font-semibold text-destructive">Verifique os seguintes documentos:</p>
+                  <div className="flex gap-2 items-start mb-1">
+                    <div className="mt-1 h-1.5 w-1.5 rounded-full bg-destructive shrink-0"></div>
+                    <p className="text-sm">O documento "CRM" é obrigatório</p>
+                  </div>
+                  <div className="flex gap-2 items-start mb-1">
+                    <div className="mt-1 h-1.5 w-1.5 rounded-full bg-destructive shrink-0"></div>
+                    <p className="text-sm">O documento "Diploma" requer data de expiração</p>
+                  </div>
+                </div>
+              ),
+              variant: "destructive",
+              duration: 5000
+            });
+          }}
+        >
+          Testar Erro de Documentos
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            showToast(toast, {
+              title: "Aviso",
+              description: (
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                  <span>Alguns campos precisam de atenção</span>
+                </div>
+              ),
+              variant: "warning"
+            });
+          }}
+        >
+          Testar Aviso
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            showToast(toast, {
+              title: "Informação",
+              description: (
+                <div className="flex items-center gap-2">
+                  <InfoIcon className="h-4 w-4 text-blue-500" />
+                  <span>Os dados foram salvos automaticamente</span>
+                </div>
+              ),
+              variant: "info"
+            });
+          }}
+        >
+          Testar Info
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            const errors = {
+              name: { message: "Nome é obrigatório" },
+              cpf: { message: "CPF inválido" },
+              email: { message: "Email inválido" },
+              addresses: [
+                {
+                  street: { message: "Rua é obrigatória" },
+                  city: { message: "Cidade é obrigatória" }
+                }
+              ],
+              documents: [
+                {
+                  type: { message: "Tipo de documento é obrigatório" },
+                  file: { message: "Arquivo é obrigatório" }
+                }
+              ]
+            };
+            const errorMessages = formatErrorsForToast(errors as any);
+            showToast(toast, {
+              title: "Erro de Validação Complexo",
+              description: (
+                <div className="max-h-[200px] overflow-y-auto">
+                  <p className="mb-2 font-semibold text-destructive">Por favor, corrija os seguintes erros:</p>
+                  {errorMessages.split('\n').map((message, index) => (
+                    <div key={index} className="flex gap-2 items-start mb-1">
+                      <div className="mt-1 h-1.5 w-1.5 rounded-full bg-destructive shrink-0"></div>
+                      <p className="text-sm">{message}</p>
+                    </div>
+                  ))}
+                </div>
+              ),
+              variant: "destructive",
+              duration: 5000
+            });
+          }}
+        >
+          Testar Erro Complexo
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            showToast(toast, {
+              title: "Sucesso",
+              description: (
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <span>Profissional atualizado com sucesso</span>
+                </div>
+              ),
+              variant: "success",
+              duration: 3000
+            });
+          }}
+        >
+          Testar Atualização
+        </Button>
+      </div>
+    </div>
+  )}
+
+  return (
+    <Card className="w-full max-w-4xl mx-auto">
+      <CardHeader className="bg-muted/50">
+        <CardTitle>
+          {documentType === "cpf" ? "Novo Profissional" : "Novo Estabelecimento"}
+          {activeTab !== "basic-info" && (
+            <Badge className="ml-2 bg-primary/10 text-primary border-primary/20">
+              {documentType === "cpf" ? (
+                <div className="flex items-center gap-1">
+                  <User className="h-3 w-3" /> CPF
+                </div>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <Building2 className="h-3 w-3" /> CNPJ
+                </div>
+              )}
+            </Badge>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-6">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleFormSubmit, handleFormSubmitError)} className="space-y-6">
+              <Tabs value={activeTab} onValueChange={(value) => handleNextTab(activeTab, value)} className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="basic-info" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                    Informações Básicas
+                  </TabsTrigger>
+                  <TabsTrigger value="additional-info" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                    Informações Adicionais
+                  </TabsTrigger>
+                  <TabsTrigger value="documents" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                    Documentos
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="basic-info">
+                  {/* Type selection - only in first tab */}
+                  {activeTab === "basic-info" && (
+                    <TypedFormField
+                      control={form.control}
+                      name="documentType"
+                      render={({ field }) => (
+                        <FormItem className="space-y-3 mb-6 p-4 bg-muted/30 rounded-lg">
+                          <FormLabel className="text-lg font-semibold">
+                            Tipo de Cadastro<span className="text-red-500">*</span>
+                          </FormLabel>
+                          <FormDescription>
+                            Selecione o tipo de entidade que você está cadastrando
+                          </FormDescription>
+                          <FormControl>
+                            <RadioGroup
+                              onValueChange={(value: "cpf" | "cnpj") => {
+                                if (formProgressed) {
+                                  // Se houver progresso, mostrar confirmação
+                                  if (confirm("Alterar o tipo de documento irá limpar todos os dados do formulário. Deseja continuar?")) {
+                                    field.onChange(value);
+                                    handleDocumentTypeChange(value);
+                                    setDocumentType(value);
+                                    form.reset({
+                                      documentType: value,
+                                      addresses: [{
+                                        street: "",
+                                        number: "",
+                                        complement: "",
+                                        district: "",
+                                        city: "",
+                                        state: "",
+                                        postal_code: "",
+                                        is_main: true
+                                      }]
+                                    });
+                                  }
+                                } else {
+                                  // Se não houver progresso, apenas mudar
+                                  field.onChange(value);
+                                  handleDocumentTypeChange(value);
+                                  setDocumentType(value);
+                                }
+                              }}
+                              value={field.value || documentType}
+                              className="flex flex-col space-y-1"
+                            >
+                              <FormItem className="flex items-center space-x-3 space-y-0">
+                                <FormControl>
+                                  <RadioGroupItem value="cpf" id="cpf" />
+                                </FormControl>
+                                <FormLabel className="font-normal cursor-pointer" htmlFor="cpf">
+                                  <div className="flex items-center">
+                                    <User className="h-4 w-4 mr-2" />
+                                    <span>Profissional (CPF)</span>
+                                  </div>
+                                </FormLabel>
+                              </FormItem>
+                              <FormItem className="flex items-center space-x-3 space-y-0">
+                                <FormControl>
+                                  <RadioGroupItem value="cnpj" id="cnpj" />
+                                </FormControl>
+                                <FormLabel className="font-normal cursor-pointer" htmlFor="cnpj">
+                                  <div className="flex items-center">
+                                    <Building2 className="h-4 w-4 mr-2" />
+                                    <span>Estabelecimento/Clínica (CNPJ)</span>
+                                  </div>
+                                </FormLabel>
+                              </FormItem>
+                            </RadioGroup>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
                       )}
+                    />
+                  )}
+
+                  {/* Basic Info Tab */}
+                  {activeTab === "basic-info" && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <TypedFormField
+                          control={form.control}
+                          name="name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>
+                                {documentType === "cpf" ? "Nome Completo" : "Razão Social"}
+                                <span className="text-red-500">*</span>
+                              </FormLabel>
+                              <FormControl>
+                                <Input 
+                                  placeholder={documentType === "cpf" 
+                                    ? "Digite o nome completo" 
+                                    : "Digite a razão social"} 
+                                  {...field} 
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        {documentType === "cpf" ? (
+                          <TypedFormField
+                            control={form.control}
+                            name="cpf"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>CPF<span className="text-red-500">*</span></FormLabel>
+                                <FormControl>
+                                  <Input 
+                                    placeholder="Digite o CPF (apenas números)" 
+                                    {...field} 
+                                    onChange={(e) => handleCPFChange(e)}
+                                    maxLength={14}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        ) : (
+                          <TypedFormField
+                            control={form.control}
+                            name="cnpj"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>CNPJ<span className="text-red-500">*</span></FormLabel>
+                                <FormControl>
+                                  <Input 
+                                    placeholder="Digite o CNPJ (apenas números)" 
+                                    {...field} 
+                                    onChange={(e) => handleCNPJChange(e)}
+                                    maxLength={18}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+
+                        <TypedFormField
+                          control={form.control}
+                          name="email"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Email<span className="text-red-500">*</span></FormLabel>
+                              <FormControl>
+                                <Input type="email" placeholder="Digite o email" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        {documentType === "cnpj" && (
+                          <TypedFormField
+                            control={form.control}
+                            name="trading_name"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Nome Fantasia<span className="text-red-500">*</span></FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Digite o nome fantasia" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+
+                        {documentType === "cpf" ? (
+                          <>
+                            <TypedFormField
+                              control={form.control}
+                              name="birth_date"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Data de Nascimento<span className="text-red-500">*</span></FormLabel>
+                                  <FormControl>
+                                    <Input type="date" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            <TypedFormField
+                              control={form.control}
+                              name="gender"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Gênero<span className="text-red-500">*</span></FormLabel>
+                                  <Select
+                                    onValueChange={field.onChange}
+                                    defaultValue={field.value}
+                                  >
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Selecione o gênero" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      <SelectItem value="male">Masculino</SelectItem>
+                                      <SelectItem value="female">Feminino</SelectItem>
+                                      <SelectItem value="other">Outro</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </>
+                        ) : (
+                          <TypedFormField
+                            control={form.control}
+                            name="foundation_date"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Data de Fundação<span className="text-red-500">*</span></FormLabel>
+                                <FormControl>
+                                  <Input type="date" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                      </div>
+
+                      <div className="flex justify-end space-x-4">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => form.reset()}
+                          disabled={loading}
+                        >
+                          Limpar
+                        </Button>
+                        <Button 
+                          type="button" 
+                          onClick={() => handleNextTab("basic-info", "additional-info")}
+                        >
+                          Próximo
+                        </Button>
+                      </div>
                     </div>
                   )}
 
-                  <div className="col-span-full">
-                    <Label>Observações</Label>
-                    <Textarea
-                      value={field.observation || ""}
-                      onChange={(e) => {
-                        updateDocument(index, {
-                          ...field,
-                          observation: e.target.value
-                        });
-                      }}
-                      placeholder="Observações sobre o documento"
-                    />
+                  {/* Additional Info Tab */}
+                  {activeTab === "additional-info" && (
+                    <div className="space-y-4">
+                      {/* Summary of basic info */}
+                      <div className="bg-muted/20 p-3 rounded-lg mb-4">
+                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Informações Básicas:</h4>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <span className="font-medium">Nome:</span> {form.getValues('name')}
+                          </div>
+                          <div>
+                            <span className="font-medium">
+                              {documentType === "cpf" ? "CPF:" : "CNPJ:"}
+                            </span> {documentType === "cpf" ? form.getValues('cpf') : form.getValues('cnpj')}
+                          </div>
+                          <div>
+                            <span className="font-medium">Email:</span> {form.getValues('email')}
+                          </div>
+                          {documentType === "cpf" && (
+                            <>
+                              <div>
+                                <span className="font-medium">Data Nasc.:</span> {form.getValues('birth_date')}
+                              </div>
+                            </>
+                          )}
+                          {documentType === "cnpj" && (
+                            <>
+                              <div>
+                                <span className="font-medium">Nome Fantasia:</span> {form.getValues('trading_name')}
+                              </div>
+                              <div>
+                                <span className="font-medium">Data Fund.:</span> {form.getValues('foundation_date')}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                  
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <TypedFormField
+                          control={form.control}
+                          name="phone"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Telefone<span className="text-red-500">*</span></FormLabel>
+                              <FormControl>
+                                <Input 
+                                  placeholder="Digite o telefone" 
+                                  {...field} 
+                                  onChange={(e) => handlePhoneChange(e)}
+                                  maxLength={15}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        {/* Endereços */}
+                        <div className="space-y-4 mt-6">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-medium">Endereços</h3>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={handleAddAddress}
+                              className="bg-blue-50 hover:bg-blue-100 border-blue-200"
+                            >
+                              <Plus className="w-4 h-4 mr-2 text-blue-500" />
+                              Adicionar Endereço
+                            </Button>
+                          </div>
+                          
+                          {addressFields.map((field, index) => (
+                            <div key={field.id} className="p-4 border rounded-md space-y-4">
+                              <div className="flex justify-between">
+                                <h4 className="font-medium">Endereço {index + 1}</h4>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (addressFields.length > 1) {
+                                      removeAddress(index);
+                                    } else {
+                                      showToast(toast, {
+                                        title: "Erro",
+                                        description: "É necessário pelo menos um endereço",
+                                        variant: "destructive"
+                                      });
+                                    }
+                                  }}
+                                  disabled={addressFields.length <= 1}
+                                >
+                                  <Trash2 className="w-4 h-4 text-red-500" />
+                                </Button>
+                              </div>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <TypedFormField
+                                  control={form.control}
+                                  name={`addresses.${index}.street` as const}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Rua<span className="text-red-500">*</span></FormLabel>
+                                      <FormControl>
+                                        <Input placeholder="Digite a rua" {...field} />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                
+                                <TypedFormField
+                                  control={form.control}
+                                  name={`addresses.${index}.number` as const}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Número<span className="text-red-500">*</span></FormLabel>
+                                      <FormControl>
+                                        <Input placeholder="Digite o número" {...field} />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                
+                                <TypedFormField
+                                  control={form.control}
+                                  name={`addresses.${index}.complement` as const}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Complemento</FormLabel>
+                                      <FormControl>
+                                        <Input placeholder="Digite o complemento" {...field} />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                
+                                <TypedFormField
+                                  control={form.control}
+                                  name={`addresses.${index}.district` as const}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Bairro<span className="text-red-500">*</span></FormLabel>
+                                      <FormControl>
+                                        <Input placeholder="Digite o bairro" {...field} />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                
+                                <TypedFormField
+                                  control={form.control}
+                                  name={`addresses.${index}.city` as const}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Cidade<span className="text-red-500">*</span></FormLabel>
+                                      <FormControl>
+                                        <Select
+                                          value={field.value}
+                                          onValueChange={(value) => form.setValue(`addresses.${index}.city` as any, value)}
+                                          disabled={!form.getValues(`addresses.${index}.state`) || cidadesDoEstado.length === 0}
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue placeholder="Selecione a cidade" />
+                                          </SelectTrigger>
+                                          <SelectContent className="max-h-[300px]">
+                                            {cidadesDoEstado.map((cidade) => (
+                                              <SelectItem key={cidade} value={cidade}>
+                                                {cidade}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                
+                                <TypedFormField
+                                  control={form.control}
+                                  name={`addresses.${index}.state` as const}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Estado<span className="text-red-500">*</span></FormLabel>
+                                      <FormControl>
+                                        <Select
+                                          value={field.value}
+                                          onValueChange={(value) => {
+                                            form.setValue(`addresses.${index}.state` as any, value);
+                                            form.setValue(`addresses.${index}.city` as any, "");
+                                            atualizarCidadesPorEstado(value);
+                                          }}
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue placeholder="Selecione o estado" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {estadosCidadesData.estados.map((estado) => (
+                                              <SelectItem key={estado.sigla} value={estado.sigla}>
+                                                {estado.nome} ({estado.sigla})
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                
+                                <TypedFormField
+                                  control={form.control}
+                                  name={`addresses.${index}.postal_code` as const}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>CEP<span className="text-red-500">*</span></FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          {...field}
+                                          onChange={(e) => handleCEPChange(e, index)}
+                                          placeholder="00000-000"
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                
+                                <TypedFormField
+                                  control={form.control}
+                                  name={`addresses.${index}.is_main` as const}
+                                  render={({ field }) => (
+                                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 mt-4">
+                                      <FormControl>
+                                        <Checkbox
+                                          checked={field.value}
+                                          onCheckedChange={(checked) => {
+                                            // Se estiver marcando como principal, desmarca os outros
+                                            if (checked) {
+                                              const formValues = form.getValues();
+                                              formValues.addresses.forEach((_, i) => {
+                                                if (i !== index) {
+                                                  form.setValue(`addresses.${i}.is_main`, false);
+                                                }
+                                              });
+                                            }
+                                            field.onChange(checked);
+                                          }}
+                                        />
+                                      </FormControl>
+                                      <div className="space-y-1 leading-none">
+                                        <FormLabel>Endereço Principal</FormLabel>
+                                        <FormDescription>
+                                          Marque esta opção se este for o endereço principal
+                                        </FormDescription>
+                                      </div>
+                                    </FormItem>
+                                  )}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Professional or establishment specific fields */}
+                        {documentType === "cpf" ? (
+                          <>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <TypedFormField
+                                control={form.control}
+                                name="council_type"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Tipo de Conselho<span className="text-red-500">*</span></FormLabel>
+                                    <Select
+                                      onValueChange={(value) => handleCouncilTypeChange(value)}
+                                      defaultValue={field.value}
+                                      value={field.value}
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Selecione o conselho profissional" />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        {COUNCIL_TYPES.map((type) => (
+                                          <SelectItem key={type.value} value={type.value}>
+                                            {type.label}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
+                              <TypedFormField
+                                control={form.control}
+                                name="council_number"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Número do Conselho<span className="text-red-500">*</span></FormLabel>
+                                    <FormControl>
+                                      <Input placeholder="Digite o número do registro profissional" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
+                              <TypedFormField
+                                control={form.control}
+                                name="council_state"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Estado do Conselho<span className="text-red-500">*</span></FormLabel>
+                                    <Select
+                                      onValueChange={field.onChange}
+                                      defaultValue={field.value}
+                                      value={field.value}
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Selecione o estado do conselho" />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        {estadosCidadesData.estados.map((estado) => (
+                                          <SelectItem key={estado.sigla} value={estado.sigla}>
+                                            {estado.nome} ({estado.sigla})
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
+                              <TypedFormField
+                                control={form.control}
+                                name="specialty"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Especialidade<span className="text-red-500">*</span></FormLabel>
+                                    <Select
+                                      disabled={!form.getValues("council_type")}
+                                      onValueChange={field.onChange}
+                                      defaultValue={field.value}
+                                      value={field.value}
+                                    >
+                                    <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue placeholder={form.getValues("council_type") ? "Selecione uma especialidade" : "Selecione primeiro o tipo de conselho"} />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                      <SelectContent>
+                                        {filteredSpecialties.map((specialty) => (
+                                          <SelectItem key={specialty.value} value={specialty.value}>
+                                            {specialty.label}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    {!form.getValues("council_type") && (
+                                      <FormDescription>
+                                        Selecione primeiro o tipo de conselho profissional
+                                      </FormDescription>
+                                    )}
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+
+                            <TypedFormField
+                              control={form.control}
+                              name="bio"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Biografia</FormLabel>
+                                  <FormControl>
+                                    <Textarea
+                                      placeholder="Digite a biografia do profissional"
+                                      className="resize-none"
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            {!isClinicAdmin && (
+                              <TypedFormField
+                                control={form.control}
+                                name="clinic_id"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Clínica</FormLabel>
+                                    <Select
+                                      disabled={loadingClinics}
+                                      onValueChange={field.onChange}
+                                      defaultValue={field.value}
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Selecione uma clínica" />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        {clinics.map((clinic) => (
+                                          <SelectItem key={clinic.id} value={clinic.id}>
+                                            {clinic.name}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <TypedFormField
+                              control={form.control}
+                              name="health_reg_number"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Registro Sanitário<span className="text-red-500">*</span></FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="Digite o número de registro" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            <TypedFormField
+                              control={form.control}
+                              name="business_hours"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Horário de Funcionamento</FormLabel>
+                                  <FormControl>
+                                    <Textarea
+                                      placeholder="Descreva os horários de funcionamento"
+                                      className="resize-none"
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            <TypedFormField
+                              control={form.control}
+                              name="services"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Serviços Oferecidos</FormLabel>
+                                  <FormControl>
+                                    <Textarea
+                                      placeholder="Descreva os serviços oferecidos"
+                                      className="resize-none"
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </>
+                        )}
+
+                        <div className="flex justify-between space-x-4">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => handleNextTab("additional-info", "basic-info")}
+                            disabled={loading}
+                          >
+                            Voltar
+                          </Button>
+                          <Button 
+                            type="button" 
+                            onClick={() => handleNextTab("additional-info", "documents")}
+                          >
+                            Próximo
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Documents Tab */}
+                  {activeTab === "documents" && (
+                    <div className="space-y-6">
+                      {/* Summary of basic info */}
+                      <div className="bg-muted/20 p-3 rounded-lg mb-4">
+                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Resumo do Cadastro:</h4>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <span className="font-medium">Nome:</span> {form.getValues('name')}
+                          </div>
+                          <div>
+                            <span className="font-medium">
+                              {documentType === "cpf" ? "CPF:" : "CNPJ:"}
+                            </span> {documentType === "cpf" ? form.getValues('cpf') : form.getValues('cnpj')}
+                          </div>
+                          <div>
+                            <span className="font-medium">Email:</span> {form.getValues('email')}
+                          </div>
+                          <div>
+                            <span className="font-medium">Telefone:</span> {form.getValues('phone')}
+                          </div>
+                          {documentType === "cpf" && (
+                            <>
+                              <div>
+                                <span className="font-medium">Especialidade:</span> {specialties.find(s => s.id === form.getValues('specialty'))?.name || form.getValues('specialty')}
+                              </div>
+                              <div>
+                                <span className="font-medium">CRM:</span> {form.getValues('council_number')}
+                              </div>
+                            </>
+                          )}
+                          {documentType === "cnpj" && (
+                            <>
+                              <div>
+                                <span className="font-medium">Nome Fantasia:</span> {form.getValues('trading_name')}
+                              </div>
+                              <div>
+                                <span className="font-medium">Reg. Sanitário:</span> {form.getValues('health_reg_number')}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-lg font-medium flex items-center gap-2">
+                            <Badge className="bg-purple-500">Documentos</Badge>
+                            Documentação {documentType === "cpf" ? "do Profissional" : "do Estabelecimento"}
+                          </h3>
+                          {/* Remove "Adicionar Documento" button since all documents are required */}
+                        </div>
+                        
+                        <div className="space-y-4">
+                          {renderDocuments()}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between space-x-4 mt-8 pt-4 border-t">
+                        <div>
+                        {!isEdit && (
+                          <>
+                          <Button
+                            type="button"
+                            variant="outline"
+                              onClick={() => router.push('/professionals')}
+                            disabled={loading}
+                              className="mr-2"
+                          >
+                              <ArrowLeft className="w-4 h-4 mr-2" />
+                              Voltar para lista
+                          </Button>
+                          </>
+                        )}
+                        
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => handleNextTab("documents", "additional-info")}
+                            disabled={loading}
+                          >
+                            Anterior
+                          </Button>
+                        </div>
+                        
+                        <div>
+                        <Button 
+                          type="submit" 
+                          disabled={loading}
+                            className="min-w-[120px]"
+                        >
+                          {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                          {isEdit ? "Salvar Alterações" : "Cadastrar"}
+                        </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="additional-info">
+                  <div className="space-y-4">
+                    {/* Summary of basic info */}
+                    <div className="bg-muted/20 p-3 rounded-lg mb-4">
+                      <h4 className="text-sm font-medium text-muted-foreground mb-2">Informações Básicas:</h4>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="font-medium">Nome:</span> {form.getValues('name')}
+                        </div>
+                        <div>
+                          <span className="font-medium">
+                            {documentType === "cpf" ? "CPF:" : "CNPJ:"}
+                          </span> {documentType === "cpf" ? form.getValues('cpf') : form.getValues('cnpj')}
+                        </div>
+                        <div>
+                          <span className="font-medium">Email:</span> {form.getValues('email')}
+                        </div>
+                        {documentType === "cpf" && (
+                          <>
+                            <div>
+                              <span className="font-medium">Data Nasc.:</span> {form.getValues('birth_date')}
+                            </div>
+                          </>
+                        )}
+                        {documentType === "cnpj" && (
+                          <>
+                            <div>
+                              <span className="font-medium">Nome Fantasia:</span> {form.getValues('trading_name')}
+                            </div>
+                            <div>
+                              <span className="font-medium">Data Fund.:</span> {form.getValues('foundation_date')}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <TypedFormField
+                        control={form.control}
+                        name="phone"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Telefone<span className="text-red-500">*</span></FormLabel>
+                            <FormControl>
+                              <Input 
+                                placeholder="Digite o telefone" 
+                                {...field} 
+                                onChange={(e) => handlePhoneChange(e)}
+                                maxLength={15}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Endereços */}
+                      <div className="space-y-4 mt-6">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-lg font-medium">Endereços</h3>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleAddAddress}
+                            className="bg-blue-50 hover:bg-blue-100 border-blue-200"
+                          >
+                            <Plus className="w-4 h-4 mr-2 text-blue-500" />
+                            Adicionar Endereço
+                          </Button>
+                        </div>
+                        
+                        {addressFields.map((field, index) => (
+                          <div key={field.id} className="p-4 border rounded-md space-y-4">
+                            <div className="flex justify-between">
+                              <h4 className="font-medium">Endereço {index + 1}</h4>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  if (addressFields.length > 1) {
+                                    removeAddress(index);
+                                  } else {
+                                    showToast(toast, {
+                                      title: "Erro",
+                                      description: "É necessário pelo menos um endereço",
+                                      variant: "destructive"
+                                    });
+                                  }
+                                }}
+                                disabled={addressFields.length <= 1}
+                              >
+                                <Trash2 className="w-4 h-4 text-red-500" />
+                              </Button>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <TypedFormField
+                                control={form.control}
+                                name={`addresses.${index}.street` as const}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Rua<span className="text-red-500">*</span></FormLabel>
+                                    <FormControl>
+                                      <Input placeholder="Digite a rua" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              
+                              <TypedFormField
+                                control={form.control}
+                                name={`addresses.${index}.number` as const}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Número<span className="text-red-500">*</span></FormLabel>
+                                    <FormControl>
+                                      <Input placeholder="Digite o número" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              
+                              <TypedFormField
+                                control={form.control}
+                                name={`addresses.${index}.complement` as const}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Complemento</FormLabel>
+                                    <FormControl>
+                                      <Input placeholder="Digite o complemento" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              
+                              <TypedFormField
+                                control={form.control}
+                                name={`addresses.${index}.district` as const}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Bairro<span className="text-red-500">*</span></FormLabel>
+                                    <FormControl>
+                                      <Input placeholder="Digite o bairro" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              
+                              <TypedFormField
+                                control={form.control}
+                                name={`addresses.${index}.city` as const}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Cidade<span className="text-red-500">*</span></FormLabel>
+                                    <FormControl>
+                                      <Select
+                                        value={field.value}
+                                        onValueChange={(value) => form.setValue(`addresses.${index}.city` as any, value)}
+                                        disabled={!form.getValues(`addresses.${index}.state`) || cidadesDoEstado.length === 0}
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Selecione a cidade" />
+                                        </SelectTrigger>
+                                        <SelectContent className="max-h-[300px]">
+                                          {cidadesDoEstado.map((cidade) => (
+                                            <SelectItem key={cidade} value={cidade}>
+                                              {cidade}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              
+                              <TypedFormField
+                                control={form.control}
+                                name={`addresses.${index}.state` as const}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Estado<span className="text-red-500">*</span></FormLabel>
+                                    <FormControl>
+                                      <Select
+                                        value={field.value}
+                                        onValueChange={(value) => {
+                                          form.setValue(`addresses.${index}.state` as any, value);
+                                          form.setValue(`addresses.${index}.city` as any, "");
+                                          atualizarCidadesPorEstado(value);
+                                        }}
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Selecione o estado" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {estadosCidadesData.estados.map((estado) => (
+                                            <SelectItem key={estado.sigla} value={estado.sigla}>
+                                              {estado.nome} ({estado.sigla})
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              
+                              <TypedFormField
+                                control={form.control}
+                                name={`addresses.${index}.postal_code` as const}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>CEP<span className="text-red-500">*</span></FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        {...field}
+                                        onChange={(e) => handleCEPChange(e, index)}
+                                        placeholder="00000-000"
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              
+                              <TypedFormField
+                                control={form.control}
+                                name={`addresses.${index}.is_main` as const}
+                                render={({ field }) => (
+                                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 mt-4">
+                                    <FormControl>
+                                      <Checkbox
+                                        checked={field.value}
+                                        onCheckedChange={(checked) => {
+                                          // Se estiver marcando como principal, desmarca os outros
+                                          if (checked) {
+                                            const formValues = form.getValues();
+                                            formValues.addresses.forEach((_, i) => {
+                                              if (i !== index) {
+                                                form.setValue(`addresses.${i}.is_main`, false);
+                                              }
+                                            });
+                                          }
+                                          field.onChange(checked);
+                                        }}
+                                      />
+                                    </FormControl>
+                                    <div className="space-y-1 leading-none">
+                                      <FormLabel>Endereço Principal</FormLabel>
+                                      <FormDescription>
+                                        Marque esta opção se este for o endereço principal
+                                      </FormDescription>
+                                    </div>
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Professional or establishment specific fields */}
+                      {documentType === "cpf" ? (
+                        <>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <TypedFormField
+                              control={form.control}
+                              name="council_type"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Tipo de Conselho<span className="text-red-500">*</span></FormLabel>
+                                  <Select
+                                    onValueChange={(value) => handleCouncilTypeChange(value)}
+                                    defaultValue={field.value}
+                                    value={field.value}
+                                  >
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Selecione o conselho profissional" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {COUNCIL_TYPES.map((type) => (
+                                        <SelectItem key={type.value} value={type.value}>
+                                          {type.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            <TypedFormField
+                              control={form.control}
+                              name="council_number"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Número do Conselho<span className="text-red-500">*</span></FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="Digite o número do registro profissional" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            <TypedFormField
+                              control={form.control}
+                              name="council_state"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Estado do Conselho<span className="text-red-500">*</span></FormLabel>
+                                  <Select
+                                    onValueChange={field.onChange}
+                                    defaultValue={field.value}
+                                    value={field.value}
+                                  >
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Selecione o estado do conselho" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {estadosCidadesData.estados.map((estado) => (
+                                        <SelectItem key={estado.sigla} value={estado.sigla}>
+                                          {estado.nome} ({estado.sigla})
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            <TypedFormField
+                              control={form.control}
+                              name="specialty"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Especialidade<span className="text-red-500">*</span></FormLabel>
+                                  <Select
+                                    disabled={!form.getValues("council_type")}
+                                    onValueChange={field.onChange}
+                                    defaultValue={field.value}
+                                    value={field.value}
+                                  >
+                                  <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder={form.getValues("council_type") ? "Selecione uma especialidade" : "Selecione primeiro o tipo de conselho"} />
+                                      </SelectTrigger>
+                                  </FormControl>
+                                    <SelectContent>
+                                      {filteredSpecialties.map((specialty) => (
+                                        <SelectItem key={specialty.value} value={specialty.value}>
+                                          {specialty.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  {!form.getValues("council_type") && (
+                                    <FormDescription>
+                                      Selecione primeiro o tipo de conselho profissional
+                                    </FormDescription>
+                                  )}
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+
+                          <TypedFormField
+                            control={form.control}
+                            name="bio"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Biografia</FormLabel>
+                                <FormControl>
+                                  <Textarea
+                                    placeholder="Digite a biografia do profissional"
+                                    className="resize-none"
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          {!isClinicAdmin && (
+                            <TypedFormField
+                              control={form.control}
+                              name="clinic_id"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Clínica</FormLabel>
+                                  <Select
+                                    disabled={loadingClinics}
+                                    onValueChange={field.onChange}
+                                    defaultValue={field.value}
+                                  >
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Selecione uma clínica" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {clinics.map((clinic) => (
+                                        <SelectItem key={clinic.id} value={clinic.id}>
+                                          {clinic.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <TypedFormField
+                            control={form.control}
+                            name="health_reg_number"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Registro Sanitário<span className="text-red-500">*</span></FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Digite o número de registro" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <TypedFormField
+                            control={form.control}
+                            name="business_hours"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Horário de Funcionamento</FormLabel>
+                                <FormControl>
+                                  <Textarea
+                                    placeholder="Descreva os horários de funcionamento"
+                                    className="resize-none"
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <TypedFormField
+                            control={form.control}
+                            name="services"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Serviços Oferecidos</FormLabel>
+                                <FormControl>
+                                  <Textarea
+                                    placeholder="Descreva os serviços oferecidos"
+                                    className="resize-none"
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </>
+                      )}
+
+                      <div className="flex justify-between space-x-4">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => handleNextTab("additional-info", "basic-info")}
+                          disabled={loading}
+                        >
+                          Voltar
+                        </Button>
+                        <Button 
+                          type="button" 
+                          onClick={() => handleNextTab("additional-info", "documents")}
+                        >
+                          Próximo
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            );
-          })}
+                </TabsContent>
+
+                <TabsContent value="documents">
+                  <div className="space-y-6">
+                    {/* Summary of basic info */}
+                    <div className="bg-muted/20 p-3 rounded-lg mb-4">
+                      <h4 className="text-sm font-medium text-muted-foreground mb-2">Resumo do Cadastro:</h4>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="font-medium">Nome:</span> {form.getValues('name')}
+                        </div>
+                        <div>
+                          <span className="font-medium">
+                            {documentType === "cpf" ? "CPF:" : "CNPJ:"}
+                          </span> {documentType === "cpf" ? form.getValues('cpf') : form.getValues('cnpj')}
+                        </div>
+                        <div>
+                          <span className="font-medium">Email:</span> {form.getValues('email')}
+                        </div>
+                        <div>
+                          <span className="font-medium">Telefone:</span> {form.getValues('phone')}
+                        </div>
+                        {documentType === "cpf" && (
+                          <>
+                            <div>
+                              <span className="font-medium">Especialidade:</span> {specialties.find(s => s.id === form.getValues('specialty'))?.name || form.getValues('specialty')}
+                            </div>
+                            <div>
+                              <span className="font-medium">CRM:</span> {form.getValues('council_number')}
+                            </div>
+                          </>
+                        )}
+                        {documentType === "cnpj" && (
+                          <>
+                            <div>
+                              <span className="font-medium">Nome Fantasia:</span> {form.getValues('trading_name')}
+                            </div>
+                            <div>
+                              <span className="font-medium">Reg. Sanitário:</span> {form.getValues('health_reg_number')}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-medium flex items-center gap-2">
+                          <Badge className="bg-purple-500">Documentos</Badge>
+                          Documentação {documentType === "cpf" ? "do Profissional" : "do Estabelecimento"}
+                        </h3>
+                        {/* Remove "Adicionar Documento" button since all documents are required */}
+                      </div>
+                      
+                      <div className="space-y-4">
+                        {renderDocuments()}
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between space-x-4 mt-8 pt-4 border-t">
+                      <div>
+                      {!isEdit && (
+                        <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                            onClick={() => router.push('/professionals')}
+                          disabled={loading}
+                            className="mr-2"
+                        >
+                            <ArrowLeft className="w-4 h-4 mr-2" />
+                            Voltar para lista
+                        </Button>
+                        </>
+                      )}
+                      
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => handleNextTab("documents", "additional-info")}
+                          disabled={loading}
+                        >
+                          Anterior
+                        </Button>
+                      </div>
+                      
+                      <div>
+                      <Button 
+                        type="submit" 
+                        disabled={loading}
+                          className="min-w-[120px]"
+                      >
+                        {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        {isEdit ? "Salvar Alterações" : "Cadastrar"}
+                      </Button>
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </form>
+          </Form>
         </div>
-
-        {/* Aviso sobre documentos obrigatórios */}
-        {activeDocumentTypes.some(type => type.is_required) && (
-          <p className="text-sm text-muted-foreground flex items-center gap-1">
-            <span className="text-destructive">*</span>
-            Documentos obrigatórios
-          </p>
-        )}
-      </div>
-    );
-  };
-
-  // Adicionar validação para documentos obrigatórios
-  const validateDocuments = () => {
-    if (isEdit || !documentTypes?.length) {
-      return true;
-    }
-
-    const entityType = documentType === "cpf" ? "professional" : "clinic";
-    const requiredTypes = documentTypes.filter(dt => 
-      dt.is_required && 
-      dt.is_active && 
-      dt.entity_type === entityType
-    );
-    
-    if (requiredTypes.length === 0) {
-      return true;
-    }
-
-    const currentDocs = form.getValues("documents") || [];
-    const errors: string[] = [];
-
-    requiredTypes.forEach(requiredType => {
-      const doc = currentDocs.find(d => d.type_id === requiredType.id);
-      const hasValidDocument = doc && (
-        (doc.file instanceof File) || 
-        (doc.file_url && typeof doc.file_url === 'string')
-      );
-
-      if (!hasValidDocument) {
-        errors.push(`O documento "${requiredType.name}" é obrigatório`);
-      }
-    });
-
-    if (errors.length > 0) {
-      toast({
-        title: "Documentos Obrigatórios",
-        description: (
-          <div className="flex flex-col gap-1">
-            {errors.map((error, index) => (
-              <p key={index} className="text-sm">{error}</p>
-            ))}
-          </div>
-        ),
-        variant: "destructive"
-      });
-      return false;
-    }
-
-    return true;
-  };
-
-  // Atualizar handleFormSubmit para incluir validação de documentos
-  // const handleFormSubmit = async (data: FormValues) => {
-  //   const documentErrors = validateDocuments();
-    
-  //   if (documentErrors.length > 0) {
-  //     toast({
-  //       title: "Documentos Pendentes",
-  //       description: (
-  //         <div className="flex flex-col gap-1">
-  //           {documentErrors.map((error, index) => (
-  //             <p key={index} className="text-sm">{error}</p>
-  //           ))}
-  //         </div>
-  //       ),
-  //       variant: "destructive"
-  //     });
-  //     return;
-  //   }
-
-  //   try {
-  //     setLoading(true);
-
-  //     const formData = new FormData();
-
-  //     // Adicionar campos básicos
-  //     Object.entries(data).forEach(([key, value]) => {
-  //       if (key !== 'documents' && key !== 'addresses' && key !== 'phones' && value !== null && value !== undefined) {
-  //         if (key === 'cpf' && typeof value === 'string') {
-  //           formData.append(key, unmask(value));
-  //         } else if (key === 'cnpj' && typeof value === 'string') {
-  //           formData.append(key, unmask(value));
-  //         } else {
-  //           formData.append(key, String(value));
-  //         }
-  //       }
-  //     });
-
-  //     // Adicionar telefones
-  //     if (data.phones?.length) {
-  //       data.phones.forEach((phone, index) => {
-  //         formData.append(`phones[${index}][number]`, unmask(phone.number));
-  //         formData.append(`phones[${index}][type]`, phone.type);
-  //         formData.append(`phones[${index}][is_whatsapp]`, String(phone.is_whatsapp));
-  //         formData.append(`phones[${index}][is_primary]`, String(phone.is_main));
-  //       });
-  //     }
-
-  //     // Adicionar endereços
-  //     if (data.addresses?.length) {
-  //       data.addresses.forEach((address, index) => {
-  //         Object.entries(address).forEach(([key, value]) => {
-  //           if (key === 'postal_code') {
-  //             formData.append(`addresses[${index}][${key}]`, unmask(String(value)));
-  //           } else if (key === 'district') {
-  //             formData.append(`addresses[${index}][neighborhood]`, String(value));
-  //           } else if (key === 'is_main') {
-  //             formData.append(`addresses[${index}][is_primary]`, String(value));
-  //           } else {
-  //             formData.append(`addresses[${index}][${key}]`, String(value));
-  //           }
-  //         });
-  //       });
-  //     }
-
-  //     // Adicionar documentos
-  //     if (data.documents?.length) {
-  //       data.documents.forEach((doc, index) => {
-  //         if (doc.file instanceof File) {
-  //           formData.append(`documents[${index}][file]`, doc.file);
-  //         }
-  //         formData.append(`documents[${index}][type_id]`, String(doc.type_id));
-  //         if (doc.expiration_date) {
-  //           formData.append(`documents[${index}][expiration_date]`, doc.expiration_date);
-  //         }
-  //         if (doc.observation) {
-  //           formData.append(`documents[${index}][observation]`, doc.observation);
-  //         }
-  //       });
-  //     }
-
-  //     // Se for edição, adicionar método PUT
-  //     if (isEdit) {
-  //       formData.append('_method', 'PUT');
-  //     }
-
-  //     // Enviar requisição
-  //     const endpoint = documentType === 'cpf' ? 
-  //       (isEdit ? `/professionals/${entityId}` : '/professionals') : 
-  //       (isEdit ? `/clinics/${entityId}` : '/clinics');
-
-  //     const response = await api.post(endpoint, formData, {
-  //       headers: {
-  //         'Accept': 'application/json',
-  //         'Content-Type': 'multipart/form-data'
-  //       }
-  //     });
-
-  //     showToast(toast, {
-  //       title: "Sucesso",
-  //       description: isEdit 
-  //         ? "Profissional atualizado com sucesso!" 
-  //         : "Profissional cadastrado com sucesso!",
-  //       variant: "success"
-  //     });
-
-  //     router.push('/professionals');
-  //   } catch (error: any) {
-  //     console.error("Erro ao enviar formulário:", error);
+      </CardContent>
       
-  //     if (error.response?.data?.errors) {
-  //       const errorMessages = formatApiValidationErrors(error.response.data.errors);
-        
-  //       showToast(toast, {
-  //         title: "Erro de validação",
-  //         description: (
-  //           <div className="max-h-[200px] overflow-y-auto">
-  //             <p className="mb-2 font-semibold text-destructive">Por favor, corrija os seguintes erros:</p>
-  //             {errorMessages.map((message, index) => (
-  //               <div key={index} className="flex gap-2 items-start mb-1">
-  //                 <div className="mt-1 h-1.5 w-1.5 rounded-full bg-destructive shrink-0"></div>
-  //                 <p className="text-sm">{message}</p>
-  //               </div>
-  //             ))}
-  //           </div>
-  //         ),
-  //         variant: "destructive"
-  //       });
-  //     } else {
-  //       showToast(toast, {
-  //         title: "Erro",
-  //         description: translateError(error.message || "Erro ao processar o formulário"),
-  //         variant: "destructive"
-  //       });
-  //     }
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
-
-  // Atualizar a função handleDocumentItemTypeChange para filtrar documentos ativos
-  const handleDocumentItemTypeChange = (value: string, index: number) => {
-    const activeDocumentTypes = documentTypes?.filter(type => type.is_active) || [];
-    const selectedType = activeDocumentTypes.find(type => type.id === Number(value));
-    
-    if (selectedType) {
-      update(index, {
-        ...fields[index],
-        type_id: Number(value)
-      });
-    }
-  };
-
-  return (
-    <div ref={ref} className="space-y-4">
-      {/* ... existing code ... */}
-    </div>
+      {/* Exit confirmation dialog */}
+      <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Há alterações não salvas que serão perdidas se você sair.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continuar editando</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmExit}>
+              Sim, descartar alterações
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
   )
 }) 
