@@ -34,11 +34,12 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { api } from '@/lib/api';
-import { Plus, Edit, Trash2, FileText } from 'lucide-react';
+import { Plus, Edit, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 const billingRuleSchema = z.object({
+  id: z.number().optional(),
   health_plan_id: z.number(),
   contract_id: z.number(),
   frequency: z.enum(['daily', 'weekly', 'biweekly', 'monthly', 'batch', 'individual']),
@@ -48,11 +49,24 @@ const billingRuleSchema = z.object({
   notification_recipients: z.array(z.string()),
   notification_frequency: z.enum(['daily', 'weekly', 'biweekly']),
   document_format: z.enum(['pdf', 'csv', 'xml']),
-  guide_template_id: z.number().optional(),
   is_active: z.boolean(),
 });
 
-type BillingRule = z.infer<typeof billingRuleSchema>;
+interface BillingRule {
+  id: number;
+  health_plan_id: number;
+  contract_id: number;
+  frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'batch' | 'individual';
+  monthly_day?: number;
+  batch_size?: number;
+  payment_days: number;
+  notification_recipients: string[];
+  notification_frequency: 'daily' | 'weekly' | 'biweekly';
+  document_format: 'pdf' | 'csv' | 'xml';
+  is_active: boolean;
+  health_plan_name?: string;
+  contract_number?: string;
+}
 
 interface HealthPlan {
   id: number;
@@ -159,6 +173,15 @@ export default function BillingRulesPage() {
     }
   };
 
+  const frequencyMap: Record<BillingRule['frequency'], string> = {
+    daily: 'Diário',
+    weekly: 'Semanal',
+    biweekly: 'Quinzenal',
+    monthly: 'Mensal',
+    batch: 'Por Lote',
+    individual: 'Por Consulta',
+  };
+
   const columns = [
     {
       accessorKey: 'health_plan_name',
@@ -171,15 +194,7 @@ export default function BillingRulesPage() {
     {
       accessorKey: 'frequency',
       header: 'Frequência',
-      cell: ({ row }: any) => {
-        const frequencyMap = {
-          daily: 'Diário',
-          weekly: 'Semanal',
-          biweekly: 'Quinzenal',
-          monthly: 'Mensal',
-          batch: 'Por Lote',
-          individual: 'Por Consulta',
-        };
+      cell: ({ row }: { row: { original: BillingRule } }) => {
         return frequencyMap[row.original.frequency];
       },
     },
@@ -196,8 +211,8 @@ export default function BillingRulesPage() {
     {
       accessorKey: 'is_active',
       header: 'Status',
-      cell: ({ row }: any) => (
-        <Badge variant={row.original.is_active ? 'success' : 'destructive'}>
+      cell: ({ row }: { row: { original: BillingRule } }) => (
+        <Badge variant={row.original.is_active ? 'default' : 'destructive'}>
           {row.original.is_active ? 'Ativo' : 'Inativo'}
         </Badge>
       ),
@@ -205,7 +220,7 @@ export default function BillingRulesPage() {
     {
       id: 'actions',
       header: 'Ações',
-      cell: ({ row }: any) => (
+      cell: ({ row }: { row: { original: BillingRule } }) => (
         <div className="flex gap-2">
           <Button
             variant="outline"
@@ -250,7 +265,7 @@ export default function BillingRulesPage() {
       <DataTable
         columns={columns}
         data={rules}
-        loading={loading}
+        isLoading={loading}
       />
 
       <Dialog open={showForm} onOpenChange={setShowForm}>
