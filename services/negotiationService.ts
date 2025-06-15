@@ -329,7 +329,7 @@ export const negotiationService = {
 
   markAsComplete: async (id: number): Promise<ApiResponse<Negotiation>> => {
     try {
-      const response = await api.post(`/negotiations/${id}/complete`);
+      const response = await api.post(`/negotiations/${id}/mark-complete`);
       return response.data;
     } catch (error) {
       console.error('Error marking negotiation as complete:', error);
@@ -349,7 +349,7 @@ export const negotiationService = {
 
   startNewCycle: async (id: number): Promise<ApiResponse<Negotiation>> => {
     try {
-      const response = await api.post(`/negotiations/${id}/new-cycle`);
+      const response = await api.post(`/negotiations/${id}/start-new-cycle`);
       return response.data;
     } catch (error) {
       console.error('Error starting new negotiation cycle:', error);
@@ -367,9 +367,9 @@ export const negotiationService = {
     }
   },
 
-  processApproval: async (id: number, action: 'approve' | 'reject'): Promise<ApiResponse<Negotiation>> => {
+  processApproval: async (id: number, data: NegotiationApprovalRequest): Promise<ApiResponse<Negotiation>> => {
     try {
-      const response = await api.post(`/negotiations/${id}/${action}`);
+      const response = await api.post(`/negotiations/${id}/process-approval`, data);
       return response.data;
     } catch (error) {
       console.error('Error processing negotiation approval:', error);

@@ -79,15 +79,19 @@ interface HealthPlan {
   }[];
 }
 
+type BillingRuleFormData = z.infer<typeof billingRuleSchema>;
+
 export default function BillingRulesPage() {
   const [rules, setRules] = useState<BillingRule[]>([]);
   const [healthPlans, setHealthPlans] = useState<HealthPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [selectedRule, setSelectedRule] = useState<BillingRule | null>(null);
+  const [searchText, setSearchText] = useState('');
+  const [selectedHealthPlan, setSelectedHealthPlan] = useState<number | null>(null);
   const { toast } = useToast();
 
-  const form = useForm<BillingRule>({
+  const form = useForm<BillingRuleFormData>({
     resolver: zodResolver(billingRuleSchema),
     defaultValues: {
       is_active: true,
@@ -97,7 +101,11 @@ export default function BillingRulesPage() {
 
   const fetchRules = async () => {
     try {
-      const response = await api.get('/billing-rules');
+      const params: any = {};
+      if (selectedHealthPlan) {
+        params.health_plan_id = selectedHealthPlan;
+      }
+      const response = await api.get('/billing-rules', { params });
       setRules(response.data);
     } catch (error) {
       toast({
@@ -113,22 +121,23 @@ export default function BillingRulesPage() {
   const fetchHealthPlans = async () => {
     try {
       const response = await api.get('/health-plans');
-      setHealthPlans(response.data);
+      setHealthPlans(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       toast({
         title: 'Erro',
         description: 'Não foi possível carregar os planos de saúde',
         variant: 'destructive',
       });
+      setHealthPlans([]);
     }
   };
 
   useEffect(() => {
     fetchRules();
     fetchHealthPlans();
-  }, []);
+  }, [selectedHealthPlan]);
 
-  const onSubmit = async (data: BillingRule) => {
+  const onSubmit = async (data: BillingRuleFormData) => {
     try {
       if (selectedRule) {
         await api.put(`/billing-rules/${selectedRule.id}`, data);
@@ -249,17 +258,37 @@ export default function BillingRulesPage() {
     <div className="container mx-auto py-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Regras de Faturamento</h1>
-        <Button onClick={() => {
-          setSelectedRule(null);
-          form.reset({
-            is_active: true,
-            notification_recipients: [],
-          });
-          setShowForm(true);
-        }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nova Regra
-        </Button>
+        <div className="flex gap-4">
+          <div className="flex items-center gap-2">
+            <Label>Plano de Saúde:</Label>
+            <Select
+              value={selectedHealthPlan?.toString()}
+              onValueChange={(value) => setSelectedHealthPlan(value ? Number(value) : null)}
+            >
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Selecione um plano" />
+              </SelectTrigger>
+              <SelectContent>
+                {healthPlans.map((plan) => (
+                  <SelectItem key={plan.id} value={plan.id.toString()}>
+                    {plan.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button onClick={() => {
+            setSelectedRule(null);
+            form.reset({
+              is_active: true,
+              notification_recipients: [],
+            });
+            setShowForm(true);
+          }}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Regra
+          </Button>
+        </div>
       </div>
 
       <DataTable
@@ -295,7 +324,7 @@ export default function BillingRulesPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {healthPlans.map((plan) => (
+                          {Array.isArray(healthPlans) && healthPlans.map((plan) => (
                             <SelectItem key={plan.id} value={plan.id.toString()}>
                               {plan.name}
                             </SelectItem>
@@ -323,9 +352,9 @@ export default function BillingRulesPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {healthPlans
+                          {Array.isArray(healthPlans) && healthPlans
                             .find((plan) => plan.id === form.watch('health_plan_id'))
-                            ?.contracts.map((contract) => (
+                            ?.contracts?.map((contract) => (
                               <SelectItem
                                 key={contract.id}
                                 value={contract.id.toString()}

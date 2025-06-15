@@ -319,10 +319,6 @@ export default function HealthPlanDetailsPage() {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Voltar
           </Button>
-          <Button variant="outline" onClick={() => router.push(`/health-plans/${healthPlanId}/procedures`)}>
-            <List className="h-4 w-4 mr-2" />
-            Gerenciar Procedimentos
-          </Button>
           <Button variant="outline" onClick={() => router.push(`/health-plans/${healthPlanId}/edit`)}>
             <Edit className="h-4 w-4 mr-2" />
             Editar
@@ -335,7 +331,6 @@ export default function HealthPlanDetailsPage() {
           <TabsTrigger value="details">Detalhes</TabsTrigger>
           <TabsTrigger value="representatives">Representantes</TabsTrigger>
           <TabsTrigger value="documents">Documentos</TabsTrigger>
-          <TabsTrigger value="tuss">Negociação TUSS</TabsTrigger>
           <TabsTrigger value="contracts">Contratos</TabsTrigger>
         </TabsList>
 
@@ -687,26 +682,6 @@ export default function HealthPlanDetailsPage() {
                   </p>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="tuss" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <List className="h-5 w-5" />
-                Negociação TUSS
-              </CardTitle>
-              <CardDescription>Tabela de procedimentos e valores negociados</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <h3 className="text-lg font-medium">Negociação TUSS</h3>
-                <p className="text-sm text-muted-foreground">
-                  Aqui seriam exibidos os procedimentos TUSS e valores negociados com este plano de saúde.
-                </p>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>

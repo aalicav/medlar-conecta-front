@@ -872,93 +872,93 @@ export default function SolicitationsPage() {
               <div className="grid grid-cols-2 gap-4">
                 {/* Left column - Form */}
                 <div className="space-y-4">
-                  {/* Provider Type Selection */}
-                  <FormField
-                    control={appointmentForm.control}
-                    name="provider_type"
-                    render={({ field }) => (
-                      <FormItem className="space-y-3">
-                        <FormLabel>Tipo de Provedor</FormLabel>
-                        <FormControl>
-                          <RadioGroup
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                            className="flex flex-col space-y-1"
-                          >
-                            <FormItem className="flex items-center space-x-3 space-y-0">
-                              <FormControl>
-                                <RadioGroupItem value="App\Models\Clinic" />
-                              </FormControl>
-                              <FormLabel className="font-normal">
-                                Clínica
-                              </FormLabel>
-                            </FormItem>
-                            <FormItem className="flex items-center space-x-3 space-y-0">
-                              <FormControl>
-                                <RadioGroupItem value="App\Models\Professional" />
-                              </FormControl>
-                              <FormLabel className="font-normal">
-                                Profissional
-                              </FormLabel>
-                            </FormItem>
-                          </RadioGroup>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  {/* Provider Selection */}
-                  <FormField
-                    control={appointmentForm.control}
-                    name="provider_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          {providerType === "App\Models\Clinic" ? "Clínica" : "Profissional"}
-                        </FormLabel>
-                        <Select 
-                          onValueChange={field.onChange} 
-                          defaultValue={field.value}
-                          disabled={isLoadingProviders}
-                        >
+              {/* Provider Type Selection */}
+              <FormField
+                control={appointmentForm.control}
+                name="provider_type"
+                render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <FormLabel>Tipo de Provedor</FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        className="flex flex-col space-y-1"
+                      >
+                        <FormItem className="flex items-center space-x-3 space-y-0">
                           <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder={`Selecione ${providerType === "App\Models\Clinic" ? "uma clínica" : "um profissional"}`} />
-                            </SelectTrigger>
+                            <RadioGroupItem value="App\Models\Clinic" />
                           </FormControl>
-                          <SelectContent>
-                            {providerType === "App\Models\Clinic" ? (
-                              clinics.length > 0 ? (
-                                clinics.map(clinic => (
-                                  <SelectItem key={clinic.id} value={clinic.id.toString()}>
-                                    {clinic.name}
-                                  </SelectItem>
-                                ))
-                              ) : (
-                                <SelectItem value="no-options" disabled>
-                                  Nenhuma clínica disponível
-                                </SelectItem>
-                              )
-                            ) : (
-                              professionals.length > 0 ? (
-                                professionals.map(prof => (
-                                  <SelectItem key={prof.id} value={prof.id.toString()}>
-                                    {prof.name}
-                                  </SelectItem>
-                                ))
-                              ) : (
-                                <SelectItem value="no-options" disabled>
-                                  Nenhum profissional disponível
-                                </SelectItem>
-                              )
-                            )}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                          <FormLabel className="font-normal">
+                            Clínica
+                          </FormLabel>
+                        </FormItem>
+                        <FormItem className="flex items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <RadioGroupItem value="App\Models\Professional" />
+                          </FormControl>
+                          <FormLabel className="font-normal">
+                            Profissional
+                          </FormLabel>
+                        </FormItem>
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              {/* Provider Selection */}
+              <FormField
+                control={appointmentForm.control}
+                name="provider_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {providerType === "App\Models\Clinic" ? "Clínica" : "Profissional"}
+                    </FormLabel>
+                    <Select 
+                      onValueChange={field.onChange} 
+                      defaultValue={field.value}
+                      disabled={isLoadingProviders}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder={`Selecione ${providerType === "App\Models\Clinic" ? "uma clínica" : "um profissional"}`} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {providerType === "App\Models\Clinic" ? (
+                          clinics.length > 0 ? (
+                            clinics.map(clinic => (
+                              <SelectItem key={clinic.id} value={clinic.id.toString()}>
+                                {clinic.name}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="no-options" disabled>
+                              Nenhuma clínica disponível
+                            </SelectItem>
+                          )
+                        ) : (
+                          professionals.length > 0 ? (
+                            professionals.map(prof => (
+                              <SelectItem key={prof.id} value={prof.id.toString()}>
+                                {prof.name}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="no-options" disabled>
+                              Nenhum profissional disponível
+                            </SelectItem>
+                          )
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
                   
                   {/* Location */}
                   <FormField
@@ -974,82 +974,82 @@ export default function SolicitationsPage() {
                       </FormItem>
                     )}
                   />
-                  
-                  {/* Date Selection */}
-                  <FormField
-                    control={appointmentForm.control}
-                    name="scheduled_date"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-col">
-                        <FormLabel>Data e Hora</FormLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                variant={"outline"}
-                                className={cn(
-                                  "w-full pl-3 text-left font-normal",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                {field.value ? (
-                                  format(field.value, "PPP 'às' HH:mm", { locale: ptBR })
-                                ) : (
-                                  <span>Selecione a data e hora</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <CalendarComponent
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              locale={ptBR}
-                            />
-                            <div className="p-3 border-t border-border">
-                              <Label htmlFor="appointment-time">Horário</Label>
-                              <Input
-                                id="appointment-time"
-                                type="time"
-                                className="mt-2"
-                                onChange={(e) => {
-                                  const date = new Date(field.value || new Date());
-                                  const [hours, minutes] = e.target.value.split(":");
-                                  date.setHours(parseInt(hours, 10), parseInt(minutes, 10));
-                                  field.onChange(date);
-                                }}
-                              />
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  {/* Notes */}
-                  <FormField
-                    control={appointmentForm.control}
-                    name="notes"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Observações</FormLabel>
+              
+              {/* Date Selection */}
+              <FormField
+                control={appointmentForm.control}
+                name="scheduled_date"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Data e Hora</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
                         <FormControl>
-                          <Textarea
-                            placeholder="Observações sobre o agendamento"
-                            className="resize-none"
-                            {...field}
-                          />
+                          <Button
+                            variant={"outline"}
+                            className={cn(
+                              "w-full pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value ? (
+                              format(field.value, "PPP 'às' HH:mm", { locale: ptBR })
+                            ) : (
+                              <span>Selecione a data e hora</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
                         </FormControl>
-                        <FormDescription>
-                          Informações adicionais para o agendamento
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          locale={ptBR}
+                        />
+                        <div className="p-3 border-t border-border">
+                          <Label htmlFor="appointment-time">Horário</Label>
+                          <Input
+                            id="appointment-time"
+                            type="time"
+                            className="mt-2"
+                            onChange={(e) => {
+                              const date = new Date(field.value || new Date());
+                              const [hours, minutes] = e.target.value.split(":");
+                              date.setHours(parseInt(hours, 10), parseInt(minutes, 10));
+                              field.onChange(date);
+                            }}
+                          />
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              {/* Notes */}
+              <FormField
+                control={appointmentForm.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Observações</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Observações sobre o agendamento"
+                        className="resize-none"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Informações adicionais para o agendamento
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
                 </div>
 
                 {/* Right column - Availabilities */}

@@ -283,7 +283,6 @@ export default function BillingPage() {
                 <SelectValue placeholder="Todos os status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos</SelectItem>
                 <SelectItem value="pending">Pendente</SelectItem>
                 <SelectItem value="paid">Pago</SelectItem>
                 <SelectItem value="overdue">Em Atraso</SelectItem>

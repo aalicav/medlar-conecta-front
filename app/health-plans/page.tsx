@@ -525,13 +525,6 @@ export default function HealthPlansPage() {
                 </DropdownMenuItem>
               )}
 
-              {!plan.parent && (
-                <DropdownMenuItem onClick={() => openParentModal(plan)}>
-                  <Link className="mr-2 h-4 w-4" />
-                  Vincular a Plano
-                </DropdownMenuItem>
-              )}
-
               {plan.parent && (
                 <DropdownMenuItem onClick={() => openRemoveParentDialog(plan)}>
                   <Link2Off className="mr-2 h-4 w-4" />

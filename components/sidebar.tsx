@@ -111,13 +111,7 @@ export function Sidebar({ className, items }: SidebarProps) {
       title: "Faturamentos",
       href: "/health-plans/billing",
       icon: CreditCard,
-      roles: ["plan_admin"],
-    },
-    {
-      title: "Pacientes",
-      href: "/health-plans/patients",
-      icon: Users,
-      roles: ["plan_admin"],
+      roles: ["plan_admin", "super_admin"],
     },
     {
       title: "Documentos",
@@ -141,7 +135,7 @@ export function Sidebar({ className, items }: SidebarProps) {
       title: "Solicitações",
       href: "/solicitations",
       icon: ClipboardList,
-      roles: ["super_admin", "admin", "director", "plan_admin", "clinic_admin", "operational", "professional", "clinic", "network_manager"],
+      roles: ["super_admin", "admin", "director", "plan_admin", "clinic_admin", "operational", "network_manager"],
     },
     {
       title: "Agendamentos",
@@ -163,9 +157,9 @@ export function Sidebar({ className, items }: SidebarProps) {
     },
     {
       title: "Regras de Faturamento",
-      href: "/billing-rules",
+      href: "/health-plans/billing-rules",
       icon: CreditCard,
-      roles: ["super_admin", "admin", "director", "financial", "commercial_manager"],
+      roles: ["super_admin", "admin", "director", "financial_manager", "commercial_manager"],
     },
     {
       title: "Contratos",
@@ -174,28 +168,10 @@ export function Sidebar({ className, items }: SidebarProps) {
       roles: ["super_admin", "admin", "director", "commercial_manager", "legal", "plan_admin", "clinic_admin", "professional"],
     },
     {
-      title: "Aprovações de Contratos",
-      href: "/contract-approvals",
-      icon: FileText,
-      roles: ["super_admin", "admin", "director", "commercial_manager", "legal"],
-    },
-    {
-      title: "Modelos de Contratos",
-      href: "/contract-templates",
-      icon: FileText,
-      roles: ["super_admin", "admin", "director", "commercial_manager", "legal"],
-    },
-    {
-      title: "Privacidade (LGPD)",
-      href: "/privacy",
-      icon: Shield,
-      roles: ["super_admin", "admin", "director"],
-    },
-    {
       title: "Assistente SURI",
       href: "/chatbot",
       icon: MessageSquare,
-      roles: ["super_admin", "admin", "director", "commercial_manager", "legal", "operational", "financial", "professional", "clinic", "network_manager"],
+      roles: ["super_admin", "admin", "director", "operational", "financial", "professional", "network_manager"],
     },
     {
       title: "Notificações",

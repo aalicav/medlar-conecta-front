@@ -54,6 +54,32 @@ interface Solicitation {
   preferred_date_start: string
   preferred_date_end: string
   status: string
+  patient: {
+    id: number
+    name: string
+    cpf: string
+    birth_date: string
+    gender: string
+    health_card_number: string
+    age: number
+  }
+  health_plan: {
+    id: number
+    name: string
+    cnpj: string
+    ans_code: string
+  }
+  tuss: {
+    id: number
+    code: string
+    description: string
+  }
+  requested_by_user: {
+    id: number
+    name: string
+    email: string
+  }
+  description: string
 }
 
 interface ProfessionalAvailability {
@@ -107,13 +133,13 @@ export default function AppointmentsPage() {
         ...dateFilters
       }
 
-      const response = await fetchResource<Appointment>("appointments", params)
+      const response = await fetchResource<Appointment[]>("appointments", params)
 
       setData(response.data)
       setPagination({
         ...pagination,
-        pageCount: response.meta.last_page,
-        total: response.meta.total,
+        pageCount: response.meta?.last_page || 1,
+        total: response.meta?.total || 0,
       })
     } catch (error) {
       console.error("Error fetching appointments:", error)
@@ -185,7 +211,7 @@ export default function AppointmentsPage() {
     try {
       const response = await api.get("/solicitations", {
         params: {
-          status: "waiting_professional_response"
+          status: "pending"
         }
       })
       setSolicitations(response.data.data)
@@ -228,6 +254,48 @@ export default function AppointmentsPage() {
       toast({
         title: "Erro",
         description: "Não foi possível criar o agendamento",
+        variant: "destructive"
+      })
+    } finally {
+      setIsActionLoading(false)
+    }
+  }
+
+  const handleConfirmAppointment = async (id: number) => {
+    setIsActionLoading(true)
+    try {
+      await api.put(`/appointments/${id}/confirm`)
+      toast({
+        title: "Sucesso",
+        description: "Agendamento confirmado com sucesso"
+      })
+      fetchData()
+    } catch (error) {
+      console.error("Error confirming appointment:", error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível confirmar o agendamento",
+        variant: "destructive"
+      })
+    } finally {
+      setIsActionLoading(false)
+    }
+  }
+
+  const handleCancelAppointment = async (id: number) => {
+    setIsActionLoading(true)
+    try {
+      await api.put(`/appointments/${id}/cancel`)
+      toast({
+        title: "Sucesso",
+        description: "Agendamento cancelado com sucesso"
+      })
+      fetchData()
+    } catch (error) {
+      console.error("Error cancelling appointment:", error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível cancelar o agendamento",
         variant: "destructive"
       })
     } finally {
@@ -303,7 +371,6 @@ export default function AppointmentsPage() {
       header: "ID",
       cell: ({ row }) => <div className="font-medium">#{row.getValue("id")}</div>,
       enableSorting: true,
-      enableFiltering: true,
     },
     {
       accessorKey: "patient_name",
@@ -317,7 +384,6 @@ export default function AppointmentsPage() {
         </div>
       ),
       enableSorting: true,
-      enableFiltering: true,
     },
     {
       accessorKey: "professional_name",
@@ -333,7 +399,6 @@ export default function AppointmentsPage() {
         </div>
       ),
       enableSorting: true,
-      enableFiltering: true,
     },
     {
       accessorKey: "tuss_name",
@@ -344,7 +409,6 @@ export default function AppointmentsPage() {
         </div>
       ),
       enableSorting: true,
-      enableFiltering: true,
     },
     {
       accessorKey: "scheduled_for",
@@ -355,14 +419,12 @@ export default function AppointmentsPage() {
         </div>
       ),
       enableSorting: true,
-      enableFiltering: true,
     },
     {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => getStatusBadge(row.getValue("status")),
       enableSorting: true,
-      enableFiltering: true,
     },
     {
       id: "actions",
@@ -451,21 +513,21 @@ export default function AppointmentsPage() {
         <Dialog open={showAvailabilities} onOpenChange={setShowAvailabilities}>
           <DialogTrigger asChild>
             <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Novo Agendamento
-            </Button>
+          <Plus className="mr-2 h-4 w-4" />
+          Novo Agendamento
+        </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-3xl">
+          <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Novo Agendamento</DialogTitle>
               <DialogDescription>
                 Selecione uma solicitação para ver as disponibilidades dos profissionais
               </DialogDescription>
             </DialogHeader>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <h3 className="font-medium">Solicitações Pendentes</h3>
-                <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <h3 className="font-medium text-sm">Solicitações Pendentes</h3>
+                <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
                   {solicitations.map((solicitation) => (
                     <Card
                       key={solicitation.id}
@@ -479,40 +541,85 @@ export default function AppointmentsPage() {
                         fetchAvailabilities(solicitation.id)
                       }}
                     >
-                      <CardContent className="pt-6">
-                        <div className="space-y-2">
-                          <div className="font-medium">{solicitation.patient_name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {solicitation.procedure_name}
+                      <CardContent className="p-3">
+                        <div className="space-y-1.5 text-xs">
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="min-w-0">
+                              <div className="font-medium text-sm truncate">{solicitation.patient.name}</div>
+                              <div className="text-muted-foreground truncate">
+                                CPF: {solicitation.patient.cpf} • {solicitation.patient.age} anos
+                              </div>
+                            </div>
+                            <Badge variant="outline" className="text-xs shrink-0">
+                              {solicitation.health_plan.name}
+                            </Badge>
                           </div>
-                          <div className="text-sm text-muted-foreground">
-                            Período preferido: {formatDateTime(solicitation.preferred_date_start)} -{" "}
-                            {formatDateTime(solicitation.preferred_date_end)}
+
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <div className="truncate">
+                              <span className="font-medium">Plano:</span> {solicitation.health_plan.name}
+                              <div className="text-muted-foreground truncate">
+                                ANS: {solicitation.health_plan.ans_code}
+                              </div>
+                            </div>
+                            <div className="truncate">
+                              <span className="font-medium">Carteira:</span> {solicitation.patient.health_card_number}
+                            </div>
                           </div>
+
+                          <div className="truncate">
+                            <span className="font-medium">Procedimento:</span> {solicitation.tuss.description}
+                            <div className="text-muted-foreground truncate">
+                              Código TUSS: {solicitation.tuss.code}
+                            </div>
+                          </div>
+
+                          {solicitation.description && (
+                            <div className="truncate">
+                              <span className="font-medium">Observação:</span> {solicitation.description}
+                            </div>
+                          )}
+
+                          <div className="truncate">
+                            <span className="font-medium">Solicitado por:</span> {solicitation.requested_by_user.name}
+                            <div className="text-muted-foreground truncate">
+                              {solicitation.requested_by_user.email}
+                            </div>
+                          </div>
+
+                          {solicitation.preferred_date_start && solicitation.preferred_date_end && (
+                            <div className="truncate">
+                              <span className="font-medium">Período preferido:</span>
+                              <div className="text-muted-foreground truncate">
+                                {formatDateTime(solicitation.preferred_date_start)} -{" "}
+                                {formatDateTime(solicitation.preferred_date_end)}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
                   ))}
                   {solicitations.length === 0 && (
-                    <div className="text-center text-muted-foreground py-4">
+                    <div className="text-center text-muted-foreground py-4 text-sm">
                       Nenhuma solicitação pendente
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <h3 className="font-medium">Disponibilidades</h3>
-                <div className="space-y-2">
+              <div className="space-y-2">
+                <h3 className="font-medium text-sm">Disponibilidades</h3>
+                <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
                   {selectedSolicitation ? (
                     availabilities.map((availability) => (
                       <Card key={availability.id}>
-                        <CardContent className="pt-6">
-                          <div className="space-y-4">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <div className="font-medium">{availability.professional.name}</div>
-                                <div className="text-sm text-muted-foreground">
+                        <CardContent className="p-3">
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-start gap-2">
+                              <div className="min-w-0">
+                                <div className="font-medium text-sm truncate">{availability.professional.name}</div>
+                                <div className="text-xs text-muted-foreground">
                                   {formatDateTime(availability.available_date)} às{" "}
                                   {availability.available_time}
                                 </div>
@@ -521,14 +628,14 @@ export default function AppointmentsPage() {
                             </div>
 
                             {availability.notes && (
-                              <div className="text-sm text-muted-foreground">
+                              <div className="text-xs text-muted-foreground truncate">
                                 {availability.notes}
                               </div>
                             )}
 
                             {availability.status === "pending" && (
                               <Button
-                                className="w-full"
+                                className="w-full text-xs h-8"
                                 onClick={() => handleCreateAppointment(availability.id)}
                                 disabled={isActionLoading}
                               >
@@ -540,12 +647,12 @@ export default function AppointmentsPage() {
                       </Card>
                     ))
                   ) : (
-                    <div className="text-center text-muted-foreground py-4">
+                    <div className="text-center text-muted-foreground py-4 text-sm">
                       Selecione uma solicitação para ver as disponibilidades
                     </div>
                   )}
                   {selectedSolicitation && availabilities.length === 0 && (
-                    <div className="text-center text-muted-foreground py-4">
+                    <div className="text-center text-muted-foreground py-4 text-sm">
                       Nenhuma disponibilidade registrada
                     </div>
                   )}
