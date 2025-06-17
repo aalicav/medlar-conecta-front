@@ -112,7 +112,7 @@ const statusLabels: Record<NegotiationStatus, string> = {
   submitted: 'Enviado para Entidade',
   pending: 'Em Análise Interna',
   approved: 'Aprovado Internamente',
-  complete: 'Aprovado pela Entidade',
+  completed: 'Aprovado pela Entidade',
   partially_complete: 'Parcialmente Aprovado pela Entidade',
   partially_approved: 'Parcialmente Aprovado',
   rejected: 'Rejeitado',
@@ -144,7 +144,7 @@ const getStatusDescription = (status: NegotiationStatus): string => {
       return 'Em análise interna para aprovação';
     case 'approved':
       return 'Aprovado internamente, negociação enviada automaticamente à entidade para aprovação final';
-    case 'complete':
+    case 'completed':
       return 'Aprovado pela entidade (aprovação completa)';
     case 'partially_complete':
       return 'Parcialmente aprovado pela entidade';

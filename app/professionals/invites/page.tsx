@@ -14,30 +14,54 @@ import { ptBR } from 'date-fns/locale';
 import { CalendarIcon } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { api } from '@/lib/api';
+import { cn } from '@/lib/utils';
 
 interface SolicitationInvite {
   id: number;
+  solicitation_id: number;
+  provider_type: string;
+  provider_id: number;
   status: 'pending' | 'accepted' | 'rejected';
   responded_at: string | null;
   response_notes: string | null;
   created_at: string;
+  updated_at: string;
   solicitation: {
     id: number;
+    health_plan_id: number;
+    patient_id: number;
+    tuss_id: number;
+    status: string;
+    preferred_date_start: string | null;
+    preferred_date_end: string | null;
+    priority: string;
+    description: string | null;
     patient: {
+      id: number;
       name: string;
       birth_date: string;
       gender: string;
+      email: string;
+      address: string;
+      city: string;
+      state: string;
     };
     tuss: {
+      id: number;
       code: string;
+      name: string;
       description: string;
     };
-    preferred_date_start: string;
-    preferred_date_end: string;
+    health_plan: {
+      id: number;
+      name: string;
+      cnpj: string;
+      ans_code: string;
+    };
   };
 }
 
-const statusMap = {
+const statusMap: Record<string, { label: string; color: string }> = {
   pending: { label: 'Pendente', color: 'yellow' },
   accepted: { label: 'Aceito', color: 'green' },
   rejected: { label: 'Rejeitado', color: 'red' },
@@ -49,6 +73,8 @@ export default function InvitesPage() {
   const [selectedInvite, setSelectedInvite] = useState<SolicitationInvite | null>(null);
   const [showAcceptModal, setShowAcceptModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
+  const [availabilityDetails, setAvailabilityDetails] = useState<any>(null);
   const [availableDate, setAvailableDate] = useState<Date>();
   const [availableTime, setAvailableTime] = useState('');
   const [notes, setNotes] = useState('');
@@ -57,7 +83,7 @@ export default function InvitesPage() {
   const fetchInvites = async () => {
     try {
       const response = await api.get('/invites');
-      setInvites(response.data.data);
+      setInvites(response.data.data.data);
     } catch (error) {
       toast({
         title: 'Erro',
@@ -74,23 +100,54 @@ export default function InvitesPage() {
   }, []);
 
   const handleAccept = async () => {
-    if (!selectedInvite || !availableDate || !availableTime) return;
+    if (!selectedInvite || !availableDate || !availableTime) {
+      console.log('Missing required fields:', {
+        selectedInvite,
+        availableDate,
+        availableTime
+      });
+      return;
+    }
 
     try {
+      console.log('Accepting invite with data:', {
+        inviteId: selectedInvite.id,
+        availableDate: format(availableDate, 'yyyy-MM-dd'),
+        availableTime,
+        notes
+      });
+
+      // Primeiro aceita o convite
       await api.post(`/invites/${selectedInvite.id}/accept`, {
         available_date: format(availableDate, 'yyyy-MM-dd'),
         available_time: availableTime,
         notes,
       });
 
-      toast({
-        title: 'Sucesso',
-        description: 'Convite aceito com sucesso',
+      // Depois cria a disponibilidade
+      const response = await api.post('/availabilities', {
+        professional_id: selectedInvite.provider_id,
+        solicitation_id: selectedInvite.solicitation_id,
+        available_date: format(availableDate, 'yyyy-MM-dd'),
+        available_time: availableTime,
+        notes,
+        status: 'pending'
       });
 
+      console.log('Availability created:', response.data);
+
+      setAvailabilityDetails(response.data.data);
       setShowAcceptModal(false);
+      setShowAvailabilityModal(true);
+
+      toast({
+        title: 'Sucesso',
+        description: 'Convite aceito e disponibilidade criada com sucesso',
+      });
+
       fetchInvites();
     } catch (error: any) {
+      console.error('Error accepting invite:', error);
       toast({
         title: 'Erro',
         description: error.response?.data?.message || 'Erro ao aceitar convite',
@@ -187,7 +244,7 @@ export default function InvitesPage() {
       <DataTable
         columns={columns}
         data={invites}
-        loading={loading}
+        isLoading={loading}
       />
 
       {/* Modal de Aceite */}
@@ -203,27 +260,32 @@ export default function InvitesPage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Data de Disponibilidade</label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start text-left font-normal">
-                      {availableDate ? format(availableDate, 'dd/MM/yyyy') : 'Selecione uma data'}
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={availableDate}
-                      onSelect={setAvailableDate}
-                      disabled={(date) => {
-                        const start = new Date(selectedInvite.solicitation.preferred_date_start);
-                        const end = new Date(selectedInvite.solicitation.preferred_date_end);
-                        return date < start || date > end;
-                      }}
-                      locale={ptBR}
-                    />
-                  </PopoverContent>
-                </Popover>
+                {selectedInvite?.solicitation.preferred_date_start && selectedInvite?.solicitation.preferred_date_end ? (
+                  <p className="text-sm text-gray-500 mb-2">
+                    Período disponível: {format(new Date(selectedInvite.solicitation.preferred_date_start), 'dd/MM/yyyy')} até {format(new Date(selectedInvite.solicitation.preferred_date_end), 'dd/MM/yyyy')}
+                  </p>
+                ) : (
+                  <p className="text-sm text-red-500 mb-2">
+                    Não há período disponível para seleção
+                  </p>
+                )}
+                <Input
+                  type="date"
+                  value={availableDate ? format(availableDate, 'yyyy-MM-dd') : ''}
+                  onChange={(e) => {
+                    const date = e.target.value ? new Date(e.target.value) : undefined;
+                    console.log('Selected date:', date);
+                    setAvailableDate(date);
+                  }}
+                  min={selectedInvite?.solicitation.preferred_date_start ? format(new Date(selectedInvite.solicitation.preferred_date_start), 'yyyy-MM-dd') : undefined}
+                  max={selectedInvite?.solicitation.preferred_date_end ? format(new Date(selectedInvite.solicitation.preferred_date_end), 'yyyy-MM-dd') : undefined}
+                  disabled={!selectedInvite?.solicitation.preferred_date_start || !selectedInvite?.solicitation.preferred_date_end}
+                />
+                {availableDate && (
+                  <p className="text-sm text-gray-500 mt-2">
+                    Data selecionada: {format(availableDate, 'dd/MM/yyyy')}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -284,6 +346,55 @@ export default function InvitesPage() {
               </Button>
               <Button variant="destructive" onClick={handleReject}>
                 Confirmar Rejeição
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal de Disponibilidade */}
+      {showAvailabilityModal && availabilityDetails && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <Card className="w-[500px] p-6">
+            <h2 className="text-xl font-bold mb-4">Disponibilidade Criada</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Paciente</label>
+                <p className="text-gray-700">{selectedInvite?.solicitation.patient.name}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Procedimento</label>
+                <p className="text-gray-700">{selectedInvite?.solicitation.tuss.description}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Data</label>
+                <p className="text-gray-700">{format(new Date(availabilityDetails.available_date), 'dd/MM/yyyy')}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Horário</label>
+                <p className="text-gray-700">{availabilityDetails.available_time}</p>
+              </div>
+
+              {availabilityDetails.notes && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">Observações</label>
+                  <p className="text-gray-700">{availabilityDetails.notes}</p>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Status</label>
+                <Badge variant="secondary">Pendente</Badge>
+              </div>
+            </div>
+
+            <div className="flex justify-end mt-6">
+              <Button onClick={() => setShowAvailabilityModal(false)}>
+                Fechar
               </Button>
             </div>
           </Card>

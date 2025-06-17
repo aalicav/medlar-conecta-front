@@ -126,7 +126,7 @@ export const negotiationService: NegotiationServiceType = {
 
   markAsComplete: async (id) => {
     try {
-      const response = await api.post(`${API_BASE_PATH}/negotiations/${id}/complete`);
+      const response = await api.post(`${API_BASE_PATH}/negotiations/${id}/mark-complete`);
       return {
         success: true,
         data: response.data,

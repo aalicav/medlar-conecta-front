@@ -19,6 +19,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  TooltipProvider,
 } from "@/components/ui/tooltip"
 import {
   Dialog,
@@ -43,7 +44,7 @@ interface Appointment {
   tuss_id: number
   tuss_name: string
   status: string
-  scheduled_for: string
+  scheduled_date: string
   created_at: string
 }
 
@@ -92,6 +93,14 @@ interface ProfessionalAvailability {
   available_time: string
   notes: string
   status: string
+  price: number | null
+  pricing_contract: {
+    id: number
+    price: number
+    notes: string | null
+    start_date: string
+    end_date: string | null
+  } | null
 }
 
 export default function AppointmentsPage() {
@@ -106,7 +115,7 @@ export default function AppointmentsPage() {
     total: 0,
   })
   const [sorting, setSorting] = useState<{ column: string; direction: "asc" | "desc" }>({
-    column: "scheduled_for",
+    column: "scheduled_date",
     direction: "desc",
   })
   const [filters, setFilters] = useState<Record<string, string>>({})
@@ -411,11 +420,11 @@ export default function AppointmentsPage() {
       enableSorting: true,
     },
     {
-      accessorKey: "scheduled_for",
+      accessorKey: "scheduled_date",
       header: "Data/Hora",
       cell: ({ row }) => (
         <div className="whitespace-nowrap">
-          {formatDateTime(row.getValue("scheduled_for"))}
+          {formatDateTime(row.getValue("scheduled_date"))}
         </div>
       ),
       enableSorting: true,
@@ -504,292 +513,307 @@ export default function AppointmentsPage() {
   ]
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Agendamentos</h1>
-          <p className="text-muted-foreground">Gerencie os agendamentos de procedimentos médicos</p>
-        </div>
-        <Dialog open={showAvailabilities} onOpenChange={setShowAvailabilities}>
-          <DialogTrigger asChild>
-            <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Agendamento
-        </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Novo Agendamento</DialogTitle>
-              <DialogDescription>
-                Selecione uma solicitação para ver as disponibilidades dos profissionais
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <h3 className="font-medium text-sm">Solicitações Pendentes</h3>
-                <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
-                  {solicitations.map((solicitation) => (
-                    <Card
-                      key={solicitation.id}
-                      className={`cursor-pointer transition-colors ${
-                        selectedSolicitation?.id === solicitation.id
-                          ? "border-primary"
-                          : "hover:border-muted-foreground"
-                      }`}
-                      onClick={() => {
-                        setSelectedSolicitation(solicitation)
-                        fetchAvailabilities(solicitation.id)
-                      }}
-                    >
-                      <CardContent className="p-3">
-                        <div className="space-y-1.5 text-xs">
-                          <div className="flex justify-between items-start gap-2">
-                            <div className="min-w-0">
-                              <div className="font-medium text-sm truncate">{solicitation.patient.name}</div>
-                              <div className="text-muted-foreground truncate">
-                                CPF: {solicitation.patient.cpf} • {solicitation.patient.age} anos
-                              </div>
-                            </div>
-                            <Badge variant="outline" className="text-xs shrink-0">
-                              {solicitation.health_plan.name}
-                            </Badge>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-1.5">
-                            <div className="truncate">
-                              <span className="font-medium">Plano:</span> {solicitation.health_plan.name}
-                              <div className="text-muted-foreground truncate">
-                                ANS: {solicitation.health_plan.ans_code}
-                              </div>
-                            </div>
-                            <div className="truncate">
-                              <span className="font-medium">Carteira:</span> {solicitation.patient.health_card_number}
-                            </div>
-                          </div>
-
-                          <div className="truncate">
-                            <span className="font-medium">Procedimento:</span> {solicitation.tuss.description}
-                            <div className="text-muted-foreground truncate">
-                              Código TUSS: {solicitation.tuss.code}
-                            </div>
-                          </div>
-
-                          {solicitation.description && (
-                            <div className="truncate">
-                              <span className="font-medium">Observação:</span> {solicitation.description}
-                            </div>
-                          )}
-
-                          <div className="truncate">
-                            <span className="font-medium">Solicitado por:</span> {solicitation.requested_by_user.name}
-                            <div className="text-muted-foreground truncate">
-                              {solicitation.requested_by_user.email}
-                            </div>
-                          </div>
-
-                          {solicitation.preferred_date_start && solicitation.preferred_date_end && (
-                            <div className="truncate">
-                              <span className="font-medium">Período preferido:</span>
-                              <div className="text-muted-foreground truncate">
-                                {formatDateTime(solicitation.preferred_date_start)} -{" "}
-                                {formatDateTime(solicitation.preferred_date_end)}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                  {solicitations.length === 0 && (
-                    <div className="text-center text-muted-foreground py-4 text-sm">
-                      Nenhuma solicitação pendente
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <h3 className="font-medium text-sm">Disponibilidades</h3>
-                <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
-                  {selectedSolicitation ? (
-                    availabilities.map((availability) => (
-                      <Card key={availability.id}>
+    <TooltipProvider>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Agendamentos</h1>
+            <p className="text-muted-foreground">Gerencie os agendamentos de procedimentos médicos</p>
+          </div>
+          <Dialog open={showAvailabilities} onOpenChange={setShowAvailabilities}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Novo Agendamento
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Novo Agendamento</DialogTitle>
+                <DialogDescription>
+                  Selecione uma solicitação para ver as disponibilidades dos profissionais
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <h3 className="font-medium text-sm">Solicitações Pendentes</h3>
+                  <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
+                    {solicitations.map((solicitation) => (
+                      <Card
+                        key={solicitation.id}
+                        className={`cursor-pointer transition-colors ${
+                          selectedSolicitation?.id === solicitation.id
+                            ? "border-primary"
+                            : "hover:border-muted-foreground"
+                        }`}
+                        onClick={() => {
+                          setSelectedSolicitation(solicitation)
+                          fetchAvailabilities(solicitation.id)
+                        }}
+                      >
                         <CardContent className="p-3">
-                          <div className="space-y-2">
+                          <div className="space-y-1.5 text-xs">
                             <div className="flex justify-between items-start gap-2">
                               <div className="min-w-0">
-                                <div className="font-medium text-sm truncate">{availability.professional.name}</div>
-                                <div className="text-xs text-muted-foreground">
-                                  {formatDateTime(availability.available_date)} às{" "}
-                                  {availability.available_time}
+                                <div className="font-medium text-sm truncate">{solicitation.patient?.name || 'Paciente não especificado'}</div>
+                                <div className="text-muted-foreground truncate">
+                                  CPF: {solicitation.patient?.cpf || '-'} • {solicitation.patient?.age || '-'} anos
                                 </div>
                               </div>
-                              {getStatusBadge(availability.status)}
+                              <Badge variant="outline" className="text-xs shrink-0">
+                                {solicitation.health_plan?.name || 'Plano não especificado'}
+                              </Badge>
                             </div>
 
-                            {availability.notes && (
-                              <div className="text-xs text-muted-foreground truncate">
-                                {availability.notes}
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <div className="truncate">
+                                <span className="font-medium">Plano:</span> {solicitation.health_plan?.name || '-'}
+                                <div className="text-muted-foreground truncate">
+                                  ANS: {solicitation.health_plan?.ans_code || '-'}
+                                </div>
+                              </div>
+                              <div className="truncate">
+                                <span className="font-medium">Carteira:</span> {solicitation.patient?.health_card_number || '-'}
+                              </div>
+                            </div>
+
+                            <div className="truncate">
+                              <span className="font-medium">Procedimento:</span> {solicitation.tuss?.description || '-'}
+                              <div className="text-muted-foreground truncate">
+                                Código TUSS: {solicitation.tuss?.code || '-'}
+                              </div>
+                            </div>
+
+                            {solicitation.description && (
+                              <div className="truncate">
+                                <span className="font-medium">Observação:</span> {solicitation.description}
                               </div>
                             )}
 
-                            {availability.status === "pending" && (
-                              <Button
-                                className="w-full text-xs h-8"
-                                onClick={() => handleCreateAppointment(availability.id)}
-                                disabled={isActionLoading}
-                              >
-                                {isActionLoading ? "Criando..." : "Criar Agendamento"}
-                              </Button>
+                            <div className="truncate">
+                              <span className="font-medium">Solicitado por:</span> {solicitation.requested_by_user?.name || '-'}
+                              <div className="text-muted-foreground truncate">
+                                {solicitation.requested_by_user?.email || '-'}
+                              </div>
+                            </div>
+
+                            {solicitation.preferred_date_start && solicitation.preferred_date_end && (
+                              <div className="truncate">
+                                <span className="font-medium">Período preferido:</span>
+                                <div className="text-muted-foreground truncate">
+                                  {formatDateTime(solicitation.preferred_date_start)} -{" "}
+                                  {formatDateTime(solicitation.preferred_date_end)}
+                                </div>
+                              </div>
                             )}
                           </div>
                         </CardContent>
                       </Card>
-                    ))
-                  ) : (
-                    <div className="text-center text-muted-foreground py-4 text-sm">
-                      Selecione uma solicitação para ver as disponibilidades
-                    </div>
-                  )}
-                  {selectedSolicitation && availabilities.length === 0 && (
-                    <div className="text-center text-muted-foreground py-4 text-sm">
-                      Nenhuma disponibilidade registrada
-                    </div>
-                  )}
+                    ))}
+                    {solicitations.length === 0 && (
+                      <div className="text-center text-muted-foreground py-4 text-sm">
+                        Nenhuma solicitação pendente
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <h3 className="font-medium text-sm">Disponibilidades</h3>
+                  <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
+                    {selectedSolicitation ? (
+                      availabilities.map((availability) => (
+                        <Card key={availability.id}>
+                          <CardContent className="p-3">
+                            <div className="space-y-2">
+                              <div className="flex justify-between items-start gap-2">
+                                <div className="min-w-0">
+                                  <div className="font-medium text-sm truncate">
+                                    {availability.professional?.name || 'Profissional não especificado'}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {formatDateTime(availability.available_date)} às{" "}
+                                    {availability.available_time}
+                                  </div>
+                                  {availability.price && (
+                                    <div className="text-sm font-semibold text-green-600 mt-1">
+                                      R$ {availability.price.toFixed(2)}
+                                    </div>
+                                  )}
+                                </div>
+                                {getStatusBadge(availability.status)}
+                              </div>
+
+                              {availability.notes && (
+                                <div className="text-xs text-muted-foreground truncate">
+                                  {availability.notes}
+                                </div>
+                              )}
+
+                              {availability.pricing_contract?.notes && (
+                                <div className="text-xs text-muted-foreground truncate">
+                                  <span className="font-medium">Observações do Preço:</span> {availability.pricing_contract.notes}
+                                </div>
+                              )}
+
+                              {availability.status === "pending" && (
+                                <Button
+                                  className="w-full text-xs h-8"
+                                  onClick={() => handleCreateAppointment(availability.id)}
+                                  disabled={isActionLoading}
+                                >
+                                  {isActionLoading ? "Criando..." : "Criar Agendamento"}
+                                </Button>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))
+                    ) : (
+                      <div className="text-center text-muted-foreground py-4 text-sm">
+                        Selecione uma solicitação para ver as disponibilidades
+                      </div>
+                    )}
+                    {selectedSolicitation && availabilities.length === 0 && (
+                      <div className="text-center text-muted-foreground py-4 text-sm">
+                        Nenhuma disponibilidade registrada
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Filtros</CardTitle>
+            <CardDescription>
+              Use os filtros abaixo para encontrar agendamentos específicos
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <div>
+                <Label htmlFor="status-filter">Status</Label>
+                <Select 
+                  onValueChange={(value) => handleFilterChange("status", value)}
+                  value={filters.status || ""}
+                >
+                  <SelectTrigger id="status-filter">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pendente</SelectItem>
+                    <SelectItem value="confirmed">Confirmado</SelectItem>
+                    <SelectItem value="completed">Concluído</SelectItem>
+                    <SelectItem value="cancelled">Cancelado</SelectItem>
+                    <SelectItem value="missed">Não Compareceu</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="patient-filter">Paciente</Label>
+                <Input
+                  id="patient-filter"
+                  placeholder="Nome do paciente"
+                  value={filters.patient_name || ""}
+                  onChange={(e) => handleFilterChange("patient_name", e.target.value)}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="professional-filter">Profissional</Label>
+                <Input
+                  id="professional-filter"
+                  placeholder="Nome do profissional"
+                  value={filters.professional_name || ""}
+                  onChange={(e) => handleFilterChange("professional_name", e.target.value)}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="clinic-filter">Clínica</Label>
+                <Input
+                  id="clinic-filter"
+                  placeholder="Nome da clínica"
+                  value={filters.clinic_name || ""}
+                  onChange={(e) => handleFilterChange("clinic_name", e.target.value)}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="scheduled-from">Data do Agendamento (início)</Label>
+                <Input
+                  id="scheduled-from"
+                  type="date"
+                  name="scheduled_from"
+                  value={dateFilters.scheduled_from}
+                  onChange={handleDateFilterChange}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="scheduled-to">Data do Agendamento (fim)</Label>
+                <Input
+                  id="scheduled-to"
+                  type="date"
+                  name="scheduled_to"
+                  value={dateFilters.scheduled_to}
+                  onChange={handleDateFilterChange}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="created-from">Data de Criação (início)</Label>
+                <Input
+                  id="created-from"
+                  type="date"
+                  name="created_from"
+                  value={dateFilters.created_from}
+                  onChange={handleDateFilterChange}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="created-to">Data de Criação (fim)</Label>
+                <Input
+                  id="created-to"
+                  type="date"
+                  name="created_to"
+                  value={dateFilters.created_to}
+                  onChange={handleDateFilterChange}
+                />
+              </div>
             </div>
-          </DialogContent>
-        </Dialog>
+
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={clearFilters}>
+                Limpar Filtros
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <DataTable
+          columns={columns}
+          data={data}
+          onPaginationChange={handlePaginationChange}
+          onSortingChange={(sorting) => {
+            if (sorting.length > 0) {
+              handleSortingChange(sorting[0].id, sorting[0].desc ? "desc" : "asc")
+            }
+          }}
+          onFilterChange={handleFilterChange}
+          pageCount={pagination.pageCount}
+          currentPage={pagination.pageIndex + 1}
+          pageSize={pagination.pageSize}
+          totalItems={pagination.total}
+          isLoading={isLoading}
+        />
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Filtros</CardTitle>
-          <CardDescription>
-            Use os filtros abaixo para encontrar agendamentos específicos
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <div>
-              <Label htmlFor="status-filter">Status</Label>
-              <Select 
-                onValueChange={(value) => handleFilterChange("status", value)}
-                value={filters.status || ""}
-              >
-                <SelectTrigger id="status-filter">
-                  <SelectValue placeholder="Todos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pending">Pendente</SelectItem>
-                  <SelectItem value="confirmed">Confirmado</SelectItem>
-                  <SelectItem value="completed">Concluído</SelectItem>
-                  <SelectItem value="cancelled">Cancelado</SelectItem>
-                  <SelectItem value="missed">Não Compareceu</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="patient-filter">Paciente</Label>
-              <Input
-                id="patient-filter"
-                placeholder="Nome do paciente"
-                value={filters.patient_name || ""}
-                onChange={(e) => handleFilterChange("patient_name", e.target.value)}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="professional-filter">Profissional</Label>
-              <Input
-                id="professional-filter"
-                placeholder="Nome do profissional"
-                value={filters.professional_name || ""}
-                onChange={(e) => handleFilterChange("professional_name", e.target.value)}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="clinic-filter">Clínica</Label>
-              <Input
-                id="clinic-filter"
-                placeholder="Nome da clínica"
-                value={filters.clinic_name || ""}
-                onChange={(e) => handleFilterChange("clinic_name", e.target.value)}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="scheduled-from">Data do Agendamento (início)</Label>
-              <Input
-                id="scheduled-from"
-                type="date"
-                name="scheduled_from"
-                value={dateFilters.scheduled_from}
-                onChange={handleDateFilterChange}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="scheduled-to">Data do Agendamento (fim)</Label>
-              <Input
-                id="scheduled-to"
-                type="date"
-                name="scheduled_to"
-                value={dateFilters.scheduled_to}
-                onChange={handleDateFilterChange}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="created-from">Data de Criação (início)</Label>
-              <Input
-                id="created-from"
-                type="date"
-                name="created_from"
-                value={dateFilters.created_from}
-                onChange={handleDateFilterChange}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="created-to">Data de Criação (fim)</Label>
-              <Input
-                id="created-to"
-                type="date"
-                name="created_to"
-                value={dateFilters.created_to}
-                onChange={handleDateFilterChange}
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end">
-            <Button variant="outline" onClick={clearFilters}>
-              Limpar Filtros
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <DataTable
-        columns={columns}
-        data={data}
-        onPaginationChange={handlePaginationChange}
-        onSortingChange={(sorting) => {
-          if (sorting.length > 0) {
-            handleSortingChange(sorting[0].id, sorting[0].desc ? "desc" : "asc")
-          }
-        }}
-        onFilterChange={handleFilterChange}
-        pageCount={pagination.pageCount}
-        currentPage={pagination.pageIndex + 1}
-        pageSize={pagination.pageSize}
-        totalItems={pagination.total}
-        isLoading={isLoading}
-      />
-    </div>
+    </TooltipProvider>
   )
 }

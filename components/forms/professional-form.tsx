@@ -606,19 +606,19 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
       addresses: initialData?.addresses?.length
         ? initialData.addresses.map(addr => ({
             ...addr,
-            postal_code: addr.postal_code ? applyCEPMask(addr.postal_code) : "",
+        postal_code: addr.postal_code ? applyCEPMask(addr.postal_code) : "",
             is_main: addr.is_main === undefined ? false : addr.is_main
           }))
         : [
             {
-              street: "",
-              number: "",
-              complement: "",
-              district: "",
-              city: "",
-              state: "",
-              postal_code: "",
-              is_main: true
+        street: "",
+        number: "",
+        complement: "",
+        district: "",
+        city: "",
+        state: "",
+        postal_code: "",
+        is_main: true
             }
           ],
       
@@ -1162,8 +1162,8 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    const maskedValue = applyPhoneMask(value);
+      const value = e.target.value;
+      const maskedValue = applyPhoneMask(value);
     e.target.value = maskedValue;
     form.setValue("phone", maskedValue);
   };
@@ -1184,7 +1184,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
 
       // Adicionar professional_type baseado no documentType
       formData.append('professional_type', documentType === "cpf" ? "individual" : "clinic");
-      
+
       // Adicionar campos básicos
       Object.entries(data).forEach(([key, value]) => {
         if (key !== 'documents' && key !== 'addresses' && value !== null && value !== undefined) {
@@ -1384,17 +1384,17 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
         changedFields.forEach(key => {
           const value = data[key as keyof FormValues];
           if (value !== null && value !== undefined) {
-            if (key === 'cpf' && typeof value === 'string') {
-              formData.append(key, unmask(value));
-            } else if (key === 'cnpj' && typeof value === 'string') {
-              formData.append(key, unmask(value));
+          if (key === 'cpf' && typeof value === 'string') {
+            formData.append(key, unmask(value));
+          } else if (key === 'cnpj' && typeof value === 'string') {
+            formData.append(key, unmask(value));
             } else if (key === 'phone' && typeof value === 'string') {
               formData.append(key, unmask(value));
             } else if (typeof value !== 'object') {
-              formData.append(key, String(value));
-            }
+            formData.append(key, String(value));
           }
-        });
+        }
+      });
 
         // Adicionar endereços apenas se foram alterados
         if (changedFields.has('addresses') && data.addresses) {
@@ -1410,19 +1410,19 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
 
           // Adicionar array de endereços
           data.addresses.forEach((address: any, index: number) => {
-            Object.entries(address).forEach(([key, value]) => {
-              if (key === 'postal_code') {
-                formData.append(`addresses[${index}][${key}]`, unmask(String(value)));
+          Object.entries(address).forEach(([key, value]) => {
+            if (key === 'postal_code') {
+              formData.append(`addresses[${index}][${key}]`, unmask(String(value)));
               } else if (key === 'is_main') {
                 formData.append(`addresses[${index}][is_primary]`, value ? "1" : "0");
-              } else if (key === 'district') {
-                formData.append(`addresses[${index}][neighborhood]`, String(value));
-              } else {
-                formData.append(`addresses[${index}][${key}]`, String(value));
-              }
-            });
+            } else if (key === 'district') {
+              formData.append(`addresses[${index}][neighborhood]`, String(value));
+            } else {
+              formData.append(`addresses[${index}][${key}]`, String(value));
+            }
           });
-        }
+        });
+      }
 
         // Adicionar apenas documentos novos ou modificados
         if (data.documents) {
@@ -1479,17 +1479,17 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
           const endpoint = documentType === "cpf" ? `/professionals/${entityId}` : `/clinics/${entityId}`;
           
           await api.put(endpoint, formData, {
-            headers: {
-              'Accept': 'application/json',
-              'Content-Type': 'multipart/form-data'
-            }
-          });
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'multipart/form-data'
+        }
+      });
 
-          showToast(toast, {
-            title: "Sucesso",
+      showToast(toast, {
+        title: "Sucesso",
             description: documentType === "cpf" ? "Profissional atualizado com sucesso" : "Clínica atualizada com sucesso",
-            variant: "success"
-          });
+        variant: "success"
+      });
 
           router.push(documentType === "cpf" ? '/professionals' : '/clinics');
         } else {
@@ -1681,8 +1681,8 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
       const currentDocType = documentTypes?.find(dt => dt.id === currentTypeId);
       const hasExistingFile = !!form.getValues(`documents.${index}.file_url`);
       const hasError = form.formState.errors.documents?.[index];
-      
-      return (
+    
+    return (
         <div 
           key={field.id} 
           className={cn(
@@ -2117,10 +2117,10 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     <div className="mb-6 p-4 bg-muted/30 rounded-lg border border-dashed">
       <h3 className="text-sm font-semibold mb-3">Teste de Notificações</h3>
       <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
           onClick={() => {
             showToast(toast, {
               title: "Sucesso",
@@ -2130,7 +2130,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
           }}
         >
           Testar Sucesso
-        </Button>
+          </Button>
 
         <Button
           type="button"
@@ -2145,7 +2145,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                   <div className="flex gap-2 items-start mb-1">
                     <div className="mt-1 h-1.5 w-1.5 rounded-full bg-destructive shrink-0"></div>
                     <p className="text-sm">Nome: Campo obrigatório</p>
-                  </div>
+        </div>
                   <div className="flex gap-2 items-start mb-1">
                     <div className="mt-1 h-1.5 w-1.5 rounded-full bg-destructive shrink-0"></div>
                     <p className="text-sm">CPF: CPF inválido</p>
@@ -2300,7 +2300,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     </div>
   )}
 
-  return (
+            return (
     <Card className="w-full max-w-4xl mx-auto">
       <CardHeader className="bg-muted/50">
         <CardTitle>
@@ -2532,21 +2532,21 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                               render={({ field }) => (
                                 <FormItem>
                                   <FormLabel>Gênero<span className="text-red-500">*</span></FormLabel>
-                                  <Select
+                    <Select
                                     onValueChange={field.onChange}
                                     defaultValue={field.value}
-                                  >
+                    >
                                     <FormControl>
                                       <SelectTrigger>
                                         <SelectValue placeholder="Selecione o gênero" />
-                                      </SelectTrigger>
+                      </SelectTrigger>
                                     </FormControl>
-                                    <SelectContent>
+                      <SelectContent>
                                       <SelectItem value="male">Masculino</SelectItem>
                                       <SelectItem value="female">Feminino</SelectItem>
                                       <SelectItem value="other">Outro</SelectItem>
-                                    </SelectContent>
-                                  </Select>
+                      </SelectContent>
+                    </Select>
                                   <FormMessage />
                                 </FormItem>
                               )}
@@ -2566,12 +2566,12 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                               </FormItem>
                             )}
                           />
-                        )}
-                      </div>
+                    )}
+                  </div>
 
                       <div className="flex justify-end space-x-4">
-                        <Button
-                          type="button"
+                  <Button
+                    type="button"
                           variant="outline"
                           onClick={() => form.reset()}
                           disabled={loading}
@@ -2583,8 +2583,8 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                           onClick={() => handleNextTab("basic-info", "additional-info")}
                         >
                           Próximo
-                        </Button>
-                      </div>
+                  </Button>
+                </div>
                     </div>
                   )}
 
@@ -2624,9 +2624,9 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                             </>
                           )}
                         </div>
-                      </div>
-                  
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <TypedFormField
                           control={form.control}
                           name="phone"
@@ -2634,7 +2634,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                             <FormItem>
                               <FormLabel>Telefone<span className="text-red-500">*</span></FormLabel>
                               <FormControl>
-                                <Input 
+                    <Input
                                   placeholder="Digite o telefone" 
                                   {...field} 
                                   onChange={(e) => handlePhoneChange(e)}
@@ -2660,7 +2660,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                               <Plus className="w-4 h-4 mr-2 text-blue-500" />
                               Adicionar Endereço
                             </Button>
-                          </div>
+                      </div>
                           
                           {addressFields.map((field, index) => (
                             <div key={field.id} className="p-4 border rounded-md space-y-4">
@@ -2685,8 +2685,8 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                                 >
                                   <Trash2 className="w-4 h-4 text-red-500" />
                                 </Button>
-                              </div>
-                              
+                  </div>
+
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <TypedFormField
                                   control={form.control}
@@ -2854,7 +2854,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                                     </FormItem>
                                   )}
                                 />
-                              </div>
+                    </div>
                             </div>
                           ))}
                         </div>
@@ -2978,7 +2978,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                                 <FormItem>
                                   <FormLabel>Biografia</FormLabel>
                                   <FormControl>
-                                    <Textarea
+                    <Textarea
                                       placeholder="Digite a biografia do profissional"
                                       className="resize-none"
                                       {...field}
@@ -3089,9 +3089,9 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                           >
                             Próximo
                           </Button>
-                        </div>
-                      </div>
-                    </div>
+                  </div>
+                </div>
+              </div>
                   )}
 
                   {/* Documents Tab */}
@@ -3129,7 +3129,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                             <>
                               <div>
                                 <span className="font-medium">Nome Fantasia:</span> {form.getValues('trading_name')}
-                              </div>
+      </div>
                               <div>
                                 <span className="font-medium">Reg. Sanitário:</span> {form.getValues('health_reg_number')}
                               </div>
@@ -3265,7 +3265,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                             <Plus className="w-4 h-4 mr-2 text-blue-500" />
                             Adicionar Endereço
                           </Button>
-                        </div>
+          </div>
                         
                         {addressFields.map((field, index) => (
                           <div key={field.id} className="p-4 border rounded-md space-y-4">
@@ -3282,8 +3282,8 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                                     showToast(toast, {
                                       title: "Erro",
                                       description: "É necessário pelo menos um endereço",
-                                      variant: "destructive"
-                                    });
+        variant: "destructive"
+      });
                                   }
                                 }}
                                 disabled={addressFields.length <= 1}
@@ -3749,7 +3749,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                           Documentação {documentType === "cpf" ? "do Profissional" : "do Estabelecimento"}
                         </h3>
                         {/* Remove "Adicionar Documento" button since all documents are required */}
-                      </div>
+    </div>
                       
                       <div className="space-y-4">
                         {renderDocuments()}

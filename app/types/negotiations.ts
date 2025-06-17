@@ -58,7 +58,7 @@ interface NegotiationItem {
 export interface ApprovalHistoryItem {
   id: number;
   level: ApprovalLevel;
-  status: 'pending' | 'approve' | 'reject';
+  status: 'pending' | 'approved' | 'rejected';
   user_id: number;
   user?: User;
   notes?: string;

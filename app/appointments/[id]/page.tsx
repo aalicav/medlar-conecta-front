@@ -45,7 +45,7 @@ interface Appointment {
   tuss_name: string
   tuss_code: string
   status: string
-  scheduled_for: string
+  scheduled_date: string
   created_at: string
   notes?: string
   cancellation_reason?: string
@@ -410,7 +410,7 @@ export default function AppointmentDetailsPage() {
             </div>
             <div>
               <Label>Data/Hora</Label>
-              <p className="text-sm text-muted-foreground">{formatDateTime(appointment.scheduled_for)}</p>
+              <p className="text-sm text-muted-foreground">{formatDateTime(appointment.scheduled_date)}</p>
             </div>
           </CardContent>
         </Card>

@@ -2,7 +2,7 @@ export type NegotiationStatus =
   | 'draft'
   | 'submitted'
   | 'pending'
-  | 'complete'
+  | 'completed'
   | 'partially_complete'
   | 'approved'
   | 'partially_approved'

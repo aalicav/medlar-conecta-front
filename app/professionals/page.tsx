@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { PlusCircle, Search, UserPlus, Building, Users, X } from "lucide-react"
+import { PlusCircle, Search, UserPlus, Building, Users, X, MoreHorizontal } from "lucide-react"
 import { DataTable } from "@/components/data-table/data-table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
@@ -14,6 +14,13 @@ import { ConditionalRender } from "@/components/conditional-render"
 import { getUsers } from "../admin/users/userService"
 import { fetchResource } from "@/services/resource-service"
 import { Professional } from '@/types/professional'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { toast } from "sonner"
 
 // Update interfaces for Laravel pagination
 interface SimplePaginationMeta {
@@ -153,6 +160,48 @@ function ProfessionalsContent() {
     }
   };
 
+  // Função para aprovar documentação
+  const handleApproveDocuments = async (professionalId: number) => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/professionals/${professionalId}/approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          approved: true
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        if (data.errors) {
+          // Se houver erros de validação, mostra cada erro
+          Object.entries(data.errors).forEach(([field, messages]) => {
+            if (Array.isArray(messages)) {
+              messages.forEach(message => {
+                toast.error(`${field}: ${message}`)
+              })
+            }
+          })
+        } else {
+          toast.error(data.message || 'Erro ao aprovar documentação')
+        }
+        return
+      }
+
+      toast.success('Documentação aprovada com sucesso')
+      // Recarregar a lista de profissionais
+      fetchProfessionals(professionalsMeta?.current_page || 1)
+    } catch (error) {
+      console.error('Erro ao aprovar documentação:', error)
+      toast.error('Erro ao aprovar documentação')
+    }
+  }
+
   // Colunas para a tabela de profissionais
   const professionalColumns = [
     {
@@ -172,13 +221,44 @@ function ProfessionalsContent() {
       id: "actions",
       cell: ({ row }: { row: { original: Professional } }) => (
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push(`/professionals/${row.original.id}?type=professional`)}
-          >
-            Ver detalhes
-          </Button>
+          <ConditionalRender requiredRoles={['super_admin', 'admin', 'director']}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => router.push(`/professionals/${row.original.id}/edit`)}
+                >
+                  Editar
+                </DropdownMenuItem>
+                
+                {row.original.status === 'pending' && (
+                  <>
+                    <DropdownMenuItem
+                      onClick={() => router.push(`/professionals/${row.original.id}/documents`)}
+                    >
+                      Ver Documentação
+                    </DropdownMenuItem>
+                    
+                    <DropdownMenuItem
+                      onClick={() => handleApproveDocuments(row.original.id)}
+                    >
+                      Aprovar Documentação
+                    </DropdownMenuItem>
+                    
+                    <DropdownMenuItem
+                      onClick={() => router.push(`/professionals/${row.original.id}/contract`)}
+                    >
+                      Gerenciar Contrato
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </ConditionalRender>
         </div>
       ),
     }
