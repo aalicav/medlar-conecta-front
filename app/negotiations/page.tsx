@@ -16,7 +16,9 @@ import {
   Loader2,
   GitFork,
   Clock,
-  FileCheck
+  FileCheck,
+  Edit,
+  Info
 } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
@@ -79,6 +81,16 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Role, NegotiationApprovalRequest } from '../types/negotiations';
+import { DataTable } from "@/components/data-table/data-table";
+import { formatDateTime } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
+import { fetchResource } from '@/services/resource-service';
+import { ColumnDef } from '@tanstack/react-table';
 
 interface PaginatedResponse<T> {
   data: T[];
@@ -159,13 +171,14 @@ const getStatusDescription = (status: NegotiationStatus): string => {
   }
 };
 
-export default function NegotiationList() {
+export default function NegotiationsPage() {
+  const router = useRouter();
   const { user } = useAuth() as { user: User | null };
   const { toast } = useToast();
   const [negotiations, setNegotiations] = useState<Negotiation[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
-    status: '' as NegotiationStatus | '',
+    status: '',
     entity_type: '',
     search: ''
   });
@@ -181,6 +194,11 @@ export default function NegotiationList() {
     { name: '', items: [] },
     { name: '', items: [] }
   ]);
+  const [data, setData] = useState<Negotiation[]>([]);
+  const [sorting, setSorting] = useState<{ column: string; direction: "asc" | "desc" }>({
+    column: "created_at",
+    direction: "desc",
+  });
 
   const loadNegotiations = useCallback(async () => {
     try {
@@ -423,215 +441,321 @@ export default function NegotiationList() {
     }
   };
 
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row gap-4">
-        <Link href="/negotiations/new" className="shrink-0">
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Nova Negociação
-          </Button>
-        </Link>
-        <div className="flex-1">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar negociações..."
-              value={filters.search}
-              onChange={handleSearch}
-              className="w-full pl-10"
-            />
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const params = {
+        page: pagination.currentPage,
+        per_page: pagination.perPage,
+        sort_by: sorting.column,
+        sort_order: sorting.direction,
+        status: filters.status || undefined,
+        entity_type: filters.entity_type || undefined,
+        search: filters.search || undefined,
+      };
+
+      const response = await fetchResource<Negotiation[]>("negotiations", params);
+
+      if (response?.data) {
+        setData(response.data);
+      }
+      
+      if (response?.meta) {
+        setPagination(prev => ({
+          ...prev,
+          currentPage: response.meta.current_page || 1,
+          totalPages: response.meta.last_page || 1,
+          perPage: response.meta.per_page || 10,
+          total: response.meta.total || 0
+        }));
+      }
+    } catch (error) {
+      console.error("Error fetching negotiations:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar as negociações",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [pagination.currentPage, pagination.perPage, sorting, filters]);
+
+  const handlePaginationChange = (page: number, pageSize: number) => {
+    setPagination(prev => ({
+      ...prev,
+      currentPage: page,
+      perPage: pageSize,
+    }));
+  };
+
+  const handleSortingChange = (column: string, direction: "asc" | "desc") => {
+    setSorting({ column, direction });
+  };
+
+  const handleFilterChange = (columnId: string, value: string) => {
+    setFilters(prev => ({
+      ...prev,
+      [columnId]: value,
+    }));
+    setPagination(prev => ({
+      ...prev,
+      currentPage: 1,
+    }));
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "pending":
+        return (
+          <Tooltip>
+            <TooltipTrigger>
+              <Badge variant="outline">Pendente</Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              Aguardando aprovação
+            </TooltipContent>
+          </Tooltip>
+        );
+      case "approved":
+        return (
+          <Tooltip>
+            <TooltipTrigger>
+              <Badge>Aprovado</Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              Negociação aprovada
+            </TooltipContent>
+          </Tooltip>
+        );
+      case "rejected":
+        return (
+          <Tooltip>
+            <TooltipTrigger>
+              <Badge variant="destructive">Rejeitado</Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              Negociação rejeitada
+            </TooltipContent>
+          </Tooltip>
+        );
+      default:
+        return <Badge>{status}</Badge>;
+    }
+  };
+
+  const columns: ColumnDef<Negotiation>[] = [
+    {
+      accessorKey: "id",
+      header: "ID",
+      cell: ({ row }) => <div className="font-medium">#{row.getValue("id")}</div>,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "negotiable_name",
+      header: "Profissional/Clínica",
+      cell: ({ row }) => (
+        <div className="max-w-[200px] truncate" title={row.getValue("negotiable_name")}>
+          {row.getValue("negotiable_name")}
+          <div className="text-xs text-muted-foreground">
+            {row.original.negotiable_type === "App\\Models\\Professional" ? "Profissional" : "Clínica"}
           </div>
         </div>
-        <Select
-          value={filters.status}
-          onValueChange={handleStatusChange}
-        >
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Filtrar por status" />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(statusLabels).map(([value, label]) => (
-              <SelectItem key={value} value={value}>{label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={filters.entity_type}
-          onValueChange={handleEntityTypeChange}
-        >
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Filtrar por tipo" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="App\Models\HealthPlan">Plano de Saúde</SelectItem>
-            <SelectItem value="App\Models\Professional">Profissional</SelectItem>
-            <SelectItem value="App\Models\Clinic">Clínica</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Título</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Entidade</TableHead>
-              <TableHead>Data</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin mx-auto" />
-                </TableCell>
-              </TableRow>
-            ) : negotiations.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
-                  <div className="text-muted-foreground">
-                    Nenhuma negociação encontrada
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : (
-              negotiations.map((negotiation) => (
-                <TableRow key={negotiation.id}>
-                  <TableCell>
-                    <Link 
-                      href={`/negotiations/${negotiation.id}`}
-                      className="font-medium hover:underline"
-                    >
-                      {negotiation.title}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={getStatusVariant(negotiation.status)}>
-                      {negotiation.status_label}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {negotiation.negotiable.name}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-1">
-                      <span className="text-sm">
-                        Início: {format(new Date(negotiation.start_date), 'dd/MM/yyyy')}
-                      </span>
-                      <span className="text-sm">
-                        Fim: {format(new Date(negotiation.end_date), 'dd/MM/yyyy')}
-                      </span>
+      ),
+      enableSorting: true,
+    },
+    {
+      accessorKey: "procedure",
+      header: "Procedimentos",
+      cell: ({row}) => {
+        const items = row.original.items || [];
+        return (
+          <div className="flex items-center gap-2">
+            <div className="font-medium">{items.length} procedimento{items.length !== 1 ? 's' : ''}</div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-6 w-6">
+                  <Info className="h-4 w-4" />
+                  <span className="sr-only">Ver detalhes dos procedimentos</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-[400px] p-4">
+                <div className="space-y-2">
+                  {items.map((item) => (
+                    <div key={item.id} className="text-sm">
+                      <div className="font-medium">{item.tuss.description}</div>
+                      <div className="text-muted-foreground">Código TUSS: {item.tuss.code}</div>
+                      <div className="text-muted-foreground">Valor: R$ {Number(item.proposed_value).toFixed(2)}</div>
                     </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        
-                        <DropdownMenuItem asChild>
-                          <Link href={`/negotiations/${negotiation.id}`} className="flex items-center">
-                            <FileText className="mr-2 h-4 w-4" />
-                            Ver Detalhes
-                          </Link>
-                        </DropdownMenuItem>
+                  ))}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        );
+      },
+      enableSorting: true,
+    },
+    {
+      accessorKey: "total_value",
+      header: "Valor",
+      cell: ({ row }) => (
+        <div className="whitespace-nowrap">
+          R$ {Number(row.getValue("total_value")).toFixed(2)}
+        </div>
+      ),
+      enableSorting: true,
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => getStatusBadge(row.getValue("status")),
+      enableSorting: true,
+    },
+    {
+      accessorKey: "created_at",
+      header: "Criado em",
+      cell: ({ row }) => (
+        <div className="whitespace-nowrap">
+          {formatDateTime(row.getValue("created_at"))}
+        </div>
+      ),
+      enableSorting: true,
+    },
+    {
+      id: "actions",
+      header: "Ações",
+      cell: ({ row }) => {
+        const negotiation = row.original;
+        return (
+          <div className="flex items-center space-x-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => router.push(`/negotiations/${negotiation.id}`)}
+                >
+                  <FileText className="h-4 w-4" />
+                  <span className="sr-only">Ver detalhes</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Ver detalhes</TooltipContent>
+            </Tooltip>
 
-                        {negotiation.status === 'draft' && (
-                          <DropdownMenuItem onClick={() => handleAction(negotiation, 'submit')} className="text-blue-600 focus:text-blue-600">
-                            <FileCheck className="mr-2 h-4 w-4" />
-                            Enviar para Aprovação
-                          </DropdownMenuItem>
-                        )}
-
-                        {negotiation.status === 'submitted' && (
-                          <DropdownMenuItem onClick={() => handleAction(negotiation, 'cancel')} className="text-red-600 focus:text-red-600">
-                            <XCircle className="mr-2 h-4 w-4" />
-                            Cancelar
-                          </DropdownMenuItem>
-                        )}
-
-                        {negotiation.status === 'approved' && (
-                          <>
-                            <DropdownMenuItem onClick={() => handleAction(negotiation, 'complete')} className="text-green-600 focus:text-green-600">
-                              <CheckCircle className="mr-2 h-4 w-4" />
-                              Marcar como Completo
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleAction(negotiation, 'partially_complete')} className="text-yellow-600 focus:text-yellow-600">
-                              <Clock className="mr-2 h-4 w-4" />
-                              Marcar como Parcialmente Completo
-                            </DropdownMenuItem>
-                          </>
-                        )}
-
-                        {(negotiation.status === 'complete' || negotiation.status === 'partially_complete') && negotiation.negotiation_cycle < negotiation.max_cycles_allowed && (
-                          <DropdownMenuItem onClick={() => handleAction(negotiation, 'new_cycle')} className="text-blue-600 focus:text-blue-600">
-                            <Clock className="mr-2 h-4 w-4" />
-                            Iniciar Novo Ciclo
-                          </DropdownMenuItem>
-                        )}
-
-                        {negotiation.status !== 'draft' && negotiation.status !== 'cancelled' && (
-                          <DropdownMenuItem onClick={() => handleAction(negotiation, 'fork')} className="text-purple-600 focus:text-purple-600">
-                            <GitFork className="mr-2 h-4 w-4" />
-                            Bifurcar Negociação
-                          </DropdownMenuItem>
-                        )}
-
-                        {/* Internal Approval Actions */}
-                        {canApproveInternally() && negotiation.status === 'pending' && (
-                          <>
-                            <DropdownMenuItem 
-                              onClick={() => handleApproval(negotiation, true, true)}
-                              className="text-green-600"
-                            >
-                              <CheckCircle className="mr-2 h-4 w-4" />
-                              Aprovar Internamente
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleApproval(negotiation, false, true)}
-                              className="text-red-600"
-                            >
-                              <XCircle className="mr-2 h-4 w-4" />
-                              Rejeitar Internamente
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                        
-                        {/* External Approval Actions */}
-                        {canApproveExternally(negotiation) && negotiation.status === 'approved' && (
-                          <>
-                            <DropdownMenuItem 
-                              onClick={() => handleApproval(negotiation, true, false)}
-                              className="text-green-600"
-                            >
-                              <CheckCircle className="mr-2 h-4 w-4" />
-                              Aprovar pela Entidade
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleApproval(negotiation, false, false)}
-                              className="text-red-600"
-                            >
-                              <XCircle className="mr-2 h-4 w-4" />
-                              Rejeitar pela Entidade
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))
+            {negotiation.status === "pending" && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => router.push(`/negotiations/${negotiation.id}/edit`)}
+                  >
+                    <Edit className="h-4 w-4" />
+                    <span className="sr-only">Editar</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Editar negociação</TooltipContent>
+              </Tooltip>
             )}
-          </TableBody>
-        </Table>
+          </div>
+        );
+      },
+    },
+  ];
+
+  return (
+    <TooltipProvider>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Negociações</h1>
+            <p className="text-muted-foreground">Gerencie as negociações de preços com profissionais e clínicas</p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button onClick={() => router.push('/negotiations/extemporaneous')}>
+              <Clock className="mr-2 h-4 w-4" />
+              Negociações Extemporâneas
+            </Button>
+            <Button onClick={() => router.push('/negotiations/new')}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nova Negociação
+            </Button>
+          </div>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Filtros</CardTitle>
+            <CardDescription>
+              Use os filtros abaixo para encontrar negociações específicas
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="text-sm font-medium">Status</label>
+                <select
+                  className="w-full p-2 border rounded-md"
+                  value={filters.status}
+                  onChange={(e) => handleFilterChange("status", e.target.value)}
+                >
+                  <option value="">Todos</option>
+                  <option value="pending">Pendente</option>
+                  <option value="approved">Aprovado</option>
+                  <option value="rejected">Rejeitado</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Tipo</label>
+                <select
+                  className="w-full p-2 border rounded-md"
+                  value={filters.entity_type}
+                  onChange={(e) => handleFilterChange("entity_type", e.target.value)}
+                >
+                  <option value="">Todos</option>
+                  <option value="App\\Models\\Professional">Profissional</option>
+                  <option value="App\\Models\\Clinic">Clínica</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Buscar</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar negociações..."
+                    value={filters.search}
+                    onChange={(e) => handleFilterChange("search", e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <DataTable
+          columns={columns}
+          data={data}
+          onPaginationChange={handlePaginationChange}
+          onSortingChange={(sorting) => {
+            if (sorting.length > 0) {
+              handleSortingChange(sorting[0].id, sorting[0].desc ? "desc" : "asc");
+            }
+          }}
+          onFilterChange={handleFilterChange}
+          pageCount={pagination.totalPages}
+          currentPage={pagination.currentPage}
+          pageSize={pagination.perPage}
+          totalItems={pagination.total}
+          isLoading={loading}
+        />
       </div>
 
       <Dialog open={showForkDialog} onOpenChange={setShowForkDialog}>
@@ -701,6 +825,6 @@ export default function NegotiationList() {
       </Dialog>
 
       <Toaster />
-    </div>
+    </TooltipProvider>
   );
-};
+}
