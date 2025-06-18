@@ -16,6 +16,10 @@ import type { ApiResponse, PaginatedApiResponse } from '@/app/types/api';
  * - 'partially_approved': Negociação com alguns itens aprovados e outros rejeitados
  * - 'rejected': Rejeitado internamente ou externamente
  * - 'cancelled': Cancelado antes da conclusão
+ * - 'forked': Negociação bifurcada em múltiplas
+ * - 'expired': Negociação expirada
+ * - 'pending_approval': Aguardando aprovação
+ * - 'pending_director_approval': Aguardando aprovação da direção
  */
 export type NegotiationStatus = 
   | 'draft'
@@ -26,13 +30,18 @@ export type NegotiationStatus =
   | 'approved'
   | 'partially_approved'
   | 'rejected'
-  | 'cancelled';
+  | 'cancelled'
+  | 'forked'
+  | 'expired'
+  | 'pending_approval'
+  | 'pending_director_approval';
 
 export type NegotiationItemStatus = 
   | 'pending' 
   | 'approved' 
   | 'rejected' 
-  | 'counter_offered';
+  | 'counter_offered'
+  | 'completed';
 
 export type ApprovalLevel = 'approval';
 
@@ -43,7 +52,11 @@ export type UserRole =
   | 'financial_manager'
   | 'management_committee'
   | 'legal_manager'
-  | 'director';
+  | 'director'
+  | 'super_admin'
+  | 'plan_admin'
+  | 'professional'
+  | 'clinic_admin';
 
 export interface User {
   id: number;
@@ -158,9 +171,22 @@ export interface Negotiation {
   can_approve: boolean;
   can_submit_for_approval: boolean;
   can_edit: boolean;
+  approval_level?: string | null;
+  approved_by?: number | null;
+  rejected_by?: number | null;
+  completed_at?: string | null;
+  external_approval_notes?: string | null;
+  external_approved_at?: string | null;
+  external_approved_by?: number | null;
+  external_rejection_notes?: string | null;
+  external_rejected_at?: string | null;
+  external_rejected_by?: number | null;
+  approved_by_director_id?: number | null;
+  director_approval_date?: string | null;
+  director_approval_notes?: string | null;
+  formalization_status?: 'pending_aditivo' | 'formalized' | null;
   approval_history?: ApprovalHistoryItem[];
   forked_negotiations?: Negotiation[];
-  formalization_status?: 'pending_aditivo' | 'formalized' | null;
 }
 
 export type CreateNegotiationDto = {
@@ -180,6 +206,7 @@ export type CreateNegotiationDto = {
     notes?: string;
     counter_value?: number;
     counter_notes?: string;
+    medical_specialty_id?: number;
   }[];
 };
 
@@ -196,6 +223,7 @@ export type UpdateNegotiationDto = Partial<{
     tuss_id: number;
     proposed_value: number;
     notes?: string;
+    medical_specialty_id?: number;
   }[];
 }>;
 
@@ -211,14 +239,19 @@ export const negotiationStatusLabels = {
   approved: 'Aprovado',
   partially_approved: 'Parcialmente Aprovado',
   rejected: 'Rejeitado',
-  cancelled: 'Cancelado'
+  cancelled: 'Cancelado',
+  forked: 'Negociação bifurcada',
+  expired: 'Negociação expirada',
+  pending_approval: 'Aguardando aprovação',
+  pending_director_approval: 'Aguardando aprovação da direção'
 } as const;
 
 export const negotiationItemStatusLabels = {
   pending: 'Pendente',
   approved: 'Aprovado',
   rejected: 'Rejeitado',
-  counter_offered: 'Contra-proposta'
+  counter_offered: 'Contra-proposta',
+  completed: 'Completo'
 } as const;
 
 // Cores para os status
@@ -231,42 +264,60 @@ export const negotiationStatusColors = {
   approved: 'success',
   partially_approved: 'geekblue',
   rejected: 'error',
-  cancelled: 'default'
+  cancelled: 'default',
+  forked: 'geekblue',
+  expired: 'geekblue',
+  pending_approval: 'warning',
+  pending_director_approval: 'warning'
 };
 
 export const negotiationItemStatusColors = {
   pending: 'warning',
   approved: 'success',
   rejected: 'error',
-  counter_offered: 'geekblue'
+  counter_offered: 'geekblue',
+  completed: 'geekblue'
 };
 
 export const approvalLevelLabels: Record<ApprovalLevel, string> = {
   approval: 'Aprovação'
 };
 
-interface GetNegotiationsParams {
+export interface GetNegotiationsParams {
   status?: NegotiationStatus;
   entity_type?: string;
+  entity_id?: number;
   search?: string;
   page?: number;
   per_page?: number;
+  sort_field?: string;
+  sort_order?: 'asc' | 'desc';
 }
 
 export interface NegotiationServiceType {
-  getNegotiations: (params: GetNegotiationsParams) => Promise<ApiResponse<Negotiation>>;
+  getNegotiations: (params?: GetNegotiationsParams) => Promise<PaginatedApiResponse<Negotiation>>;
   getById: (id: number) => Promise<ApiResponse<Negotiation>>;
-  processApproval: (id: number, data: NegotiationApprovalRequest) => Promise<ApiResponse<Negotiation>>;
-  processExternalApproval: (id: number, data: NegotiationApprovalRequest) => Promise<ApiResponse<Negotiation>>;
-  forkNegotiation: (id: number, groups: ForkGroupItem[]) => Promise<ApiResponse<Negotiation>>;
+  create: (data: CreateNegotiationDto) => Promise<ApiResponse<Negotiation>>;
+  update: (id: number, data: UpdateNegotiationDto) => Promise<ApiResponse<Negotiation>>;
+  submit: (id: number) => Promise<ApiResponse<Negotiation>>;
   submitForApproval: (id: number) => Promise<ApiResponse<Negotiation>>;
+  submitForDirectorApproval: (id: number) => Promise<ApiResponse<Negotiation>>;
+  processApproval: (id: number, data: NegotiationApprovalRequest) => Promise<ApiResponse<Negotiation>>;
+  directorApprove: (id: number, data: NegotiationApprovalRequest) => Promise<ApiResponse<Negotiation>>;
+  processExternalApproval: (id: number, data: NegotiationApprovalRequest) => Promise<ApiResponse<Negotiation>>;
+  respondToItem: (itemId: number, data: any) => Promise<ApiResponse<NegotiationItem>>;
+  counterItem: (itemId: number, data: any) => Promise<ApiResponse<NegotiationItem>>;
+  batchCounterOffer: (id: number, data: any) => Promise<ApiResponse<Negotiation>>;
+  forkNegotiation: (id: number, groups: ForkGroupItem[]) => Promise<ApiResponse<Negotiation>>;
   cancelNegotiation: (id: number) => Promise<ApiResponse<Negotiation>>;
-  markAsComplete: (id: number) => Promise<ApiResponse<Negotiation>>;
-  markAsPartiallyComplete: (id: number) => Promise<ApiResponse<Negotiation>>;
+  markAsComplete: (id: number, data?: any) => Promise<ApiResponse<Negotiation>>;
+  markAsPartiallyComplete: (id: number, data?: any) => Promise<ApiResponse<Negotiation>>;
   startNewCycle: (id: number) => Promise<ApiResponse<Negotiation>>;
+  rollbackStatus: (id: number, data: any) => Promise<ApiResponse<Negotiation>>;
   resendNotifications: (id: number) => Promise<ApiResponse<any>>;
   generateContract: (id: number) => Promise<ApiResponse<{ contract_id: number }>>;
-  update: (id: number, data: any) => Promise<ApiResponse<Negotiation>>;
+  markAsFormalized: (id: number) => Promise<ApiResponse<Negotiation>>;
+  getApprovalHistory: (id: number) => Promise<ApiResponse<ApprovalHistoryItem[]>>;
 }
 
 export interface NegotiationApprovalRequest {
@@ -279,7 +330,7 @@ export interface NegotiationApprovalRequest {
 }
 
 export const negotiationService = {
-  getNegotiations: async (params?: GetNegotiationsParams): Promise<ApiResponse<Negotiation[]>> => {
+  getNegotiations: async (params?: GetNegotiationsParams): Promise<PaginatedApiResponse<Negotiation>> => {
     try {
       const response = await api.get('/negotiations', { params });
       return {
@@ -430,66 +481,92 @@ export const negotiationService = {
     }
   },
 
-  createException: async (data: CreateExceptionDto): Promise<ApiResponse<ExceptionNegotiation>> => {
+  batchCounterOffer: async (id: number, data: any): Promise<ApiResponse<Negotiation>> => {
     try {
-      const response = await api.post('/exception-negotiations', data);
+      const response = await api.post(`/negotiations/${id}/batch-counter-offer`, data);
       return response.data;
     } catch (error) {
-      console.error('Error creating exception negotiation:', error);
+      console.error('Error batch counter offering negotiation:', error);
       throw error;
     }
   },
 
-  getExceptions: async (params?: {
-    status?: ExceptionStatus;
-    patient_id?: number;
-    search?: string;
-    page?: number;
-    per_page?: number;
-  }): Promise<ApiResponse<ExceptionNegotiation[]>> => {
+  submit: async (id: number): Promise<ApiResponse<Negotiation>> => {
     try {
-      const response = await api.get('/exception-negotiations', { params });
-      return {
-        data: response.data.data,
-        meta: {
-          current_page: response.data.meta.current_page,
-          last_page: response.data.meta.last_page,
-          per_page: response.data.meta.per_page,
-          total: response.data.meta.total
-        }
-      };
+      const response = await api.post(`/negotiations/${id}/submit`);
+      return response.data;
     } catch (error) {
-      console.error('Error fetching exception negotiations:', error);
+      console.error('Error submitting negotiation:', error);
       throw error;
     }
   },
 
-  approveException: async (id: number, notes?: string): Promise<ApiResponse<ExceptionNegotiation>> => {
+  submitForDirectorApproval: async (id: number): Promise<ApiResponse<Negotiation>> => {
     try {
-      const response = await api.post(`/exception-negotiations/${id}/approve`, { notes });
+      const response = await api.post(`/negotiations/${id}/submit-director-approval`);
       return response.data;
     } catch (error) {
-      console.error('Error approving exception negotiation:', error);
+      console.error('Error submitting negotiation for director approval:', error);
       throw error;
     }
   },
 
-  rejectException: async (id: number, notes?: string): Promise<ApiResponse<ExceptionNegotiation>> => {
+  directorApprove: async (id: number, data: NegotiationApprovalRequest): Promise<ApiResponse<Negotiation>> => {
     try {
-      const response = await api.post(`/exception-negotiations/${id}/reject`, { notes });
+      const response = await api.post(`/negotiations/${id}/director-approve`, data);
       return response.data;
     } catch (error) {
-      console.error('Error rejecting exception negotiation:', error);
+      console.error('Error processing director approval:', error);
       throw error;
     }
   },
 
-  markExceptionAsFormalized: async (id: number, contract_id: number): Promise<ApiResponse<ExceptionNegotiation>> => {
+  processExternalApproval: async (id: number, data: NegotiationApprovalRequest): Promise<ApiResponse<Negotiation>> => {
     try {
-      const response = await api.post(`/exception-negotiations/${id}/formalize`, { contract_id });
+      const response = await api.post(`/negotiations/${id}/process-external-approval`, data);
       return response.data;
     } catch (error) {
-      console.error('Error marking exception negotiation as formalized:', error);
+      console.error('Error processing external approval:', error);
+      throw error;
+    }
+  },
+
+  rollbackStatus: async (id: number, data: any): Promise<ApiResponse<Negotiation>> => {
+    try {
+      const response = await api.post(`/negotiations/${id}/rollback-status`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Error rolling back negotiation status:', error);
+      throw error;
+    }
+  },
+
+  markAsFormalized: async (id: number): Promise<ApiResponse<Negotiation>> => {
+    try {
+      const response = await api.post(`/negotiations/${id}/mark-formalized`);
+      return response.data;
+    } catch (error) {
+      console.error('Error marking negotiation as formalized:', error);
+      throw error;
+    }
+  },
+
+  getApprovalHistory: async (id: number): Promise<ApiResponse<ApprovalHistoryItem[]>> => {
+    try {
+      const response = await api.get(`/negotiations/${id}/approval-history`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching approval history:', error);
+      throw error;
+    }
+  },
+
+  create: async (data: CreateNegotiationDto): Promise<ApiResponse<Negotiation>> => {
+    try {
+      const response = await api.post('/negotiations', data);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating negotiation:', error);
       throw error;
     }
   }

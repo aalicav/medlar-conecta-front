@@ -1,7 +1,7 @@
 "use client";
 
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
-import NovaNegociacaoExtemporanea from "../NewExtemporaneousNegotiation";
+import { NewExtemporaneousNegotiation } from '../NewExtemporaneousNegotiation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function NovaNegociacaoExtemporaneaPage() {
@@ -38,7 +38,7 @@ export default function NovaNegociacaoExtemporaneaPage() {
       
       {/* Form Card */}
       <div className="mt-8">
-        <NovaNegociacaoExtemporanea />
+        <NewExtemporaneousNegotiation />
       </div>
     </div>
   );

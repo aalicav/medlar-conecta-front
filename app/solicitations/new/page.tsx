@@ -22,9 +22,6 @@ const NewSolicitationContent = () => {
       <SolicitationForm 
         isPlanAdmin={isPlanAdmin}
         healthPlanId={healthPlanId?.toString()}
-        onSubmit={async () => {
-          await router.push('/solicitations')
-        }}
       />
     </div>
   )

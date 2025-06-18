@@ -52,6 +52,9 @@ export function NegotiationItemActions({
   const canApproveExternally = () => {
     if (!user) return false;
 
+    // Super admin pode aprovar externamente qualquer negociação
+    if (hasRole('super_admin')) return true;
+
     // Verifica se o usuário pertence à entidade alvo
     const isTargetEntity = negotiation.negotiable_id === user.entity_id;
     
@@ -71,7 +74,10 @@ export function NegotiationItemActions({
   const canApproveInternally = () => {
     if (!user) return false;
     
-    // Não pode aprovar sua própria negociação
+    // Super admin pode aprovar sua própria negociação
+    if (hasRole('super_admin')) return true;
+    
+    // Não pode aprovar sua própria negociação (exceto super admin)
     if (negotiation.creator.id === user.id) return false;
 
     // Precisa ter uma das roles permitidas

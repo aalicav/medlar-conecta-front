@@ -113,12 +113,16 @@ const getStatusVariant = (status: string) => {
     case 'draft': return 'outline';
     case 'submitted': return 'secondary';
     case 'pending': return 'secondary';
+    case 'pending_approval': return 'warning';
+    case 'pending_director_approval': return 'warning';
     case 'complete': return 'default';
     case 'partially_complete': return 'warning';
     case 'approved': return 'default';
     case 'partially_approved': return 'secondary';
     case 'rejected': return 'destructive';
     case 'cancelled': return 'outline';
+    case 'forked': return 'secondary';
+    case 'expired': return 'secondary';
     default: return 'outline';
   }
 };
@@ -129,6 +133,7 @@ const getItemStatusVariant = (status: string) => {
     case 'approved': return 'default';
     case 'rejected': return 'destructive';
     case 'counter_offered': return 'secondary';
+    case 'completed': return 'success';
     default: return 'outline';
   }
 };
@@ -152,19 +157,29 @@ const getStatusDescription = (status: NegotiationStatus): string => {
     case 'draft':
       return 'Negociação em elaboração, ainda não enviada.';
     case 'submitted':
-      return 'Aguardando avaliação da entidade.';
+      return 'Enviado para a entidade, aguardando respostas.';
     case 'pending':
-      return 'Em processo de aprovação interna.';
+      return 'Em análise interna para aprovação.';
+    case 'pending_approval':
+      return 'Aguardando aprovação interna.';
+    case 'pending_director_approval':
+      return 'Aguardando aprovação da direção.';
     case 'approved':
-      return 'Aprovada internamente, aguardando confirmação da entidade.';
+      return 'Aprovado internamente, aguardando aprovação da entidade.';
     case 'complete':
-      return 'Negociação aprovada e finalizada.';
+      return 'Aprovado pela entidade (aprovação completa).';
     case 'partially_complete':
-      return 'Alguns itens foram aprovados e outros rejeitados.';
+      return 'Parcialmente aprovado pela entidade.';
+    case 'partially_approved':
+      return 'Alguns itens foram aprovados, outros rejeitados.';
     case 'rejected':
       return 'Negociação foi rejeitada.';
     case 'cancelled':
       return 'Negociação foi cancelada.';
+    case 'forked':
+      return 'Negociação bifurcada em múltiplas.';
+    case 'expired':
+      return 'Negociação expirada por limite de tempo.';
     default:
       return '';
   }
@@ -184,28 +199,43 @@ const getStatusInfo = (status: string) => {
     },
     submitted: {
       label: 'Enviada',
-      description: 'Aguardando avaliação da entidade.',
+      description: 'Enviado para a entidade, aguardando respostas.',
       color: 'blue'
     },
     pending: {
       label: 'Em Aprovação',
-      description: 'Em processo de aprovação interna.',
+      description: 'Em análise interna para aprovação.',
       color: 'yellow'
+    },
+    pending_approval: {
+      label: 'Aguardando Aprovação',
+      description: 'Aguardando aprovação interna.',
+      color: 'yellow'
+    },
+    pending_director_approval: {
+      label: 'Aguardando Direção',
+      description: 'Aguardando aprovação da direção.',
+      color: 'orange'
     },
     approved: {
       label: 'Aprovada Internamente',
-      description: 'Aprovada internamente, aguardando confirmação da entidade.',
+      description: 'Aprovada internamente, aguardando aprovação da entidade.',
       color: 'green'
     },
     complete: {
-      label: 'Concluída',
-      description: 'Negociação aprovada e finalizada.',
+      label: 'Completa',
+      description: 'Aprovado pela entidade (aprovação completa).',
       color: 'green'
     },
     partially_complete: {
-      label: 'Parcialmente Concluída',
-      description: 'Alguns itens foram aprovados e outros rejeitados.',
-      color: 'orange'
+      label: 'Parcialmente Completa',
+      description: 'Parcialmente aprovado pela entidade.',
+      color: 'yellow'
+    },
+    partially_approved: {
+      label: 'Parcialmente Aprovada',
+      description: 'Alguns itens foram aprovados, outros rejeitados.',
+      color: 'yellow'
     },
     rejected: {
       label: 'Rejeitada',
@@ -216,10 +246,24 @@ const getStatusInfo = (status: string) => {
       label: 'Cancelada',
       description: 'Negociação foi cancelada.',
       color: 'gray'
+    },
+    forked: {
+      label: 'Bifurcada',
+      description: 'Negociação bifurcada em múltiplas.',
+      color: 'blue'
+    },
+    expired: {
+      label: 'Expirada',
+      description: 'Negociação expirada por limite de tempo.',
+      color: 'gray'
     }
   };
 
-  return statusMap[status] || { label: status, description: '', color: 'default' };
+  return statusMap[status] || {
+    label: status,
+    description: 'Status desconhecido.',
+    color: 'default'
+  };
 };
 
 // Update the response form type
@@ -525,6 +569,9 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
   const canApproveNegotiation = (negotiation: Negotiation): boolean => {
     if (!negotiation || !user) return false;
     
+    // Super admin pode aprovar sua própria negociação
+    if (hasPermission('super_admin')) return true;
+    
     return negotiation.can_approve &&
            negotiation.creator.id !== user.id &&
            negotiation.status === 'pending';
@@ -557,7 +604,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
         {/* Approval actions */}
         {negociacao.status === 'pending' && (
           <div className="flex items-center gap-2">
-            {negociacao.can_approve ? (
+            {negociacao.can_approve || hasPermission('super_admin') ? (
               <>
                 <Button onClick={() => handleApproval('approve')}>
                   Aprovar Negociação
@@ -566,7 +613,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                   Rejeitar
                 </Button>
               </>
-            ) : negociacao.creator.id === user?.id ? (
+            ) : negociacao.creator.id === user?.id && !hasPermission('super_admin') ? (
               <div className="text-sm text-muted-foreground">
                 Você não pode aprovar sua própria negociação
               </div>
@@ -871,13 +918,18 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                       <h4 className="font-medium">Status da Negociação</h4>
                       <p className="text-sm text-muted-foreground">
                         {negotiation.status === 'draft' && 'Negociação em elaboração, ainda não enviada.'}
-                        {negotiation.status === 'submitted' && 'Aguardando avaliação da entidade.'}
-                        {negotiation.status === 'pending' && 'Em processo de aprovação interna.'}
-                        {negotiation.status === 'approved' && 'Aprovada internamente, aguardando confirmação da entidade.'}
-                        {negotiation.status === 'complete' && 'Negociação aprovada e finalizada.'}
-                        {negotiation.status === 'partially_complete' && 'Alguns itens foram aprovados e outros rejeitados.'}
+                        {negotiation.status === 'submitted' && 'Enviado para a entidade, aguardando respostas.'}
+                        {negotiation.status === 'pending' && 'Em análise interna para aprovação.'}
+                        {negotiation.status === 'pending_approval' && 'Aguardando aprovação interna.'}
+                        {negotiation.status === 'pending_director_approval' && 'Aguardando aprovação da direção.'}
+                        {negotiation.status === 'approved' && 'Aprovada internamente, aguardando aprovação da entidade.'}
+                        {negotiation.status === 'complete' && 'Aprovado pela entidade (aprovação completa).'}
+                        {negotiation.status === 'partially_complete' && 'Parcialmente aprovado pela entidade.'}
+                        {negotiation.status === 'partially_approved' && 'Alguns itens foram aprovados, outros rejeitados.'}
                         {negotiation.status === 'rejected' && 'Negociação foi rejeitada.'}
                         {negotiation.status === 'cancelled' && 'Negociação foi cancelada.'}
+                        {negotiation.status === 'forked' && 'Negociação bifurcada em múltiplas.'}
+                        {negotiation.status === 'expired' && 'Negociação expirada por limite de tempo.'}
                       </p>
                     </div>
                   </HoverCardContent>
@@ -1037,7 +1089,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
               <div>
                 <div className="text-xs text-muted-foreground">Criado em</div>
                 <div className="font-medium">{new Date(negotiation.created_at).toLocaleDateString()}</div>
-                </div>
+              </div>
               
               {negotiation.approved_at && (
                 <div>
@@ -1045,27 +1097,152 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
                   <div className="font-medium">{new Date(negotiation.approved_at).toLocaleDateString()}</div>
                 </div>
               )}
+
+              {negotiation.completed_at && (
+                <div>
+                  <div className="text-xs text-muted-foreground">Completado em</div>
+                  <div className="font-medium">{new Date(negotiation.completed_at).toLocaleDateString()}</div>
+                </div>
+              )}
+
+              {negotiation.rejected_at && (
+                <div>
+                  <div className="text-xs text-muted-foreground">Rejeitado em</div>
+                  <div className="font-medium">{new Date(negotiation.rejected_at).toLocaleDateString()}</div>
+                </div>
+              )}
+
+              {negotiation.director_approval_date && (
+                <div>
+                  <div className="text-xs text-muted-foreground">Aprovado pela direção em</div>
+                  <div className="font-medium">{new Date(negotiation.director_approval_date).toLocaleDateString()}</div>
+                </div>
+              )}
+
+              {negotiation.external_approved_at && (
+                <div>
+                  <div className="text-xs text-muted-foreground">Aprovado externamente em</div>
+                  <div className="font-medium">{new Date(negotiation.external_approved_at).toLocaleDateString()}</div>
+                </div>
+              )}
+
+              {negotiation.external_rejected_at && (
+                <div>
+                  <div className="text-xs text-muted-foreground">Rejeitado externamente em</div>
+                  <div className="font-medium">{new Date(negotiation.external_rejected_at).toLocaleDateString()}</div>
+                </div>
+              )}
+
+              {negotiation.forked_at && (
+                <div>
+                  <div className="text-xs text-muted-foreground">Bifurcado em</div>
+                  <div className="font-medium">{new Date(negotiation.forked_at).toLocaleDateString()}</div>
+                </div>
+              )}
+            </div>
+
+            {/* Status de Formalização */}
+            {negotiation.formalization_status && (
+              <div className="pt-2 border-t">
+                <div className="text-xs text-muted-foreground mb-1">Status de Formalização</div>
+                <Badge 
+                  variant={negotiation.formalization_status === 'formalized' ? 'default' : 'secondary'}
+                  className="text-xs"
+                >
+                  {negotiation.formalization_status === 'pending_aditivo' ? 'Pendente Aditivo' : 'Formalizada'}
+                </Badge>
               </div>
+            )}
+
+            {/* Nível de Aprovação */}
+            {negotiation.approval_level && (
+              <div className="pt-2 border-t">
+                <div className="text-xs text-muted-foreground mb-1">Nível de Aprovação</div>
+                <Badge variant="outline" className="text-xs">
+                  {negotiation.approval_level === 'pending_director_approval' ? 'Aguardando Direção' : 
+                   negotiation.approval_level === 'pending_approval' ? 'Aguardando Aprovação' : 
+                   negotiation.approval_level}
+                </Badge>
+              </div>
+            )}
+
+            {/* Ciclo de Negociação */}
+            {negotiation.negotiation_cycle && negotiation.negotiation_cycle > 1 && (
+              <div className="pt-2 border-t">
+                <div className="text-xs text-muted-foreground mb-1">Ciclo de Negociação</div>
+                <Badge variant="outline" className="text-xs">
+                  Ciclo {negotiation.negotiation_cycle} de {negotiation.max_cycles_allowed || '∞'}
+                </Badge>
+              </div>
+            )}
+
+            {/* Informações de Bifurcação */}
+            {negotiation.is_fork && (
+              <div className="pt-2 border-t">
+                <div className="text-xs text-muted-foreground mb-1">Negociação Bifurcada</div>
+                <div className="text-xs">
+                  {negotiation.fork_count ? `${negotiation.fork_count} negociações criadas` : 'Negociação filha'}
+                </div>
+              </div>
+            )}
               
             {negotiation.notes && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="mt-2 pt-2 border-t">
-                      <div className="text-xs text-muted-foreground mb-1 flex items-center">
-                        <Clipboard className="h-3.5 w-3.5 mr-1.5" />
-                        Observações
-                  </div>
-                      <div className="text-sm truncate text-muted-foreground">
-                        {negotiation.notes}
+              <div className="pt-2 border-t">
+                <div className="text-xs text-muted-foreground mb-1">Observações</div>
+                <div className="text-sm bg-muted/50 p-2 rounded-md">
+                  {negotiation.notes}
                 </div>
-            </div>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p>{negotiation.notes}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              </div>
+            )}
+
+            {/* Notas de Aprovação */}
+            {negotiation.approval_notes && (
+              <div className="pt-2 border-t">
+                <div className="text-xs text-muted-foreground mb-1">Notas de Aprovação</div>
+                <div className="text-sm bg-green-50 p-2 rounded-md border border-green-200">
+                  {negotiation.approval_notes}
+                </div>
+              </div>
+            )}
+
+            {/* Notas de Rejeição */}
+            {negotiation.rejection_notes && (
+              <div className="pt-2 border-t">
+                <div className="text-xs text-muted-foreground mb-1">Notas de Rejeição</div>
+                <div className="text-sm bg-red-50 p-2 rounded-md border border-red-200">
+                  {negotiation.rejection_notes}
+                </div>
+              </div>
+            )}
+
+            {/* Notas de Aprovação Externa */}
+            {negotiation.external_approval_notes && (
+              <div className="pt-2 border-t">
+                <div className="text-xs text-muted-foreground mb-1">Notas de Aprovação Externa</div>
+                <div className="text-sm bg-blue-50 p-2 rounded-md border border-blue-200">
+                  {negotiation.external_approval_notes}
+                </div>
+              </div>
+            )}
+
+            {/* Notas de Rejeição Externa */}
+            {negotiation.external_rejection_notes && (
+              <div className="pt-2 border-t">
+                <div className="text-xs text-muted-foreground mb-1">Notas de Rejeição Externa</div>
+                <div className="text-sm bg-red-50 p-2 rounded-md border border-red-200">
+                  {negotiation.external_rejection_notes}
+                </div>
+              </div>
+            )}
+
+            {/* Notas da Direção */}
+            {negotiation.director_approval_notes && (
+              <div className="pt-2 border-t">
+                <div className="text-xs text-muted-foreground mb-1">Notas da Direção</div>
+                <div className="text-sm bg-purple-50 p-2 rounded-md border border-purple-200">
+                  {negotiation.director_approval_notes}
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>

@@ -69,6 +69,8 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Separator } from '@/components/ui/separator';
+import { Combobox, ComboboxOption } from '@/components/ui/combobox';
+import debounce from 'lodash/debounce';
 
 interface OpcaoEntidade {
   id: number;
@@ -83,11 +85,10 @@ interface Tuss {
   description?: string;
 }
 
-interface OpcaoTuss {
-  id: number;
+// Tipo para opções do Combobox de TUSS
+interface TussOption extends ComboboxOption {
   code: string;
-  name: string;
-  description?: string;
+  description: string;
 }
 
 interface MedicalSpecialty {
@@ -166,11 +167,8 @@ export default function PaginaCriarNegociacao() {
   const [carregandoEspecialidades, setCarregandoEspecialidades] = useState(false);
   const [opcoesEntidades, setOpcoesEntidades] = useState<OpcaoEntidade[]>([]);
   const [tipoEntidadeSelecionada, setTipoEntidadeSelecionada] = useState<string>('');
-  const [opcoesTuss, setOpcoesTuss] = useState<OpcaoTuss[]>([]);
+  const [opcoesTuss, setOpcoesTuss] = useState<TussOption[]>([]);
   const [opcoesEspecialidades, setOpcoesEspecialidades] = useState<MedicalSpecialty[]>([]);
-  const [procedimentoPadrao, setProcedimentoPadrao] = useState<number | null>(null);
-  const [termoPesquisaEntidade, setTermoPesquisaEntidade] = useState('');
-  const [termoPesquisaTuss, setTermoPesquisaTuss] = useState('');
 
   const form = useForm<ValoresFormulario>({
     resolver: zodResolver(formularioSchema),
@@ -209,37 +207,25 @@ export default function PaginaCriarNegociacao() {
     carregarEspecialidades();
   }, [carregarEspecialidades]);
 
-  // Buscar procedimentos TUSS com filtragem
-  const buscarProcedimentosTuss = useCallback(async (termo: string = '') => {
-    if (carregandoTuss) return;
+  // Buscar procedimentos TUSS com debounce
+  const buscarProcedimentosTuss = debounce(async (termo: string) => {
+    if (!termo || termo.length < 3) return;
     
     setCarregandoTuss(true);
     try {
-      const response = await api.get<{data: OpcaoTuss[]}>('/tuss', { 
+      const response = await api.get('/tuss', { 
         params: { search: termo } 
       });
       
       if (response?.data?.data) {
-        const novaOpcoesTuss: OpcaoTuss[] = response.data.data.map((tuss: any) => ({
-          id: tuss.id,
+        const novaOpcoesTuss: TussOption[] = response.data.data.map((tuss: any) => ({
+          value: tuss.id.toString(),
+          label: `${tuss.code} - ${tuss.description || tuss.name || ''}`,
           code: tuss.code || '',
-          name: tuss.name || tuss.description || '',
-          description: tuss.description || ''
+          description: tuss.description || tuss.name || ''
         }));
         
         setOpcoesTuss(novaOpcoesTuss);
-        
-        if (!procedimentoPadrao && novaOpcoesTuss.length > 0) {
-          setProcedimentoPadrao(novaOpcoesTuss[0].id);
-          
-          const itensAtuais = form.getValues('items');
-          if (itensAtuais.length === 0) {
-            form.setValue('items', [{ 
-              tuss_id: novaOpcoesTuss[0].id, 
-              proposed_value: 0 
-            }]);
-          }
-        }
       }
     } catch (error) {
       console.error('Erro ao carregar procedimentos TUSS:', error);
@@ -251,23 +237,12 @@ export default function PaginaCriarNegociacao() {
     } finally {
       setCarregandoTuss(false);
     }
-  }, [carregandoTuss, form, procedimentoPadrao, toast]);
+  }, 300);
 
   // Efeito para carregar procedimentos TUSS iniciais
   useEffect(() => {
-    buscarProcedimentosTuss();
-  }, [buscarProcedimentosTuss]);
-
-  // Debounce para pesquisa TUSS
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (termoPesquisaTuss.length >= 3) {
-        buscarProcedimentosTuss(termoPesquisaTuss);
-      }
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
-  }, [termoPesquisaTuss, buscarProcedimentosTuss]);
+    buscarProcedimentosTuss('');
+  }, []);
 
   const handleMudancaTipoEntidade = async (valor: string) => {
     setTipoEntidadeSelecionada(valor);
@@ -280,7 +255,7 @@ export default function PaginaCriarNegociacao() {
   const adicionarItem = () => {
     const items = form.getValues('items');
     form.setValue('items', [...items, { 
-      tuss_id: procedimentoPadrao || (opcoesTuss.length > 0 ? opcoesTuss[0].id : 0), 
+      tuss_id: 0, 
       proposed_value: 0 
     }]);
   };
@@ -415,7 +390,7 @@ export default function PaginaCriarNegociacao() {
                 </div>
 
                 {form.watch('items').map((item, index) => {
-                  const tussSelected = opcoesTuss.find(t => t.id === item.tuss_id);
+                  const tussSelected = opcoesTuss.find(t => t.value === item.tuss_id.toString());
                   const isTuss10101012 = tussSelected?.code === '10101012';
 
                   return (
@@ -441,21 +416,15 @@ export default function PaginaCriarNegociacao() {
                           render={({ field }) => (
                             <FormItem>
                               <FormLabel>Procedimento TUSS</FormLabel>
-                              <Select
+                              <Combobox
+                                options={opcoesTuss}
+                                value={field.value?.toString() || ""}
                                 onValueChange={(value) => field.onChange(parseInt(value))}
-                                value={field.value?.toString()}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Selecione o procedimento" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {opcoesTuss.map((tuss) => (
-                                    <SelectItem key={tuss.id} value={tuss.id.toString()}>
-                                      {tuss.code} - {tuss.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                                placeholder="Buscar procedimentos TUSS..."
+                                onSearch={buscarProcedimentosTuss}
+                                loading={carregandoTuss}
+                                emptyText="Digite pelo menos 3 caracteres para buscar"
+                              />
                               <FormMessage />
                             </FormItem>
                           )}

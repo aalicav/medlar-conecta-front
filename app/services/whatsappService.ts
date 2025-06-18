@@ -1,10 +1,9 @@
-
 import api from '@/services/api-client';
 
 export interface WhatsappMessage {
   id: number;
   recipient: string;
-  message: string | null;
+  content: string | null;
   media_url: string | null;
   status: 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
   error_message: string | null;

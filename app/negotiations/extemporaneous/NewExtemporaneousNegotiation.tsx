@@ -1,173 +1,111 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { createExtemporaneousNegotiation } from '@/services/extemporaneous-negotiations';
 import { useForm } from 'react-hook-form';
-import { apiClient } from '@/app/services/api-client';
-import { usePermissions } from '@/app/hooks/usePermissions';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, Loader2 } from 'lucide-react';
-import { createExtemporaneousNegotiation, getExtemporaneousNegotiation } from '@/services/extemporaneous-negotiations';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Combobox } from '@/components/ui/combobox';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
+import { LoadingSpinner } from '@/app/components/ui/loading-spinner';
 
-// Esquema do formulário
-const esquemaNegociacaoExtemporanea = z.object({
-  contract_id: z.string().min(1, { message: 'Contrato é obrigatório' }),
-  tuss_id: z.string().min(1, { message: 'Procedimento TUSS é obrigatório' }),
-  requested_value: z.string().refine(val => !isNaN(Number(val)) && Number(val) > 0, {
-    message: 'O valor deve ser um número positivo'
-  }),
-  justification: z.string().min(10, { message: 'Forneça uma justificativa detalhada (mínimo 10 caracteres)' }),
-  urgency_level: z.enum(['low', 'medium', 'high']).default('medium')
-});
-
-type FormularioValores = z.infer<typeof esquemaNegociacaoExtemporanea>;
-
-interface NegociacaoExtemporaneaProps {
-  negotiationId?: string;
-  isEditing?: boolean;
+interface Contract {
+  id: number;
+  contract_number: string;
 }
 
-export default function FormularioNegociacaoExtemporanea({ negotiationId, isEditing = false }: NegociacaoExtemporaneaProps) {
+interface TussItem {
+  id: number;
+  code: string;
+  description: string;
+}
+
+interface ComboboxItem {
+  value: string;
+  label: string;
+}
+
+const formSchema = z.object({
+  contract_id: z.number({
+    required_error: 'Selecione um contrato',
+  }),
+  tuss_id: z.number({
+    required_error: 'Selecione um procedimento',
+  }),
+  requested_value: z.number({
+    required_error: 'Informe o valor solicitado',
+  }).min(0, 'O valor deve ser maior que zero'),
+  justification: z.string({
+    required_error: 'Informe a justificativa',
+  }).min(10, 'A justificativa deve ter pelo menos 10 caracteres'),
+  urgency_level: z.enum(['low', 'medium', 'high'], {
+    required_error: 'Selecione o nível de urgência',
+  }),
+});
+
+type FormData = z.infer<typeof formSchema>;
+
+export function NewExtemporaneousNegotiation() {
   const router = useRouter();
   const { toast } = useToast();
-  const [estaEnviando, setEstaEnviando] = useState(false);
-  const [estaCarregando, setEstaCarregando] = useState(isEditing);
-  const [erro, setErro] = useState<string | null>(null);
-  const [contratos, setContratos] = useState<Array<{id: string, numero: string}>>([]);
-  const [procedimentos, setProcedimentos] = useState<Array<{id: string, codigo: string, descricao: string}>>([]);
-  const { hasPermission } = usePermissions();
-  
-  // Inicializar formulário com tipagem corrigida
-  const form = useForm<FormularioValores>({
-    resolver: zodResolver(esquemaNegociacaoExtemporanea) as any,
+  const [isLoading, setIsLoading] = useState(false);
+
+  const form = useForm<FormData>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
-      contract_id: '',
-      tuss_id: '',
-      requested_value: '',
-      justification: '',
       urgency_level: 'medium',
-    }
+    },
   });
 
-  // Carregar dados para edição
-  useEffect(() => {
-    const carregarNegociacao = async () => {
-      if (!isEditing || !negotiationId) return;
-      
-      setEstaCarregando(true);
-      setErro(null);
-      
-      try {
-        const response = await getExtemporaneousNegotiation(Number(negotiationId));
-        const dadosNegociacao = response.data.data;
-        
-        // Preencher o formulário com os dados da negociação
-        form.reset({
-          contract_id: dadosNegociacao.contract_id.toString(),
-          tuss_id: dadosNegociacao.tuss_id.toString(),
-          requested_value: dadosNegociacao.requested_value.toString(),
-          justification: dadosNegociacao.justification,
-          urgency_level: dadosNegociacao.urgency_level || 'medium',
-        });
-      } catch (error: any) {
-        setErro(error.response?.data?.message || 'Erro ao carregar dados da negociação');
-        console.error('Erro ao carregar negociação:', error);
-      } finally {
-        setEstaCarregando(false);
-      }
-    };
+  const { data: contracts, isLoading: isLoadingContracts } = useQuery<Contract[]>({
+    queryKey: ['contracts'],
+    queryFn: async () => {
+      const response = await api.get('/contracts');
+      return response.data.data?.data ?? [];
+    },
+  });
 
-    carregarNegociacao();
-  }, [isEditing, negotiationId, form]);
+  const { data: tuss, isLoading: isLoadingTuss } = useQuery<TussItem[]>({
+    queryKey: ['tuss'],
+    queryFn: async () => {
+      const response = await api.get('/tuss');
+      return response.data.data;
+    },
+  });
 
-  // Carregar dados de contratos e procedimentos TUSS
-  useEffect(() => {
-    // Simulação - em ambiente real, estes dados seriam carregados da API
-    setContratos([
-      { id: '1', numero: '12345' },
-      { id: '2', numero: '67890' },
-      { id: '3', numero: '24680' },
-      { id: '4', numero: '13579' },
-    ]);
-    
-    setProcedimentos([
-      { id: '1', codigo: '10101039', descricao: 'Consulta médica' },
-      { id: '2', codigo: '40103110', descricao: 'Raio-X de tórax' },
-      { id: '3', codigo: '50101012', descricao: 'Consulta cardiológica' },
-      { id: '4', codigo: '40701220', descricao: 'Ultrassonografia' },
-      { id: '5', codigo: '30101018', descricao: 'Procedimento dermatológico' },
-    ]);
-  }, []);
-
-  // Manipular envio do formulário
-  const onSubmit = async (values: FormularioValores) => {
-    const permissaoNecessaria = isEditing ? 'edit extemporaneous negotiations' : 'manage extemporaneous negotiations';
-    
-    if (!hasPermission(permissaoNecessaria)) {
-      toast({
-        title: 'Permissão Negada',
-        description: `Você não tem permissão para ${isEditing ? 'editar' : 'criar'} negociações extemporâneas`,
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setEstaEnviando(true);
-    setErro(null);
-    
+  const onSubmit = async (data: FormData) => {
     try {
-      // Converter valor string para número
-      const valoresFormatados = {
-        ...values,
-        requested_value: parseFloat(values.requested_value),
-      };
-      
-      if (isEditing && negotiationId) {
-        // Atualizar negociação existente
-        await apiClient.put(`/extemporaneous-negotiations/${negotiationId}`, valoresFormatados);
-        toast({
-          title: 'Sucesso',
-          description: 'Negociação extemporânea atualizada com sucesso',
-        });
-      } else {
-        // Criar nova negociação
-        await createExtemporaneousNegotiation(valoresFormatados as any);
-        toast({
-          title: 'Sucesso',
-          description: 'Solicitação de negociação extemporânea criada com sucesso',
-        });
-      }
-      
-      // Redirecionar para a lista de negociações
+      setIsLoading(true);
+      await createExtemporaneousNegotiation(data);
+      toast({
+        title: 'Sucesso',
+        description: 'Negociação extemporânea criada com sucesso',
+      });
       router.push('/negotiations/extemporaneous');
-    } catch (error: any) {
-      const mensagemErro = error.response?.data?.message || `Falha ao ${isEditing ? 'atualizar' : 'criar'} negociação`;
-      setErro(mensagemErro);
+    } catch (error) {
       toast({
         title: 'Erro',
-        description: mensagemErro,
+        description: 'Erro ao criar negociação extemporânea',
         variant: 'destructive',
       });
     } finally {
-      setEstaEnviando(false);
+      setIsLoading(false);
     }
   };
 
-  if (estaCarregando) {
+  if (isLoadingContracts || isLoadingTuss) {
     return (
       <Card>
-        <CardContent className="pt-6 flex justify-center items-center min-h-[300px]">
-          <div className="flex flex-col items-center gap-2">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-muted-foreground">Carregando dados da negociação...</p>
-          </div>
+        <CardContent className="flex justify-center items-center min-h-[400px]">
+          <LoadingSpinner size="lg" />
         </CardContent>
       </Card>
     );
@@ -176,165 +114,131 @@ export default function FormularioNegociacaoExtemporanea({ negotiationId, isEdit
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{isEditing ? 'Editar Negociação Extemporânea' : 'Nova Negociação Extemporânea'}</CardTitle>
+        <CardTitle>Nova Negociação Extemporânea</CardTitle>
       </CardHeader>
       <CardContent>
-        {erro && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Erro</AlertTitle>
-            <AlertDescription>{erro}</AlertDescription>
-          </Alert>
-        )}
-        
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
-              control={form.control as any}
+              control={form.control}
               name="contract_id"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Contrato</FormLabel>
-                  <FormControl>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={field.value}
-                      value={field.value}
-                      disabled={isEditing && negotiationId && form.getValues().contract_id !== ''}
-                    >
+                  <Select
+                    onValueChange={(value) => field.onChange(Number(value))}
+                    defaultValue={field.value?.toString()}
+                  >
+                    <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione um contrato" />
                       </SelectTrigger>
-                      <SelectContent>
-                        {contratos.map(contrato => (
-                          <SelectItem key={contrato.id} value={contrato.id}>
-                            Contrato #{contrato.numero}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </FormControl>
+                    </FormControl>
+                    <SelectContent>
+                      {contracts?.map((contract) => (
+                        <SelectItem key={contract.id} value={contract.id.toString()}>
+                          {contract.contract_number}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            
+
             <FormField
-              control={form.control as any}
+              control={form.control}
               name="tuss_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Procedimento (TUSS)</FormLabel>
-                  <FormControl>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={field.value}
-                      value={field.value}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione um procedimento" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {procedimentos.map(proc => (
-                          <SelectItem key={proc.id} value={proc.id}>
-                            {proc.codigo} - {proc.descricao}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </FormControl>
+                  <FormLabel>Procedimento</FormLabel>
+                  <Combobox
+                    options={tuss?.map((item): ComboboxItem => ({
+                      value: item.id.toString(),
+                      label: `${item.code} - ${item.description}`,
+                    })) || []}
+                    value={field.value?.toString() || ''}
+                    onValueChange={(value: string) => field.onChange(Number(value))}
+                    placeholder="Selecione um procedimento"
+                  />
                   <FormMessage />
                 </FormItem>
               )}
             />
-            
+
             <FormField
-              control={form.control as any}
+              control={form.control}
               name="requested_value"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Valor Solicitado (R$)</FormLabel>
+                  <FormLabel>Valor Solicitado</FormLabel>
                   <FormControl>
                     <Input
                       type="number"
                       step="0.01"
-                      min="0"
-                      placeholder="0,00"
                       {...field}
+                      onChange={(e) => field.onChange(Number(e.target.value))}
                     />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            
+
             <FormField
-              control={form.control as any}
-              name="urgency_level"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nível de Urgência</FormLabel>
-                  <FormControl>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={field.value}
-                      value={field.value}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o nível de urgência" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="low">Baixa</SelectItem>
-                        <SelectItem value="medium">Média</SelectItem>
-                        <SelectItem value="high">Alta</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control as any}
+              control={form.control}
               name="justification"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Justificativa</FormLabel>
                   <FormControl>
-                    <Textarea
-                      placeholder="Forneça uma explicação detalhada para esta solicitação de negociação extemporânea"
-                      rows={5}
-                      {...field}
-                    />
+                    <Textarea {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            
-            <CardFooter className="flex justify-between px-0">
-              <Button 
-                type="button" 
+
+            <FormField
+              control={form.control}
+              name="urgency_level"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nível de Urgência</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o nível de urgência" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="low">Baixa</SelectItem>
+                      <SelectItem value="medium">Média</SelectItem>
+                      <SelectItem value="high">Alta</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="flex justify-end space-x-2">
+              <Button
+                type="button"
                 variant="outline"
                 onClick={() => router.back()}
+                disabled={isLoading}
               >
                 Cancelar
               </Button>
-              <Button 
-                type="submit"
-                disabled={estaEnviando}
-              >
-                {estaEnviando ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {isEditing ? 'Atualizando...' : 'Enviando...'}
-                  </>
-                ) : (
-                  isEditing ? 'Atualizar Negociação' : 'Enviar Solicitação'
-                )}
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? 'Criando...' : 'Criar Negociação'}
               </Button>
-            </CardFooter>
+            </div>
           </form>
         </Form>
       </CardContent>

@@ -2,18 +2,23 @@ export type NegotiationStatus =
   | 'draft'
   | 'submitted'
   | 'pending'
-  | 'completed'
+  | 'complete'
   | 'partially_complete'
   | 'approved'
   | 'partially_approved'
   | 'rejected'
-  | 'cancelled';
+  | 'cancelled'
+  | 'forked'
+  | 'expired'
+  | 'pending_approval'
+  | 'pending_director_approval';
 
 export type NegotiationItemStatus = 
   | 'pending'
   | 'approved'
   | 'rejected'
-  | 'counter_offered';
+  | 'counter_offered'
+  | 'completed';
 
 export type ExceptionStatus = 'pending' | 'approved' | 'rejected' | 'formalized';
 
@@ -126,16 +131,16 @@ export interface Negotiation {
     status: NegotiationItemStatus;
     notes: string | null;
     responded_at: string | null;
-  created_at: string;
-  updated_at: string;
-  created_by: {
-    id: number;
-    name: string;
-  };
+    created_at: string;
+    updated_at: string;
+    created_by: {
+      id: number;
+      name: string;
+    };
     updated_by?: {
-    id: number;
-    name: string;
-  };
+      id: number;
+      name: string;
+    };
     can_respond: boolean;
     is_approved: boolean;
     is_rejected: boolean;
@@ -148,6 +153,36 @@ export interface Negotiation {
   can_approve: boolean;
   can_submit_for_approval: boolean;
   can_edit: boolean;
+  approval_level?: string | null;
+  approved_by?: number | null;
+  rejected_by?: number | null;
+  completed_at?: string | null;
+  external_approval_notes?: string | null;
+  external_approved_at?: string | null;
+  external_approved_by?: number | null;
+  external_rejection_notes?: string | null;
+  external_rejected_at?: string | null;
+  external_rejected_by?: number | null;
+  approved_by_director_id?: number | null;
+  director_approval_date?: string | null;
+  director_approval_notes?: string | null;
+  formalization_status?: 'pending_aditivo' | 'formalized' | null;
+  approval_history?: ApprovalHistoryItem[];
+  forked_negotiations?: Negotiation[];
+}
+
+export interface ApprovalHistoryItem {
+  id: number;
+  level: string;
+  status: string;
+  user_id: number;
+  user?: {
+    id: number;
+    name: string;
+    email: string;
+  };
+  notes?: string;
+  created_at: string;
 }
 
 export type CreateNegotiationDto = {
@@ -222,4 +257,24 @@ export interface ExceptionNegotiation {
 export interface ApiResponse<T> {
   data: T;
   message?: string;
+}
+
+export type Role = 
+  | 'commercial_manager'
+  | 'financial_manager'
+  | 'management_committee'
+  | 'legal_manager'
+  | 'director'
+  | 'super_admin'
+  | 'plan_admin'
+  | 'professional'
+  | 'clinic_admin';
+
+export interface NegotiationApprovalRequest {
+  approved: boolean;
+  approval_notes?: string;
+  approved_items?: Array<{
+    item_id: number;
+    approved_value: number;
+  }>;
 } 

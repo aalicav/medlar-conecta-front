@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/data-table/data-table"
 import { Badge } from "@/components/ui/badge"
 import { fetchResource, type QueryParams } from "@/services/resource-service"
-import { Plus, FileText, Edit, CheckCircle, XCircle, Search, Calendar, Clock } from "lucide-react"
+import { Plus, FileText, Edit, CheckCircle, XCircle, Search, Calendar, Clock, Loader2 } from "lucide-react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { formatDateTime } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -28,59 +28,213 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog"
 import api from "@/services/api-client"
 
 interface Appointment {
   id: number
-  professional_id: number
-  professional_name: string
-  clinic_id: number
-  clinic_name: string
-  patient_id: number
-  patient_name: string
-  health_plan_id: number
-  health_plan_name: string
-  tuss_id: number
-  tuss_name: string
+  solicitation_id: number
+  provider_type: string
+  provider_id: number
   status: string
   scheduled_date: string
+  confirmed_date: string | null
+  completed_date: string | null
+  cancelled_date: string | null
+  confirmed_by: number | null
+  completed_by: number | null
+  cancelled_by: number | null
+  created_by: number | null
   created_at: string
+  updated_at: string
+  solicitation: {
+    id: number
+    health_plan_id: number
+    patient_id: number
+    tuss_id: number
+    status: string
+    priority: string
+    description: string | null
+    requested_by: number | null
+    scheduled_automatically: boolean
+    completed_at: string | null
+    cancelled_at: string | null
+    cancel_reason: string | null
+    state: string | null
+    city: string | null
+    created_at: string
+    updated_at: string
+    health_plan: {
+      id: number
+      name: string
+      cnpj: string
+      ans_code: string
+      description: string | null
+      municipal_registration: string
+      legal_representative_name: string
+      legal_representative_cpf: string
+      legal_representative_position: string
+      legal_representative_id: number | null
+      operational_representative_name: string
+      operational_representative_cpf: string
+      operational_representative_position: string
+      operational_representative_id: number | null
+      address: string
+      city: string
+      state: string
+      postal_code: string
+      logo: string
+      status: string
+      approved_at: string
+      has_signed_contract: boolean
+      created_at: string
+      updated_at: string
+    }
+    patient: {
+      id: number
+      name: string
+      cpf: string
+      birth_date: string
+      gender: string
+      health_plan_id: number
+      health_card_number: string
+      address: string
+      city: string
+      state: string
+      postal_code: string
+      created_at: string
+      updated_at: string
+      age: number
+    }
+    tuss: {
+      id: number
+      code: string
+      description: string
+      category: string
+      subcategory: string | null
+      type: string | null
+      amb_code: string | null
+      amb_description: string | null
+      created_at: string
+      updated_at: string
+    }
+    requested_by_user: any | null
+    is_active: boolean
+  }
+  provider: {
+    id: number
+    name: string
+    cpf: string
+    professional_type: string
+    professional_id: number | null
+    specialty: string
+    registration_number: string | null
+    registration_state: string | null
+    clinic_id: number | null
+    bio: string | null
+    photo: string | null
+    status: string
+    approved_at: string
+    is_active: boolean
+    created_at: string
+    updated_at: string
+  }
+  confirmed_by_user: any | null
+  completed_by_user: any | null
+  cancelled_by_user: any | null
+  is_active: boolean
+  is_upcoming: boolean
+  is_past_due: boolean
+  patient: {
+    id: number
+    name: string
+    cpf: string
+  }
+  health_plan: {
+    id: number
+    name: string
+  }
+  procedure: {
+    id: number
+    code: string
+    description: string
+  }
 }
 
 interface Solicitation {
   id: number
-  patient_name: string
-  procedure_name: string
-  preferred_date_start: string
-  preferred_date_end: string
+  health_plan_id: number
+  patient_id: number
+  tuss_id: number
   status: string
+  priority: string
+  description: string | null
+  requested_by: number | null
+  scheduled_automatically: boolean
+  completed_at: string | null
+  cancelled_at: string | null
+  cancel_reason: string | null
+  state: string | null
+  city: string | null
+  created_at: string
+  updated_at: string
+  health_plan: {
+    id: number
+    name: string
+    cnpj: string
+    ans_code: string
+    description: string | null
+    municipal_registration: string
+    legal_representative_name: string
+    legal_representative_cpf: string
+    legal_representative_position: string
+    legal_representative_id: number | null
+    operational_representative_name: string
+    operational_representative_cpf: string
+    operational_representative_position: string
+    operational_representative_id: number | null
+    address: string
+    city: string
+    state: string
+    postal_code: string
+    logo: string
+    status: string
+    approved_at: string
+    has_signed_contract: boolean
+    created_at: string
+    updated_at: string
+  }
   patient: {
     id: number
     name: string
     cpf: string
     birth_date: string
     gender: string
+    health_plan_id: number
     health_card_number: string
+    address: string
+    city: string
+    state: string
+    postal_code: string
+    created_at: string
+    updated_at: string
     age: number
-  }
-  health_plan: {
-    id: number
-    name: string
-    cnpj: string
-    ans_code: string
   }
   tuss: {
     id: number
     code: string
     description: string
+    category: string
+    subcategory: string | null
+    type: string | null
+    amb_code: string | null
+    amb_description: string | null
+    created_at: string
+    updated_at: string
   }
-  requested_by_user: {
-    id: number
-    name: string
-    email: string
-  }
-  description: string
+  requested_by_user: any | null
+  is_active: boolean
 }
 
 interface ProfessionalAvailability {
@@ -101,6 +255,23 @@ interface ProfessionalAvailability {
     start_date: string
     end_date: string | null
   } | null
+  provider: {
+    id: number
+    name: string
+    type: string
+    addresses: Array<{
+      id: number
+      street: string
+      number: string
+      complement: string | null
+      neighborhood: string
+      city: string
+      state: string
+      postal_code: string
+      is_primary: boolean
+      full_address: string
+    }>
+  }
 }
 
 export default function AppointmentsPage() {
@@ -129,6 +300,19 @@ export default function AppointmentsPage() {
   const [selectedSolicitation, setSelectedSolicitation] = useState<Solicitation | null>(null)
   const [availabilities, setAvailabilities] = useState<ProfessionalAvailability[]>([])
   const [showAvailabilities, setShowAvailabilities] = useState(false)
+  const [selectedAvailability, setSelectedAvailability] = useState<ProfessionalAvailability | null>(null)
+  const [showAddressModal, setShowAddressModal] = useState(false)
+  const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null)
+  const [customAddress, setCustomAddress] = useState({
+    street: '',
+    number: '',
+    complement: '',
+    neighborhood: '',
+    city: '',
+    state: '',
+    postal_code: ''
+  })
+  const [isSearchingCep, setIsSearchingCep] = useState(false)
 
   const fetchData = async () => {
     setIsLoading(true)
@@ -270,10 +454,104 @@ export default function AppointmentsPage() {
     }
   }
 
+  const handleSelectAvailability = (availability: ProfessionalAvailability) => {
+    setSelectedAvailability(availability)
+    setSelectedAddressId(null)
+    setCustomAddress({
+      street: '',
+      number: '',
+      complement: '',
+      neighborhood: '',
+      city: '',
+      state: '',
+      postal_code: ''
+    })
+    setShowAddressModal(true)
+  }
+
+  const handleSearchCep = async (cep: string) => {
+    if (cep.length !== 8) return
+    
+    setIsSearchingCep(true)
+    try {
+      // Requisição direta para a API do ViaCEP
+      const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`)
+      const data = await response.json()
+
+      if (data.erro) {
+        throw new Error('CEP não encontrado')
+      }
+
+      setCustomAddress({
+        street: data.logradouro,
+        number: '',
+        complement: data.complemento || '',
+        neighborhood: data.bairro,
+        city: data.localidade,
+        state: data.uf,
+        postal_code: data.cep
+      })
+      
+      toast({
+        title: "Sucesso",
+        description: "Endereço encontrado"
+      })
+    } catch (error) {
+      console.error("Error searching CEP:", error)
+      toast({
+        title: "Erro",
+        description: "CEP não encontrado",
+        variant: "destructive"
+      })
+    } finally {
+      setIsSearchingCep(false)
+    }
+  }
+
+  const handleCreateAppointmentWithAddress = async () => {
+    if (!selectedAvailability) return
+    
+    setIsActionLoading(true)
+    try {
+      const payload: any = {
+        notes: ''
+      }
+      
+      if (selectedAddressId) {
+        payload.address_id = selectedAddressId
+      } else {
+        // Use custom address
+        payload.custom_address = customAddress
+      }
+      
+      await api.post(`/availabilities/${selectedAvailability.id}/select`, payload)
+      
+      toast({
+        title: "Sucesso",
+        description: "Agendamento criado com sucesso"
+      })
+      
+      setShowAddressModal(false)
+      setShowAvailabilities(false)
+      setSelectedAvailability(null)
+      setSelectedAddressId(null)
+      fetchData()
+    } catch (error) {
+      console.error("Error creating appointment:", error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível criar o agendamento",
+        variant: "destructive"
+      })
+    } finally {
+      setIsActionLoading(false)
+    }
+  }
+
   const handleConfirmAppointment = async (id: number) => {
     setIsActionLoading(true)
     try {
-      await api.put(`/appointments/${id}/confirm`)
+      await api.post(`/appointments/${id}/confirm`)
       toast({
         title: "Sucesso",
         description: "Agendamento confirmado com sucesso"
@@ -314,14 +592,14 @@ export default function AppointmentsPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "pending":
+      case "scheduled":
         return (
           <Tooltip>
             <TooltipTrigger>
-              <Badge variant="outline">Pendente</Badge>
+              <Badge variant="outline">Agendado</Badge>
             </TooltipTrigger>
             <TooltipContent>
-              Aguardando confirmação
+              Agendamento realizado
             </TooltipContent>
           </Tooltip>
         )
@@ -385,10 +663,10 @@ export default function AppointmentsPage() {
       accessorKey: "patient_name",
       header: "Paciente",
       cell: ({ row }) => (
-        <div className="max-w-[200px] truncate" title={row.getValue("patient_name")}>
-          {row.getValue("patient_name")}
+        <div className="max-w-[200px] truncate" title={row.original.patient?.name}>
+          {row.original.patient?.name}
           <div className="text-xs text-muted-foreground">
-            {row.original.health_plan_name}
+            {row.original.patient?.cpf}
           </div>
         </div>
       ),
@@ -398,11 +676,10 @@ export default function AppointmentsPage() {
       accessorKey: "professional_name",
       header: "Profissional",
       cell: ({ row }) => (
-        <div className="max-w-[200px] truncate" title={row.getValue("professional_name")}>
-          {row.getValue("professional_name")}
-          {row.original.clinic_name && (
+        <div className="max-w-[200px] truncate" title={row.original.provider?.name}>
+          {row.original.provider && (
             <div className="text-xs text-muted-foreground">
-              {row.original.clinic_name}
+              {row.original.provider?.name}
             </div>
           )}
         </div>
@@ -413,11 +690,10 @@ export default function AppointmentsPage() {
       accessorKey: "tuss_name",
       header: "Procedimento",
       cell: ({ row }) => (
-        <div className="max-w-[200px] truncate" title={row.getValue("tuss_name")}>
-          {row.getValue("tuss_name")}
+        <div className="max-w-[200px] truncate" title={row.original.procedure?.code}>
+          {row.original.procedure?.description}
         </div>
       ),
-      enableSorting: true,
     },
     {
       accessorKey: "scheduled_date",
@@ -456,7 +732,7 @@ export default function AppointmentsPage() {
               <TooltipContent>Ver detalhes</TooltipContent>
             </Tooltip>
 
-            {appointment.status === "pending" && (
+            {appointment.status === "scheduled" && (
               <>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -597,15 +873,9 @@ export default function AppointmentsPage() {
                               </div>
                             </div>
 
-                            {solicitation.preferred_date_start && solicitation.preferred_date_end && (
-                              <div className="truncate">
-                                <span className="font-medium">Período preferido:</span>
-                                <div className="text-muted-foreground truncate">
-                                  {formatDateTime(solicitation.preferred_date_start)} -{" "}
-                                  {formatDateTime(solicitation.preferred_date_end)}
-                                </div>
-                              </div>
-                            )}
+                            <div className="truncate">
+                              <span className="font-medium">Prioridade:</span> {solicitation.priority || '-'}
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
@@ -629,7 +899,7 @@ export default function AppointmentsPage() {
                               <div className="flex justify-between items-start gap-2">
                                 <div className="min-w-0">
                                   <div className="font-medium text-sm truncate">
-                                    {availability.professional?.name || 'Profissional não especificado'}
+                                    {availability.provider?.name || 'Profissional não especificado'}
                                   </div>
                                   <div className="text-xs text-muted-foreground">
                                     {formatDateTime(availability.available_date)} às{" "}
@@ -638,6 +908,11 @@ export default function AppointmentsPage() {
                                   {availability.price && (
                                     <div className="text-sm font-semibold text-green-600 mt-1">
                                       R$ {availability.price.toFixed(2)}
+                                    </div>
+                                  )}
+                                  {availability.provider?.addresses && availability.provider.addresses.length > 0 && (
+                                    <div className="text-xs text-muted-foreground mt-1">
+                                      <span className="font-medium">Endereços disponíveis:</span> {availability.provider.addresses.length}
                                     </div>
                                   )}
                                 </div>
@@ -659,7 +934,7 @@ export default function AppointmentsPage() {
                               {availability.status === "pending" && (
                                 <Button
                                   className="w-full text-xs h-8"
-                                  onClick={() => handleCreateAppointment(availability.id)}
+                                  onClick={() => handleSelectAvailability(availability)}
                                   disabled={isActionLoading}
                                 >
                                   {isActionLoading ? "Criando..." : "Criar Agendamento"}
@@ -705,7 +980,7 @@ export default function AppointmentsPage() {
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pending">Pendente</SelectItem>
+                    <SelectItem value="scheduled">Agendado</SelectItem>
                     <SelectItem value="confirmed">Confirmado</SelectItem>
                     <SelectItem value="completed">Concluído</SelectItem>
                     <SelectItem value="cancelled">Cancelado</SelectItem>
@@ -731,16 +1006,6 @@ export default function AppointmentsPage() {
                   placeholder="Nome do profissional"
                   value={filters.professional_name || ""}
                   onChange={(e) => handleFilterChange("professional_name", e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="clinic-filter">Clínica</Label>
-                <Input
-                  id="clinic-filter"
-                  placeholder="Nome da clínica"
-                  value={filters.clinic_name || ""}
-                  onChange={(e) => handleFilterChange("clinic_name", e.target.value)}
                 />
               </div>
 
@@ -814,6 +1079,194 @@ export default function AppointmentsPage() {
           isLoading={isLoading}
         />
       </div>
+
+      {/* Address Selection Modal */}
+      <Dialog open={showAddressModal} onOpenChange={setShowAddressModal}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Selecionar Endereço para Agendamento</DialogTitle>
+            <DialogDescription>
+              Escolha um endereço existente ou informe um endereço personalizado para o agendamento
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedAvailability && (
+            <div className="space-y-6">
+              {/* Provider Info */}
+              <div className="bg-muted p-4 rounded-lg">
+                <h3 className="font-medium text-sm mb-2">Informações do Profissional</h3>
+                <div className="text-sm text-muted-foreground">
+                  <div><strong>Nome:</strong> {selectedAvailability.provider.name}</div>
+                  <div><strong>Data/Hora:</strong> {formatDateTime(selectedAvailability.available_date)} às {selectedAvailability.available_time}</div>
+                  {selectedAvailability.price && (
+                    <div><strong>Preço:</strong> R$ {selectedAvailability.price.toFixed(2)}</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Existing Addresses */}
+              {selectedAvailability.provider.addresses && selectedAvailability.provider.addresses.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="font-medium text-sm">Endereços Disponíveis</h3>
+                  <div className="space-y-2">
+                    {selectedAvailability.provider.addresses.map((address) => (
+                      <Card
+                        key={address.id}
+                        className={`cursor-pointer transition-colors ${
+                          selectedAddressId === address.id
+                            ? "border-primary"
+                            : "hover:border-muted-foreground"
+                        }`}
+                        onClick={() => setSelectedAddressId(address.id)}
+                      >
+                        <CardContent className="p-3">
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <div className="text-sm font-medium">
+                                {address.street}, {address.number}
+                                {address.is_primary && (
+                                  <Badge variant="outline" className="ml-2 text-xs">Principal</Badge>
+                                )}
+                              </div>
+                              <input
+                                type="radio"
+                                name="address"
+                                checked={selectedAddressId === address.id}
+                                onChange={() => setSelectedAddressId(address.id)}
+                                className="ml-2"
+                              />
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {address.complement && `${address.complement}, `}
+                              {address.neighborhood} - {address.city}/{address.state}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              CEP: {address.postal_code}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Custom Address */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-medium text-sm">Endereço Personalizado</h3>
+                  <input
+                    type="radio"
+                    name="address"
+                    checked={selectedAddressId === null}
+                    onChange={() => setSelectedAddressId(null)}
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <Label htmlFor="cep">CEP</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="cep"
+                        placeholder="00000-000"
+                        value={customAddress.postal_code}
+                        onChange={(e) => {
+                          const cep = e.target.value.replace(/\D/g, '')
+                          setCustomAddress(prev => ({ ...prev, postal_code: cep }))
+                          if (cep.length === 8) {
+                            handleSearchCep(cep)
+                          }
+                        }}
+                        maxLength={8}
+                      />
+                      {isSearchingCep && (
+                        <Button variant="outline" size="icon" disabled>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="col-span-2">
+                    <Label htmlFor="street">Logradouro</Label>
+                    <Input
+                      id="street"
+                      placeholder="Rua/Avenida"
+                      value={customAddress.street}
+                      onChange={(e) => setCustomAddress(prev => ({ ...prev, street: e.target.value }))}
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="number">Número</Label>
+                    <Input
+                      id="number"
+                      placeholder="123"
+                      value={customAddress.number}
+                      onChange={(e) => setCustomAddress(prev => ({ ...prev, number: e.target.value }))}
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="complement">Complemento</Label>
+                    <Input
+                      id="complement"
+                      placeholder="Apto 101"
+                      value={customAddress.complement}
+                      onChange={(e) => setCustomAddress(prev => ({ ...prev, complement: e.target.value }))}
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="neighborhood">Bairro</Label>
+                    <Input
+                      id="neighborhood"
+                      placeholder="Centro"
+                      value={customAddress.neighborhood}
+                      onChange={(e) => setCustomAddress(prev => ({ ...prev, neighborhood: e.target.value }))}
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="city">Cidade</Label>
+                    <Input
+                      id="city"
+                      placeholder="São Paulo"
+                      value={customAddress.city}
+                      onChange={(e) => setCustomAddress(prev => ({ ...prev, city: e.target.value }))}
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="state">Estado</Label>
+                    <Input
+                      id="state"
+                      placeholder="SP"
+                      value={customAddress.state}
+                      onChange={(e) => setCustomAddress(prev => ({ ...prev, state: e.target.value }))}
+                      maxLength={2}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddressModal(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleCreateAppointmentWithAddress}
+              disabled={isActionLoading || (!selectedAddressId && (!customAddress.street || !customAddress.number))}
+            >
+              {isActionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Criar Agendamento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </TooltipProvider>
   )
 }

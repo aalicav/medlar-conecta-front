@@ -8,7 +8,7 @@ import { DataTable } from "@/components/data-table/data-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { EyeIcon, FilterIcon, CalendarIcon, PencilIcon, PlusIcon } from "lucide-react";
+import { EyeIcon, FilterIcon, CalendarIcon, PencilIcon, PlusIcon, CheckCircle, AlertCircle, FileText } from "lucide-react";
 import { formatDate, formatMoney } from "@/app/utils/format";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -22,27 +22,61 @@ import { Plus } from 'lucide-react';
 import { ExceptionForm } from '../components/ExceptionForm';
 import { negotiationService } from '@/services/negotiationService';
 import { toast } from "@/components/ui/use-toast"
-import { AlertCircle, CheckCircle } from "lucide-react"
+import { Search } from "lucide-react";
+import { useQuery } from '@tanstack/react-query';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
 interface NegociacaoExtemporanea {
   id: number;
   contract_id: number;
   contract: {
+    id: number;
     contract_number: string;
   };
   tuss: {
+    id: number;
     code: string;
     description: string;
   };
-  requester_name: string;
   requested_value: number;
   approved_value: number | null;
+  justification: string;
+  approval_notes: string | null;
+  rejection_reason: string | null;
   status: 'pending' | 'approved' | 'rejected';
   urgency_level: 'low' | 'medium' | 'high';
-  created_at: string;
+  requested_by: number;
+  approved_by: number | null;
   approved_at: string | null;
+  is_requiring_addendum: boolean;
   addendum_included: boolean;
-  specialty?: string;
+  addendum_number: string | null;
+  addendum_date: string | null;
+  addendum_notes: string | null;
+  addendum_updated_by: number | null;
+  created_at: string;
+  updated_at: string;
+  requestedBy: {
+    id: number;
+    name: string;
+  };
+  approvedBy: {
+    id: number;
+    name: string;
+  } | null;
+  pricingContract: {
+    id: number;
+    price: number;
+    notes: string;
+    start_date: string;
+    end_date: string | null;
+  } | null;
 }
 
 interface ExceptionNegotiation {
@@ -88,6 +122,16 @@ const especialidades = [
   'Urologia'
 ];
 
+const formSchema = z.object({
+  approved_value: z.number({
+    required_error: 'Informe o valor aprovado',
+  }).min(0, 'O valor deve ser maior que zero'),
+  approval_notes: z.string().optional(),
+  is_requiring_addendum: z.boolean().default(false),
+});
+
+type FormData = z.infer<typeof formSchema>;
+
 export default function PaginaNegociacoesExtemporaneas() {
   const router = useRouter();
   const { user } = useAuth();
@@ -109,85 +153,60 @@ export default function PaginaNegociacoesExtemporaneas() {
     pageIndex: 0,
     pageSize: 10,
   });
+  const [selectedNegotiation, setSelectedNegotiation] = useState<NegociacaoExtemporanea | null>(null);
+  const [isApproving, setIsApproving] = useState(false);
+  const [isRejecting, setIsRejecting] = useState(false);
+  const [isMarkingAddendum, setIsMarkingAddendum] = useState(false);
 
-  const buscarNegociacoes = useCallback(async () => {
-    setCarregando(true);
-    try {
-      const params: Record<string, any> = {
-        page: paginacao.pageIndex + 1,
-        per_page: paginacao.pageSize,
+  const { data, isLoading: queryLoading, refetch } = useQuery({
+    queryKey: ['extemporaneous-negotiations', paginacao.pageIndex + 1, paginacao.pageSize, {
+      status: filtroStatus || undefined,
+      from_date: dataInicial ? formatDate(dataInicial, "yyyy-MM-dd") : undefined,
+      to_date: dataFinal ? formatDate(dataFinal, "yyyy-MM-dd") : undefined,
+      search: termoBusca || undefined,
+    }],
+    queryFn: () => getExtemporaneousNegotiations({
+      page: paginacao.pageIndex + 1,
+      per_page: paginacao.pageSize,
+      ...{
         status: filtroStatus || undefined,
         from_date: dataInicial ? formatDate(dataInicial, "yyyy-MM-dd") : undefined,
         to_date: dataFinal ? formatDate(dataFinal, "yyyy-MM-dd") : undefined,
         search: termoBusca || undefined,
-        specialty: filtroEspecialidade || undefined,
-      };
-      
-      const response = await getExtemporaneousNegotiations(params);
-      
-      if (response?.data?.data) {
-        const dadosAprimorados = response.data.data.map((item: NegociacaoExtemporanea) => ({
-          ...item,
-          specialty: especialidades[Math.floor(Math.random() * especialidades.length)]
-        }));
-        setNegociacoes(dadosAprimorados);
-      }
-    } catch (error) {
-      console.error("Erro ao buscar negociações extemporâneas:", error);
-      toast({
-        title: "Erro ao carregar negociações",
-        description: "Não foi possível carregar a lista de negociações",
-        variant: "destructive"
-      });
-    } finally {
-      setCarregando(false);
-    }
-  }, [paginacao.pageIndex, paginacao.pageSize, filtroStatus, dataInicial, dataFinal, termoBusca, filtroEspecialidade]);
+      },
+    }),
+  });
 
-  // Only proceed with data fetching if loading is false
-  useEffect(() => {
-    if (!isLoading && permissionChecked && hasPermission('view negotiations')) {
-      buscarNegociacoes();
-    }
-  }, [isLoading, permissionChecked, buscarNegociacoes, hasPermission]);
+  const approveForm = useForm<FormData>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      is_requiring_addendum: false,
+    },
+  });
 
-  if (isLoading) {
-    return <div>Carregando...</div>;
-  }
+  const rejectForm = useForm<{ rejection_reason: string }>({
+    resolver: zodResolver(z.object({
+      rejection_reason: z.string({
+        required_error: 'Informe o motivo da rejeição',
+      }).min(10, 'O motivo deve ter pelo menos 10 caracteres'),
+    })),
+  });
 
-  const loadExceptions = useCallback(async () => {
-    if (isLoading) return;
-    
-    setIsLoading(true);
-    try {
-      const response = await negotiationService.getExceptions();
-      if (response?.data) {
-        setExceptions(response.data as unknown as ExceptionNegotiation[]);
-      }
-    } catch (error) {
-      console.error('Error loading exceptions:', error);
-      toast({
-        title: "Erro ao carregar exceções",
-        description: (
-          <div className="flex items-center gap-2">
-            <AlertCircle className="h-4 w-4" />
-            <span>Não foi possível carregar as exceções</span>
-          </div>
-        ),
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isLoading]);
-
-  // Load initial data
-  useEffect(() => {
-    if (hasPermission('create negotiations')) {
-      buscarNegociacoes();
-      loadExceptions();
-    }
-  }, [hasPermission, buscarNegociacoes, loadExceptions]);
+  const addendumForm = useForm<{
+    addendum_number: string;
+    addendum_date: string;
+    notes?: string;
+  }>({
+    resolver: zodResolver(z.object({
+      addendum_number: z.string({
+        required_error: 'Informe o número do aditivo',
+      }),
+      addendum_date: z.string({
+        required_error: 'Informe a data do aditivo',
+      }),
+      notes: z.string().optional(),
+    })),
+  });
 
   const handleSubmit = useCallback(async (data: {
     patient_id: number;
@@ -198,7 +217,7 @@ export default function PaginaNegociacoesExtemporaneas() {
     try {
       await negotiationService.createException(data);
       setIsFormOpen(false);
-      await loadExceptions();
+      await refetch();
       toast({
         title: "Exceção criada com sucesso",
         description: "A solicitação de exceção foi enviada com sucesso",
@@ -212,45 +231,77 @@ export default function PaginaNegociacoesExtemporaneas() {
         variant: "destructive"
       });
     }
-  }, [loadExceptions]);
+  }, [refetch]);
 
-  const handleApprove = useCallback(async (id: number) => {
-    try {
-      await negotiationService.approveException(id);
-      await loadExceptions();
-      toast({
-        title: "Exceção aprovada",
-        description: "A exceção foi aprovada com sucesso",
-        variant: "success"
-      });
-    } catch (error) {
-      console.error('Error approving exception:', error);
-      toast({
-        title: "Erro ao aprovar exceção",
-        description: "Não foi possível aprovar a exceção",
-        variant: "destructive"
-      });
-    }
-  }, [loadExceptions]);
+  const handleApprove = async (data: FormData) => {
+    if (!selectedNegotiation) return;
 
-  const handleReject = useCallback(async (id: number) => {
     try {
-      await negotiationService.rejectException(id);
-      await loadExceptions();
+      setIsApproving(true);
+      await negotiationService.approveExtemporaneousNegotiation(selectedNegotiation.id, data);
       toast({
-        title: "Exceção rejeitada",
-        description: "A exceção foi rejeitada com sucesso",
-        variant: "success"
+        title: 'Sucesso',
+        description: 'Negociação aprovada com sucesso',
       });
+      refetch();
     } catch (error) {
-      console.error('Error rejecting exception:', error);
       toast({
-        title: "Erro ao rejeitar exceção",
-        description: "Não foi possível rejeitar a exceção",
-        variant: "destructive"
+        title: 'Erro',
+        description: 'Erro ao aprovar negociação',
+        variant: 'destructive',
       });
+    } finally {
+      setIsApproving(false);
     }
-  }, [loadExceptions]);
+  };
+
+  const handleReject = async (data: { rejection_reason: string }) => {
+    if (!selectedNegotiation) return;
+
+    try {
+      setIsRejecting(true);
+      await negotiationService.rejectExtemporaneousNegotiation(selectedNegotiation.id, data);
+      toast({
+        title: 'Sucesso',
+        description: 'Negociação rejeitada com sucesso',
+      });
+      refetch();
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: 'Erro ao rejeitar negociação',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRejecting(false);
+    }
+  };
+
+  const handleMarkAsAddendumIncluded = async (data: {
+    addendum_number: string;
+    addendum_date: string;
+    notes?: string;
+  }) => {
+    if (!selectedNegotiation) return;
+
+    try {
+      setIsMarkingAddendum(true);
+      await negotiationService.markExtemporaneousNegotiationAsAddendumIncluded(selectedNegotiation.id, data);
+      toast({
+        title: 'Sucesso',
+        description: 'Negociação marcada como incluída em aditivo com sucesso',
+      });
+      refetch();
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: 'Erro ao marcar negociação como incluída em aditivo',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsMarkingAddendum(false);
+    }
+  };
 
   const varianteBadgeStatus = (status: string) => {
     switch (status) {
@@ -276,44 +327,67 @@ export default function PaginaNegociacoesExtemporaneas() {
     }
   };
   
-  const colunas: ColumnDef<NegociacaoExtemporanea>[] = [
+  const columns: ColumnDef<NegociacaoExtemporanea>[] = [
+    {
+      accessorKey: "id",
+      header: "ID",
+      cell: ({ row }) => <div className="font-medium">#{row.getValue("id")}</div>,
+    },
     {
       accessorKey: "contract.contract_number",
       header: "Contrato",
-      cell: ({ row }) => <span>#{row.original.contract.contract_number}</span>,
-    },
-    {
-      accessorKey: "tuss.code",
-      header: "Procedimento",
       cell: ({ row }) => (
-        <div className="max-w-[200px]">
-          <div>{row.original.tuss.code}</div>
-          <div className="text-xs text-muted-foreground truncate">{row.original.tuss.description}</div>
+        <div className="max-w-[200px] truncate">
+          #{row.original.contract.contract_number}
         </div>
       ),
     },
     {
-      accessorKey: "specialty",
-      header: "Especialidade",
-      cell: ({ row }) => <span className="whitespace-nowrap">{row.original.specialty || 'Geral'}</span>,
+      accessorKey: "tuss",
+      header: "Procedimento",
+      cell: ({ row }) => (
+        <div className="max-w-[300px]">
+          <div className="font-medium">{row.original.tuss.description}</div>
+          <div className="text-sm text-muted-foreground">
+            Código TUSS: {row.original.tuss.code}
+          </div>
+        </div>
+      ),
     },
     {
       accessorKey: "requested_value",
       header: "Valor Solicitado",
-      cell: ({ row }) => <span>{formatMoney(row.getValue("requested_value"))}</span>,
+      cell: ({ row }) => (
+        <div className="whitespace-nowrap">
+          R$ {Number(row.getValue("requested_value")).toFixed(2)}
+        </div>
+      ),
     },
     {
       accessorKey: "approved_value",
       header: "Valor Aprovado",
       cell: ({ row }) => {
         const value = row.getValue("approved_value");
-        return value ? <span>{formatMoney(value as number)}</span> : "-";
+        return (
+          <div className="whitespace-nowrap">
+            {value ? `R$ ${Number(value).toFixed(2)}` : "-"}
+          </div>
+        );
       },
     },
     {
-      accessorKey: "requester_name",
-      header: "Solicitado por",
-      cell: ({ row }) => <span className="whitespace-nowrap">{row.getValue("requester_name")}</span>,
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => {
+        const status = row.getValue("status") as string;
+        return (
+          <Badge variant={varianteBadgeStatus(status)}>
+            {status === 'pending' ? 'Pendente' :
+             status === 'approved' ? 'Aprovado' :
+             status === 'rejected' ? 'Rejeitado' : status}
+          </Badge>
+        );
+      },
     },
     {
       accessorKey: "urgency_level",
@@ -322,61 +396,212 @@ export default function PaginaNegociacoesExtemporaneas() {
         const level = row.getValue("urgency_level") as string;
         return (
           <Badge variant={varianteBadgeUrgencia(level)}>
-            {level === 'high' ? 'Alta' : level === 'medium' ? 'Média' : 'Baixa'}
+            {level === 'low' ? 'Baixa' :
+             level === 'medium' ? 'Média' :
+             level === 'high' ? 'Alta' : level}
           </Badge>
         );
       },
     },
     {
       accessorKey: "created_at",
-      header: "Data",
-      cell: ({ row }) => <span>{formatDate(parseISO(row.getValue("created_at")), "dd/MM/yyyy")}</span>,
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => {
-        const status = row.getValue("status") as string;
-        const addendumIncluded = row.original.addendum_included;
-        
-        return (
-          <div className="space-y-1">
-            <Badge variant={varianteBadgeStatus(status)}>
-              {status === 'pending' ? 'Pendente' : status === 'approved' ? 'Aprovada' : 'Rejeitada'}
-            </Badge>
-            
-            {status === 'approved' && !addendumIncluded && (
-              <Badge variant="outline" className="whitespace-nowrap w-full text-center">
-                Aguardando Aditivo
-              </Badge>
-            )}
-          </div>
-        );
-      },
+      header: "Criado em",
+      cell: ({ row }) => (
+        <div className="whitespace-nowrap">
+          {formatDate(parseISO(row.getValue("created_at")), "dd/MM/yyyy HH:mm")}
+        </div>
+      ),
     },
     {
       id: "actions",
+      header: "Ações",
       cell: ({ row }) => {
         const negotiation = row.original;
-        
         return (
-          <div className="flex gap-2">
+          <div className="flex items-center space-x-2">
             <Button
-              variant="outline"
-              size="sm"
+              variant="ghost"
+              size="icon"
               onClick={() => router.push(`/negotiations/extemporaneous/${negotiation.id}`)}
             >
               <EyeIcon className="h-4 w-4" />
+              <span className="sr-only">Ver detalhes</span>
             </Button>
-            {negotiation.status === 'pending' && hasPermission('edit extemporaneous negotiations') && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => router.push(`/negotiations/extemporaneous/${negotiation.id}/edit`)}
-              >
-                <PencilIcon className="h-4 w-4" />
-                Editar
-              </Button>
+            
+            {negotiation.status === 'pending' && hasPermission('approve negotiations') && (
+              <>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setSelectedNegotiation(negotiation)}
+                    >
+                      <CheckCircle className="h-4 w-4" />
+                      <span className="sr-only">Aprovar</span>
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Aprovar Negociação</DialogTitle>
+                    </DialogHeader>
+                    <Form {...approveForm}>
+                      <form onSubmit={approveForm.handleSubmit(handleApprove)} className="space-y-4">
+                        <FormField
+                          control={approveForm.control}
+                          name="approved_value"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Valor Aprovado</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  {...field}
+                                  onChange={(e) => field.onChange(Number(e.target.value))}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={approveForm.control}
+                          name="approval_notes"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Observações</FormLabel>
+                              <FormControl>
+                                <Textarea {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={approveForm.control}
+                          name="is_requiring_addendum"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormControl>
+                                <div className="flex items-center space-x-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={field.value}
+                                    onChange={(e) => field.onChange(e.target.checked)}
+                                  />
+                                  <Label>Requer aditivo contratual</Label>
+                                </div>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <div className="flex justify-end space-x-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setSelectedNegotiation(null)}
+                            disabled={isApproving}
+                          >
+                            Cancelar
+                          </Button>
+                          <Button type="submit" disabled={isApproving}>
+                            {isApproving ? 'Aprovando...' : 'Aprovar'}
+                          </Button>
+                        </div>
+                      </form>
+                    </Form>
+                  </DialogContent>
+                </Dialog>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSelectedNegotiation(negotiation)}
+                >
+                  <AlertCircle className="h-4 w-4" />
+                  <span className="sr-only">Rejeitar</span>
+                </Button>
+              </>
+            )}
+            
+            {negotiation.status === 'approved' && 
+             negotiation.is_requiring_addendum && 
+             !negotiation.addendum_included && 
+             hasPermission('manage addendums') && (
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setSelectedNegotiation(negotiation)}
+                  >
+                    <FileText className="h-4 w-4" />
+                    <span className="sr-only">Registrar Aditivo</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Marcar como Incluída em Aditivo</DialogTitle>
+                  </DialogHeader>
+                  <Form {...addendumForm}>
+                    <form onSubmit={addendumForm.handleSubmit(handleMarkAsAddendumIncluded)} className="space-y-4">
+                      <FormField
+                        control={addendumForm.control}
+                        name="addendum_number"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Número do Aditivo</FormLabel>
+                            <FormControl>
+                              <Input {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={addendumForm.control}
+                        name="addendum_date"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Data do Aditivo</FormLabel>
+                            <FormControl>
+                              <Input type="date" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={addendumForm.control}
+                        name="notes"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Observações</FormLabel>
+                            <FormControl>
+                              <Textarea {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <div className="flex justify-end space-x-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setSelectedNegotiation(null)}
+                          disabled={isMarkingAddendum}
+                        >
+                          Cancelar
+                        </Button>
+                        <Button type="submit" disabled={isMarkingAddendum}>
+                          {isMarkingAddendum ? 'Marcando...' : 'Marcar'}
+                        </Button>
+                      </div>
+                    </form>
+                  </Form>
+                </DialogContent>
+              </Dialog>
             )}
           </div>
         );
@@ -412,50 +637,29 @@ export default function PaginaNegociacoesExtemporaneas() {
             Gerenciar negociações de procedimentos excepcionais fora dos contratos padrão
           </p>
         </div>
-        
-        {podeCriarNegociacao && (
-          <Link href="/negotiations/extemporaneous/new">
-            <Button>Criar Nova Solicitação</Button>
-          </Link>
-        )}
+        <Link href="/negotiations/extemporaneous/new">
+          <Button variant="default" size="lg" className="gap-2">
+            <PlusIcon className="w-4 h-4" /> Nova Negociação
+          </Button>
+        </Link>
       </div>
       
       <Card>
-        <CardHeader>
-          <CardTitle>Negociações</CardTitle>
-          <CardDescription>
-            Todas as negociações extemporâneas que necessitam de aprovação fora dos termos contratuais padrão
-          </CardDescription>
-          
-          <div className="flex flex-col sm:flex-row gap-4 mt-4">
-            <div className="w-full sm:w-auto">
-              <Input
-                placeholder="Pesquisar..."
-                value={termoBusca}
-                onChange={(e) => setTermoBusca(e.target.value)}
-                className="w-full"
-              />
-            </div>
-            
-            <div className="w-full sm:w-auto">
-              <Select
-                value={filtroEspecialidade}
-                onValueChange={setFiltroEspecialidade}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Filtrar por especialidade" />
-                </SelectTrigger>
-                <SelectContent>
-                  {especialidades.map((especialidade) => (
-                    <SelectItem key={especialidade} value={especialidade}>{especialidade}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Negociações</CardTitle>
+            <CardDescription>
+              Todas as negociações extemporâneas que necessitam de aprovação fora dos termos contratuais padrão
+            </CardDescription>
           </div>
+          <Link href="/negotiations/extemporaneous/new">
+            <Button variant="outline" size="sm" className="gap-2">
+              <PlusIcon className="w-4 h-4" /> Nova
+            </Button>
+          </Link>
         </CardHeader>
         <CardContent>
-          {carregando ? (
+          {queryLoading ? (
             <div className="flex justify-center items-center p-8">
               <LoadingSpinner size="lg" />
             </div>
@@ -479,7 +683,7 @@ export default function PaginaNegociacoesExtemporaneas() {
               <TabsContent value="pending">
                 {negociacoesPendentes.length > 0 ? (
                   <DataTable 
-                    columns={colunas} 
+                    columns={columns} 
                     data={negociacoesPendentes}
                   />
                 ) : (
@@ -490,7 +694,7 @@ export default function PaginaNegociacoesExtemporaneas() {
               <TabsContent value="approved">
                 {negociacoesAprovadas.length > 0 ? (
                   <DataTable 
-                    columns={colunas} 
+                    columns={columns} 
                     data={negociacoesAprovadas}
                   />
                 ) : (
@@ -501,7 +705,7 @@ export default function PaginaNegociacoesExtemporaneas() {
               <TabsContent value="rejected">
                 {negociacoesRejeitadas.length > 0 ? (
                   <DataTable 
-                    columns={colunas} 
+                    columns={columns} 
                     data={negociacoesRejeitadas}
                   />
                 ) : (
@@ -512,7 +716,7 @@ export default function PaginaNegociacoesExtemporaneas() {
               <TabsContent value="all">
                 {negociacoes.length > 0 ? (
                   <DataTable 
-                    columns={colunas} 
+                    columns={columns} 
                     data={negociacoes}
                   />
                 ) : (

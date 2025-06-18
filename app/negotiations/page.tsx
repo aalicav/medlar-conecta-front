@@ -70,6 +70,7 @@ import {
 } from '@/components/ui/pagination';
 import { useAuth } from '@/contexts/auth-context';
 import { NegotiationItemActions } from '@/app/negotiations/components/NegotiationItemActions';
+import { NegotiationActions } from '@/app/negotiations/components/NegotiationActions';
 import {
   Dialog,
   DialogContent,
@@ -124,22 +125,35 @@ const statusLabels: Record<NegotiationStatus, string> = {
   submitted: 'Enviado para Entidade',
   pending: 'Em Análise Interna',
   approved: 'Aprovado Internamente',
-  completed: 'Aprovado pela Entidade',
+  complete: 'Aprovado pela Entidade',
   partially_complete: 'Parcialmente Aprovado pela Entidade',
   partially_approved: 'Parcialmente Aprovado',
   rejected: 'Rejeitado',
-  cancelled: 'Cancelado'
+  cancelled: 'Cancelado',
+  forked: 'Negociação Bifurcada',
+  expired: 'Negociação Expirada',
+  pending_approval: 'Aguardando Aprovação',
+  pending_director_approval: 'Aguardando Aprovação da Direção'
 };
 
 // Updated status variant mapping
 const getStatusVariant = (status: NegotiationStatus): "default" | "secondary" | "destructive" | "outline" | null | "success" | "warning" => {
   switch (status) {
     case 'approved':
+    case 'complete':
       return 'success';
     case 'rejected':
       return 'destructive';
     case 'pending':
+    case 'pending_approval':
+    case 'pending_director_approval':
       return 'warning';
+    case 'partially_complete':
+    case 'partially_approved':
+      return 'warning';
+    case 'forked':
+    case 'expired':
+      return 'secondary';
     default:
       return 'secondary';
   }
@@ -151,12 +165,12 @@ const getStatusDescription = (status: NegotiationStatus): string => {
     case 'draft':
       return 'Rascunho inicial aguardando envio para aprovação interna';
     case 'submitted':
-      return 'Em análise pela entidade, aguardando respostas para envio à aprovação interna';
+      return 'Enviado para a entidade, aguardando respostas';
     case 'pending':
       return 'Em análise interna para aprovação';
     case 'approved':
-      return 'Aprovado internamente, negociação enviada automaticamente à entidade para aprovação final';
-    case 'completed':
+      return 'Aprovado internamente, aguardando aprovação da entidade';
+    case 'complete':
       return 'Aprovado pela entidade (aprovação completa)';
     case 'partially_complete':
       return 'Parcialmente aprovado pela entidade';
@@ -166,6 +180,14 @@ const getStatusDescription = (status: NegotiationStatus): string => {
       return 'Rejeitado internamente ou pela entidade';
     case 'cancelled':
       return 'Cancelado manualmente';
+    case 'forked':
+      return 'Negociação bifurcada em múltiplas';
+    case 'expired':
+      return 'Negociação expirada por limite de tempo';
+    case 'pending_approval':
+      return 'Aguardando aprovação interna';
+    case 'pending_director_approval':
+      return 'Aguardando aprovação da direção';
     default:
       return 'Status desconhecido';
   }
@@ -185,7 +207,8 @@ export default function NegotiationsPage() {
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 1,
-    perPage: 10
+    perPage: 10,
+    total: 0
   });
   const [selectedNegotiation, setSelectedNegotiation] = useState<Negotiation | null>(null);
   const [showForkDialog, setShowForkDialog] = useState(false);
@@ -218,9 +241,10 @@ export default function NegotiationsPage() {
       if (response?.meta) {
         setPagination(prev => ({
           ...prev,
-          currentPage: response.meta.current_page || 1,
-          totalPages: response.meta.last_page || 1,
-          perPage: response.meta.per_page || 10
+          currentPage: response.meta?.current_page || 1,
+          totalPages: response.meta?.last_page || 1,
+          perPage: response.meta?.per_page || 10,
+          total: response.meta?.total || 0
         }));
       }
     } catch (error) {
@@ -374,12 +398,20 @@ export default function NegotiationsPage() {
   };
 
   const canApproveInternally = useCallback(() => {
+    if (!user) return false;
+    
+    // Super admin pode aprovar sua própria negociação
+    if (user.roles.includes('super_admin' as Role)) return true;
+    
     const allowedRoles: Role[] = ['commercial_manager', 'super_admin', 'director'];
     return user?.roles.some(role => allowedRoles.includes(role as Role));
   }, [user]);
 
   const canApproveExternally = useCallback((negotiation: Negotiation) => {
     if (!user) return false;
+
+    // Super admin pode aprovar externamente qualquer negociação
+    if (user.roles.includes('super_admin' as Role)) return true;
 
     // Check if user belongs to the target entity
     const isTargetEntity = negotiation.negotiable_id === user.entity_id;
@@ -418,7 +450,7 @@ export default function NegotiationsPage() {
           approval_notes: approved ? 'Aprovado pela entidade' : 'Rejeitado pela entidade',
           approved_items: negotiation.items.map(item => ({
             item_id: item.id,
-            approved_value: item.proposed_value
+            approved_value: Number(item.proposed_value)
           }))
         });
         
@@ -463,10 +495,10 @@ export default function NegotiationsPage() {
       if (response?.meta) {
         setPagination(prev => ({
           ...prev,
-          currentPage: response.meta.current_page || 1,
-          totalPages: response.meta.last_page || 1,
-          perPage: response.meta.per_page || 10,
-          total: response.meta.total || 0
+          currentPage: response.meta?.current_page || 1,
+          totalPages: response.meta?.last_page || 1,
+          perPage: response.meta?.per_page || 10,
+          total: response.meta?.total || 0
         }));
       }
     } catch (error) {
@@ -647,21 +679,15 @@ export default function NegotiationsPage() {
               <TooltipContent>Ver detalhes</TooltipContent>
             </Tooltip>
 
-            {negotiation.status === "pending" && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => router.push(`/negotiations/${negotiation.id}/edit`)}
-                  >
-                    <Edit className="h-4 w-4" />
-                    <span className="sr-only">Editar</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Editar negociação</TooltipContent>
-              </Tooltip>
-            )}
+            <NegotiationActions
+              negotiation={negotiation}
+              onActionComplete={loadNegotiations}
+              onShowForkDialog={(negotiation) => {
+                setSelectedNegotiation(negotiation);
+                setSelectedItems([]);
+                setShowForkDialog(true);
+              }}
+            />
           </div>
         );
       },
