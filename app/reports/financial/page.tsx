@@ -67,7 +67,7 @@ export default function FinancialReportsPage() {
       
       params.include_summary = true;
       
-      const response = await api.get('/reports'/financials', { params });
+      const response = await api.get('/reports/financials', { params });
       
       if (response.data.status === 'success') {
         setReportData(response.data.data);

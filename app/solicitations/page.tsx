@@ -640,19 +640,12 @@ export default function SolicitationsPage() {
                 </DropdownMenuItem>
               )}
               
-              {solicitation.status === "failed" && (
-                <DropdownMenuItem onClick={() => handleScheduleRequest(solicitation)}>
-                  <Calendar className="h-4 w-4 mr-2" />
-                  Agendar manualmente
-                </DropdownMenuItem>
-              )}
-              
-              {solicitation.status === "failed" && (
+              {/* {solicitation.status === "failed" && (
                 <DropdownMenuItem onClick={() => handleRetryScheduling(solicitation.id)}>
                   <AlertCircle className="h-4 w-4 mr-2" />
                   Tentar novamente
                 </DropdownMenuItem>
-              )}
+              )} */}
 
               {(hasRole('network_manager') || hasRole('super_admin')) && (
                 <DropdownMenuItem onClick={() => handleCreateAppointmentFromList(solicitation.id)}>

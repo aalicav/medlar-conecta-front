@@ -282,16 +282,10 @@ export default function SolicitationDetailsPage() {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Voltar
           </Button>
-          {canEdit && (
+          {canEdit && solicitation.status === "pending" && (
             <Button variant="outline" onClick={() => router.push(`/solicitations/${solicitation.id}/edit`)}>
               <Edit className="h-4 w-4 mr-2" />
               Editar
-            </Button>
-          )}
-          {canSchedule && (
-            <Button variant="outline" onClick={() => router.push(`/appointments/new?solicitation_id=${solicitation.id}`)}>
-              <Calendar className="h-4 w-4 mr-2" />
-              Agendar
             </Button>
           )}
         </div>
