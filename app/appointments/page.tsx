@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Checkbox } from "@/components/ui/checkbox"
 import api from "@/services/api-client"
+import { AppointmentModal } from "@/components/appointments/appointment-modal"
 
 interface Appointment {
   id: number
@@ -294,6 +295,39 @@ interface ProfessionalAvailability {
   }
 }
 
+interface Professional {
+  id: number
+  name: string
+  cpf: string
+  professional_type: string
+  professional_id: number | null
+  specialty: string
+  registration_number: string | null
+  registration_state: string | null
+  clinic_id: number | null
+  bio: string | null
+  photo: string | null
+  status: string
+  approved_at: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  addresses: Address[]
+}
+
+interface Address {
+  id: number
+  street: string
+  number: string
+  complement: string | null
+  neighborhood: string
+  city: string
+  state: string
+  postal_code: string
+  is_primary: boolean
+  full_address: string
+}
+
 export default function AppointmentsPage() {
   const router = useRouter()
   const [data, setData] = useState<Appointment[]>([])
@@ -341,6 +375,15 @@ export default function AppointmentsPage() {
   const [selectedAppointmentForResend, setSelectedAppointmentForResend] = useState<Appointment | null>(null)
   const [selectedNotificationTypes, setSelectedNotificationTypes] = useState<string[]>([])
   const [isResendingNotifications, setIsResendingNotifications] = useState(false)
+
+  const [showDirectScheduling, setShowDirectScheduling] = useState(false)
+  const [directSchedulingDate, setDirectSchedulingDate] = useState("")
+  const [directSchedulingTime, setDirectSchedulingTime] = useState("")
+  const [selectedProviderId, setSelectedProviderId] = useState<number | null>(null)
+  const [professionals, setProfessionals] = useState<Professional[]>([])
+  const [selectedProvider, setSelectedProvider] = useState<Professional | null>(null)
+
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false)
 
   const fetchData = async () => {
     setIsLoading(true)
@@ -483,18 +526,8 @@ export default function AppointmentsPage() {
   }
 
   const handleSelectAvailability = (availability: ProfessionalAvailability) => {
-    setSelectedAvailability(availability)
-    setSelectedAddressId(null)
-    setCustomAddress({
-      street: '',
-      number: '',
-      complement: '',
-      neighborhood: '',
-      city: '',
-      state: '',
-      postal_code: ''
-    })
-    setShowAddressModal(true)
+    if (!selectedSolicitation) return
+    setShowAppointmentModal(true)
   }
 
   const handleSearchCep = async (cep: string) => {
@@ -957,6 +990,56 @@ export default function AppointmentsPage() {
     },
   ]
 
+  // Função para buscar profissionais quando uma solicitação é selecionada no modo direto
+  const fetchProfessionals = async (solicitationId: number) => {
+    try {
+      const response = await api.get(`/solicitations/${solicitationId}/available-professionals`)
+      setProfessionals(response.data.data)
+    } catch (error) {
+      console.error("Error fetching professionals:", error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os profissionais",
+        variant: "destructive"
+      })
+    }
+  }
+
+  // Função para buscar detalhes do profissional selecionado
+  const fetchProviderDetails = async (providerId: number) => {
+    try {
+      const response = await api.get(`/professionals/${providerId}`)
+      setSelectedProvider(response.data.data)
+    } catch (error) {
+      console.error("Error fetching provider details:", error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os detalhes do profissional",
+        variant: "destructive"
+      })
+    }
+  }
+
+  // Função para criar agendamento direto
+  const handleCreateDirectAppointment = () => {
+    if (!selectedSolicitation) return
+    setShowAppointmentModal(true)
+  }
+
+  // Atualizar useEffect para carregar profissionais quando uma solicitação é selecionada no modo direto
+  useEffect(() => {
+    if (selectedSolicitation && showDirectScheduling) {
+      fetchProfessionals(selectedSolicitation.id)
+    }
+  }, [selectedSolicitation, showDirectScheduling])
+
+  // Atualizar useEffect para carregar detalhes do profissional quando selecionado
+  useEffect(() => {
+    if (selectedProviderId) {
+      fetchProviderDetails(selectedProviderId)
+    }
+  }, [selectedProviderId])
+
   return (
     <TooltipProvider>
       <div className="space-y-6">
@@ -976,156 +1059,410 @@ export default function AppointmentsPage() {
               <DialogHeader>
                 <DialogTitle>Novo Agendamento</DialogTitle>
                 <DialogDescription>
-                  Selecione uma solicitação para ver as disponibilidades dos profissionais
+                  Escolha o método de agendamento
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <h3 className="font-medium text-sm">Solicitações Pendentes</h3>
-                  <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
-                    {solicitations.map((solicitation) => (
-                      <Card
-                        key={solicitation.id}
-                        className={`cursor-pointer transition-colors ${
-                          selectedSolicitation?.id === solicitation.id
-                            ? "border-primary"
-                            : "hover:border-muted-foreground"
-                        }`}
-                        onClick={() => {
-                          setSelectedSolicitation(solicitation)
-                          fetchAvailabilities(solicitation.id)
-                        }}
-                      >
-                        <CardContent className="p-3">
-                          <div className="space-y-1.5 text-xs">
-                            <div className="flex justify-between items-start gap-2">
-                              <div className="min-w-0">
-                                <div className="font-medium text-sm truncate">{solicitation.patient?.name || 'Paciente não especificado'}</div>
-                                <div className="text-muted-foreground truncate">
-                                  CPF: {solicitation.patient?.cpf || '-'} • {solicitation.patient?.age || '-'} anos
-                                </div>
-                              </div>
-                              <Badge variant="outline" className="text-xs shrink-0">
-                                {solicitation.health_plan?.name || 'Plano não especificado'}
-                              </Badge>
-                            </div>
 
-                            <div className="grid grid-cols-2 gap-1.5">
-                              <div className="truncate">
-                                <span className="font-medium">Plano:</span> {solicitation.health_plan?.name || '-'}
-                                <div className="text-muted-foreground truncate">
-                                  ANS: {solicitation.health_plan?.ans_code || '-'}
-                                </div>
-                              </div>
-                              <div className="truncate">
-                                <span className="font-medium">Carteira:</span> {solicitation.patient?.health_card_number || '-'}
-                              </div>
-                            </div>
+              <div className="flex items-center space-x-2 mb-4">
+                <Label htmlFor="scheduling-type">Tipo de Agendamento:</Label>
+                <Select
+                  onValueChange={(value) => {
+                    if (value === 'direct') {
+                      setShowDirectScheduling(true)
+                      setSelectedSolicitation(null)
+                      setAvailabilities([])
+                    } else {
+                      setShowDirectScheduling(false)
+                    }
+                  }}
+                  defaultValue="availability"
+                >
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Selecione o método" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="availability">Por Disponibilidade</SelectItem>
+                    <SelectItem value="direct">Agendamento Direto</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-                            <div className="truncate">
-                              <span className="font-medium">Procedimento:</span> {solicitation.tuss?.description || '-'}
-                              <div className="text-muted-foreground truncate">
-                                Código TUSS: {solicitation.tuss?.code || '-'}
-                              </div>
-                            </div>
-
-                            {solicitation.description && (
-                              <div className="truncate">
-                                <span className="font-medium">Observação:</span> {solicitation.description}
-                              </div>
-                            )}
-
-                            <div className="truncate">
-                              <span className="font-medium">Solicitado por:</span> {solicitation.requested_by_user?.name || '-'}
-                              <div className="text-muted-foreground truncate">
-                                {solicitation.requested_by_user?.email || '-'}
-                              </div>
-                            </div>
-
-                            <div className="truncate">
-                              <span className="font-medium">Prioridade:</span> {solicitation.priority || '-'}
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                    {solicitations.length === 0 && (
-                      <div className="text-center text-muted-foreground py-4 text-sm">
-                        Nenhuma solicitação pendente
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <h3 className="font-medium text-sm">Disponibilidades</h3>
-                  <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
-                    {selectedSolicitation ? (
-                      availabilities.map((availability) => (
-                        <Card key={availability.id}>
+              {!showDirectScheduling ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <h3 className="font-medium text-sm">Solicitações Pendentes</h3>
+                    <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
+                      {solicitations.map((solicitation) => (
+                        <Card
+                          key={solicitation.id}
+                          className={`cursor-pointer transition-colors ${
+                            selectedSolicitation?.id === solicitation.id
+                              ? "border-primary"
+                              : "hover:border-muted-foreground"
+                          }`}
+                          onClick={() => {
+                            setSelectedSolicitation(solicitation)
+                            if (!showDirectScheduling) {
+                              fetchAvailabilities(solicitation.id)
+                            }
+                          }}
+                        >
                           <CardContent className="p-3">
-                            <div className="space-y-2">
+                            <div className="space-y-1.5 text-xs">
                               <div className="flex justify-between items-start gap-2">
                                 <div className="min-w-0">
-                                  <div className="font-medium text-sm truncate">
-                                    {availability.provider?.name || 'Profissional não especificado'}
+                                  <div className="font-medium text-sm truncate">{solicitation.patient?.name || 'Paciente não especificado'}</div>
+                                  <div className="text-muted-foreground truncate">
+                                    CPF: {solicitation.patient?.cpf || '-'} • {solicitation.patient?.age || '-'} anos
                                   </div>
-                                  <div className="text-xs text-muted-foreground">
-                                    {formatDateTime(availability.available_date)} às{" "}
-                                    {availability.available_time}
-                                  </div>
-                                  {availability.price && (
-                                    <div className="text-sm font-semibold text-green-600 mt-1">
-                                      R$ {availability.price.toFixed(2)}
-                                    </div>
-                                  )}
-                                  {availability.provider?.addresses && availability.provider.addresses.length > 0 && (
-                                    <div className="text-xs text-muted-foreground mt-1">
-                                      <span className="font-medium">Endereços disponíveis:</span> {availability.provider.addresses.length}
-                                    </div>
-                                  )}
                                 </div>
-                                {getStatusBadge(availability.status)}
+                                <Badge variant="outline" className="text-xs shrink-0">
+                                  {solicitation.health_plan?.name || 'Plano não especificado'}
+                                </Badge>
                               </div>
 
-                              {availability.notes && (
-                                <div className="text-xs text-muted-foreground truncate">
-                                  {availability.notes}
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <div className="truncate">
+                                  <span className="font-medium">Plano:</span> {solicitation.health_plan?.name || '-'}
+                                  <div className="text-muted-foreground truncate">
+                                    ANS: {solicitation.health_plan?.ans_code || '-'}
+                                  </div>
+                                </div>
+                                <div className="truncate">
+                                  <span className="font-medium">Carteira:</span> {solicitation.patient?.health_card_number || '-'}
+                                </div>
+                              </div>
+
+                              <div className="truncate">
+                                <span className="font-medium">Procedimento:</span> {solicitation.tuss?.description || '-'}
+                                <div className="text-muted-foreground truncate">
+                                  Código TUSS: {solicitation.tuss?.code || '-'}
+                                </div>
+                              </div>
+
+                              {solicitation.description && (
+                                <div className="truncate">
+                                  <span className="font-medium">Observação:</span> {solicitation.description}
                                 </div>
                               )}
 
-                              {availability.pricing_contract?.notes && (
-                                <div className="text-xs text-muted-foreground truncate">
-                                  <span className="font-medium">Observações do Preço:</span> {availability.pricing_contract.notes}
+                              <div className="truncate">
+                                <span className="font-medium">Solicitado por:</span> {solicitation.requested_by_user?.name || '-'}
+                                <div className="text-muted-foreground truncate">
+                                  {solicitation.requested_by_user?.email || '-'}
                                 </div>
-                              )}
+                              </div>
 
-                              {availability.status === "pending" && (
-                                <Button
-                                  className="w-full text-xs h-8"
-                                  onClick={() => handleSelectAvailability(availability)}
-                                  disabled={isActionLoading}
-                                >
-                                  {isActionLoading ? "Criando..." : "Criar Agendamento"}
-                                </Button>
-                              )}
+                              <div className="truncate">
+                                <span className="font-medium">Prioridade:</span> {solicitation.priority || '-'}
+                              </div>
                             </div>
                           </CardContent>
                         </Card>
-                      ))
-                    ) : (
-                      <div className="text-center text-muted-foreground py-4 text-sm">
-                        Selecione uma solicitação para ver as disponibilidades
-                      </div>
-                    )}
-                    {selectedSolicitation && availabilities.length === 0 && (
-                      <div className="text-center text-muted-foreground py-4 text-sm">
-                        Nenhuma disponibilidade registrada
-                      </div>
-                    )}
+                      ))}
+                      {solicitations.length === 0 && (
+                        <div className="text-center text-muted-foreground py-4 text-sm">
+                          Nenhuma solicitação pendente
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h3 className="font-medium text-sm">Disponibilidades</h3>
+                    <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
+                      {selectedSolicitation ? (
+                        availabilities.map((availability) => (
+                          <Card key={availability.id}>
+                            <CardContent className="p-3">
+                              <div className="space-y-2">
+                                <div className="flex justify-between items-start gap-2">
+                                  <div className="min-w-0">
+                                    <div className="font-medium text-sm truncate">
+                                      {availability.provider?.name || 'Profissional não especificado'}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {formatDateTime(availability.available_date)} às{" "}
+                                      {availability.available_time}
+                                    </div>
+                                    {availability.price && (
+                                      <div className="text-sm font-semibold text-green-600 mt-1">
+                                        R$ {availability.price.toFixed(2)}
+                                      </div>
+                                    )}
+                                    {availability.provider?.addresses && availability.provider.addresses.length > 0 && (
+                                      <div className="text-xs text-muted-foreground mt-1">
+                                        <span className="font-medium">Endereços disponíveis:</span> {availability.provider.addresses.length}
+                                      </div>
+                                    )}
+                                  </div>
+                                  {getStatusBadge(availability.status)}
+                                </div>
+
+                                {availability.notes && (
+                                  <div className="text-xs text-muted-foreground truncate">
+                                    {availability.notes}
+                                  </div>
+                                )}
+
+                                {availability.pricing_contract?.notes && (
+                                  <div className="text-xs text-muted-foreground truncate">
+                                    <span className="font-medium">Observações do Preço:</span> {availability.pricing_contract.notes}
+                                  </div>
+                                )}
+
+                                {availability.status === "pending" && (
+                                  <Button
+                                    className="w-full text-xs h-8"
+                                    onClick={() => handleSelectAvailability(availability)}
+                                    disabled={isActionLoading}
+                                  >
+                                    {isActionLoading ? "Criando..." : "Criar Agendamento"}
+                                  </Button>
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))
+                      ) : (
+                        <div className="text-center text-muted-foreground py-4 text-sm">
+                          Selecione uma solicitação para ver as disponibilidades
+                        </div>
+                      )}
+                      {selectedSolicitation && availabilities.length === 0 && (
+                        <div className="text-center text-muted-foreground py-4 text-sm">
+                          Nenhuma disponibilidade registrada
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <h3 className="font-medium text-sm">Solicitação</h3>
+                    <div className="space-y-2 max-h-[30vh] overflow-y-auto pr-2">
+                      {solicitations.map((solicitation) => (
+                        <Card
+                          key={solicitation.id}
+                          className={`cursor-pointer transition-colors ${
+                            selectedSolicitation?.id === solicitation.id
+                              ? "border-primary"
+                              : "hover:border-muted-foreground"
+                          }`}
+                          onClick={() => setSelectedSolicitation(solicitation)}
+                        >
+                          <CardContent className="p-3">
+                            <div className="space-y-1.5 text-xs">
+                              <div className="flex justify-between items-start gap-2">
+                                <div className="min-w-0">
+                                  <div className="font-medium text-sm truncate">{solicitation.patient?.name || 'Paciente não especificado'}</div>
+                                  <div className="text-muted-foreground truncate">
+                                    CPF: {solicitation.patient?.cpf || '-'} • {solicitation.patient?.age || '-'} anos
+                                  </div>
+                                </div>
+                                <Badge variant="outline" className="text-xs shrink-0">
+                                  {solicitation.health_plan?.name || 'Plano não especificado'}
+                                </Badge>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <div className="truncate">
+                                  <span className="font-medium">Plano:</span> {solicitation.health_plan?.name || '-'}
+                                  <div className="text-muted-foreground truncate">
+                                    ANS: {solicitation.health_plan?.ans_code || '-'}
+                                  </div>
+                                </div>
+                                <div className="truncate">
+                                  <span className="font-medium">Carteira:</span> {solicitation.patient?.health_card_number || '-'}
+                                </div>
+                              </div>
+
+                              <div className="truncate">
+                                <span className="font-medium">Procedimento:</span> {solicitation.tuss?.description || '-'}
+                                <div className="text-muted-foreground truncate">
+                                  Código TUSS: {solicitation.tuss?.code || '-'}
+                                </div>
+                              </div>
+
+                              {solicitation.description && (
+                                <div className="truncate">
+                                  <span className="font-medium">Observação:</span> {solicitation.description}
+                                </div>
+                              )}
+
+                              <div className="truncate">
+                                <span className="font-medium">Solicitado por:</span> {solicitation.requested_by_user?.name || '-'}
+                                <div className="text-muted-foreground truncate">
+                                  {solicitation.requested_by_user?.email || '-'}
+                                </div>
+                              </div>
+
+                              <div className="truncate">
+                                <span className="font-medium">Prioridade:</span> {solicitation.priority || '-'}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+
+                  {selectedSolicitation && (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Data e Hora</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                            type="date"
+                            min={new Date().toISOString().split('T')[0]}
+                            onChange={(e) => setDirectSchedulingDate(e.target.value)}
+                          />
+                          <Input
+                            type="time"
+                            onChange={(e) => setDirectSchedulingTime(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Profissional</Label>
+                        <Select onValueChange={(value) => setSelectedProviderId(Number(value))}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o profissional" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {professionals.map((professional) => (
+                              <SelectItem key={professional.id} value={professional.id.toString()}>
+                                {professional.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Endereço</Label>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label>Usar endereço existente</Label>
+                            {selectedProvider?.addresses?.map((address: Address) => (
+                              <Card
+                                key={address.id}
+                                className={`cursor-pointer mt-2 transition-colors ${
+                                  selectedAddressId === address.id
+                                    ? "border-primary"
+                                    : "hover:border-muted-foreground"
+                                }`}
+                                onClick={() => {
+                                  setSelectedAddressId(address.id)
+                                  setCustomAddress({
+                                    street: '',
+                                    number: '',
+                                    complement: '',
+                                    neighborhood: '',
+                                    city: '',
+                                    state: '',
+                                    postal_code: ''
+                                  })
+                                }}
+                              >
+                                <CardContent className="p-3">
+                                  <div className="space-y-1">
+                                    <div className="text-sm font-medium">
+                                      {address.street}, {address.number}
+                                      {address.is_primary && (
+                                        <Badge variant="outline" className="ml-2 text-xs">Principal</Badge>
+                                      )}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {address.complement && `${address.complement}, `}
+                                      {address.neighborhood} - {address.city}/{address.state}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      CEP: {address.postal_code}
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+
+                          <div>
+                            <Label>Ou usar endereço personalizado</Label>
+                            <div className="space-y-2 mt-2">
+                              <Input
+                                placeholder="CEP"
+                                value={customAddress.postal_code}
+                                onChange={(e) => {
+                                  const cep = e.target.value.replace(/\D/g, '')
+                                  setCustomAddress(prev => ({ ...prev, postal_code: cep }))
+                                  if (cep.length === 8) {
+                                    handleSearchCep(cep)
+                                  }
+                                }}
+                                maxLength={8}
+                              />
+                              <Input
+                                placeholder="Rua"
+                                value={customAddress.street}
+                                onChange={(e) => setCustomAddress(prev => ({ ...prev, street: e.target.value }))}
+                              />
+                              <div className="grid grid-cols-2 gap-2">
+                                <Input
+                                  placeholder="Número"
+                                  value={customAddress.number}
+                                  onChange={(e) => setCustomAddress(prev => ({ ...prev, number: e.target.value }))}
+                                />
+                                <Input
+                                  placeholder="Complemento"
+                                  value={customAddress.complement}
+                                  onChange={(e) => setCustomAddress(prev => ({ ...prev, complement: e.target.value }))}
+                                />
+                              </div>
+                              <Input
+                                placeholder="Bairro"
+                                value={customAddress.neighborhood}
+                                onChange={(e) => setCustomAddress(prev => ({ ...prev, neighborhood: e.target.value }))}
+                              />
+                              <div className="grid grid-cols-2 gap-2">
+                                <Input
+                                  placeholder="Cidade"
+                                  value={customAddress.city}
+                                  onChange={(e) => setCustomAddress(prev => ({ ...prev, city: e.target.value }))}
+                                />
+                                <Input
+                                  placeholder="Estado"
+                                  value={customAddress.state}
+                                  onChange={(e) => setCustomAddress(prev => ({ ...prev, state: e.target.value }))}
+                                  maxLength={2}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Button 
+                        className="w-full"
+                        onClick={handleCreateDirectAppointment}
+                        disabled={
+                          !selectedSolicitation ||
+                          !directSchedulingDate ||
+                          !directSchedulingTime ||
+                          !selectedProviderId ||
+                          (!selectedAddressId && (!customAddress.street || !customAddress.number))
+                        }
+                      >
+                        {isActionLoading ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : null}
+                        Criar Agendamento
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
             </DialogContent>
           </Dialog>
         </div>
@@ -1247,6 +1584,18 @@ export default function AppointmentsPage() {
           totalItems={pagination.total}
           isLoading={isLoading}
         />
+
+        <AppointmentModal
+          open={showAppointmentModal}
+          onOpenChange={setShowAppointmentModal}
+          selectedSolicitation={selectedSolicitation}
+          onSuccess={() => {
+            setShowAppointmentModal(false)
+            setShowAvailabilities(false)
+            fetchData()
+          }}
+          showDirectScheduling={showDirectScheduling}
+        />
       </div>
 
       {/* Address Selection Modal */}
@@ -1278,7 +1627,7 @@ export default function AppointmentsPage() {
                 <div className="space-y-3">
                   <h3 className="font-medium text-sm">Endereços Disponíveis</h3>
                   <div className="space-y-2">
-                    {selectedAvailability.provider.addresses.map((address) => (
+                    {selectedAvailability.provider.addresses.map((address: Address) => (
                       <Card
                         key={address.id}
                         className={`cursor-pointer transition-colors ${

@@ -99,14 +99,19 @@ export default function SolicitationDetailsPage() {
     setIsLoading(true)
     try {
       const response = await api.get(`/solicitations/${solicitationId}`)
-      setSolicitation(response.data.data)
-    } catch (error) {
+      if (response.data.success) {
+        setSolicitation(response.data.data)
+      } else {
+        throw new Error(response.data.message || 'Erro ao carregar solicitação')
+      }
+    } catch (error: any) {
       console.error("Error fetching solicitation:", error)
       toast({
         title: "Erro",
-        description: "Não foi possível carregar os dados da solicitação",
+        description: error.response?.data?.message || "Não foi possível carregar os dados da solicitação",
         variant: "destructive"
       })
+      router.push('/solicitations')
     } finally {
       setIsLoading(false)
     }
@@ -354,7 +359,7 @@ export default function SolicitationDetailsPage() {
             <div className="space-y-2">
               <div>
                 <Label>Nome</Label>
-                <p className="text-sm text-muted-foreground">{solicitation.patient.name}</p>
+                <p className="text-sm text-muted-foreground">{solicitation.patient?.name}</p>
               </div>
             </div>
           </CardContent>
