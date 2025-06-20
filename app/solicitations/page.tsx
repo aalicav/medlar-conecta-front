@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/data-table/data-table"
 import { Badge } from "@/components/ui/badge"
 import { fetchResource, type QueryParams, type SortOrder } from "@/services/resource-service"
-import { Plus, FileText, Edit, Calendar, AlertCircle, Loader2, MoreHorizontal, X, CalendarIcon, RefreshCw } from "lucide-react"
+import { Plus, FileText, Edit, Calendar, AlertCircle, Loader2, MoreHorizontal, RefreshCw } from "lucide-react"
 import type { ColumnDef } from "@tanstack/react-table"
-import { formatDate, formatCurrency, cn } from "@/lib/utils"
+import { formatDate } from "@/lib/utils"
 import { 
   Select,
   SelectContent,
@@ -18,8 +18,7 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import api from "@/services/api-client"
 import { toast } from "@/components/ui/use-toast"
 import {
@@ -31,41 +30,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
-import * as z from "zod"
-import { Calendar as CalendarComponent } from "@/components/ui/calendar"
-import { format } from "date-fns"
-import { ptBR } from "date-fns/locale"
-import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { useAuth } from "@/contexts/auth-context"
-import { AppointmentModal } from "@/components/appointments/appointment-modal"
+import { CreateAppointmentModal } from "@/components/appointments/create-appointment-modal"
 
 interface Solicitation {
   id: number
@@ -137,68 +107,6 @@ interface ExtendedQueryParams extends QueryParams {
   tuss_id?: string;
 }
 
-interface HealthPlan {
-  id: number;
-  name: string;
-}
-
-interface ProcedureWithPrice {
-  id: number;
-  tuss_procedure_id: number;
-  price: number;
-  procedure: {
-    id: number;
-    code: string;
-    name: string;
-    description: string;
-    category: string;
-  }
-}
-
-// Update the form schema
-const appointmentFormSchema = z.object({
-  provider_type: z.enum(["App\Models\Clinic", "App\Models\Professional"], {
-    required_error: "Tipo de provedor é obrigatório",
-  }),
-  provider_id: z.string({
-    required_error: "Provedor é obrigatório",
-  }),
-  scheduled_date: z.date({
-    required_error: "Data e hora são obrigatórios",
-  }),
-  location: z.string({
-    required_error: "Local é obrigatório",
-  }),
-  notes: z.string().optional(),
-});
-
-type AppointmentFormValues = z.infer<typeof appointmentFormSchema>;
-
-// Create interfaces for providers
-interface Clinic {
-  id: number;
-  name: string;
-}
-
-interface Professional {
-  id: number;
-  name: string;
-  specialties?: string[];
-}
-
-// Add interface for professional availability
-interface ProfessionalAvailability {
-  id: number;
-  professional: {
-    id: number;
-    name: string;
-  };
-  available_date: string;
-  available_time: string;
-  notes: string | null;
-  status: string;
-}
-
 export default function SolicitationsPage() {
   const router = useRouter()
   const { user, hasRole } = useAuth()
@@ -222,13 +130,7 @@ export default function SolicitationsPage() {
     created_from: "",
     created_to: "",
   })
-  const [selectedSolicitation, setSelectedSolicitation] = useState<Solicitation | null>(null);
-  const [showAppointmentModal, setShowAppointmentModal] = useState(false);
-  const [clinics, setClinics] = useState<Clinic[]>([]);
-  const [professionals, setProfessionals] = useState<Professional[]>([]);
-  const [isLoadingProviders, setIsLoadingProviders] = useState(false);
-  const [availabilities, setAvailabilities] = useState<ProfessionalAvailability[]>([]);
-  const [isLoadingAvailabilities, setIsLoadingAvailabilities] = useState(false);
+  const [showCreateAppointmentModal, setShowCreateAppointmentModal] = useState(false)
 
   const fetchData = async () => {
     setIsLoading(true)
@@ -382,135 +284,6 @@ export default function SolicitationsPage() {
     }
   }
 
-  // Create form
-  const appointmentForm = useForm<AppointmentFormValues>({
-    resolver: zodResolver(appointmentFormSchema),
-    defaultValues: {
-      provider_type: "App\Models\Clinic",
-      notes: "",
-    },
-  });
-
-  // Watch provider type to load the appropriate providers
-  const providerType = appointmentForm.watch("provider_type");
-
-  // Load providers based on provider type and tuss_id
-  useEffect(() => {
-    if (!showAppointmentModal || !selectedSolicitation) return;
-
-    const fetchProviders = async () => {
-      setIsLoadingProviders(true);
-      try {
-        if (providerType === "App\Models\Clinic") {
-          // Fetch clinics that offer the procedure
-          const response = await api.get(`/clinics`, {
-            params: {
-              tuss_id: selectedSolicitation.tuss_id,
-              status: 'approved',
-              per_page: 100,
-            }
-          });
-          
-          if (response.data.success) {
-            setClinics(response.data.data || []);
-          }
-        } else {
-          // Fetch professionals that offer the procedure
-          const response = await api.get(`/professionals`, {
-            params: {
-              tuss_id: selectedSolicitation.tuss_id,
-              status: 'approved',
-              per_page: 100,
-            }
-          });
-          
-          if (response.data.success) {
-            setProfessionals(response.data.data || []);
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching providers:', error);
-        toast({
-          title: "Erro",
-          description: "Não foi possível carregar os provedores",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoadingProviders(false);
-      }
-    };
-
-    fetchProviders();
-  }, [showAppointmentModal, selectedSolicitation, providerType]);
-
-  // Add function to fetch availabilities
-  const fetchAvailabilities = async (solicitationId: number) => {
-    setIsLoadingAvailabilities(true);
-    try {
-      const response = await api.get(`/solicitations/${solicitationId}/availabilities`);
-      if (response.data.success) {
-        setAvailabilities(response.data.data || []);
-      }
-    } catch (error) {
-      console.error("Error fetching availabilities:", error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível carregar as disponibilidades",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoadingAvailabilities(false);
-    }
-  };
-
-  // Handle form submission
-  const handleCreateAppointment = async (values: AppointmentFormValues) => {
-    if (!selectedSolicitation) return;
-    
-    try {
-      setIsLoading(true);
-      
-      const payload = {
-        solicitation_id: selectedSolicitation.id,
-        provider_type: values.provider_type,
-        provider_id: parseInt(values.provider_id),
-        scheduled_date: values.scheduled_date.toISOString(),
-        notes: values.notes,
-        location: values.location
-      };
-      
-      const response = await api.post('/appointments', payload);
-      
-      if (response.data.success) {
-        toast({
-          title: "Sucesso",
-          description: "Agendamento criado com sucesso"
-        });
-        
-        // Close modal and refresh data
-        setShowAppointmentModal(false);
-        fetchData();
-      } else {
-        throw new Error(response.data.message || "Erro ao criar agendamento");
-      }
-    } catch (error: any) {
-      console.error('Error creating appointment:', error);
-      toast({
-        title: "Erro",
-        description: error.response?.data?.message || "Erro ao criar agendamento",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Handle opening the appointment modal
-  const handleScheduleRequest = (solicitation: Solicitation) => {
-    setSelectedSolicitation(solicitation)
-    setShowAppointmentModal(true)
-  }
-
   const handleRetryScheduling = async (id: number) => {
     try {
       setIsLoading(true)
@@ -532,27 +305,6 @@ export default function SolicitationsPage() {
       setIsLoading(false)
     }
   }
-
-  // Update handleCreateAppointmentFromList
-  const handleCreateAppointmentFromList = async (solicitationId: number) => {
-    const solicitation = data.find(sol => sol.id === solicitationId);
-    if (solicitation) {
-      setSelectedSolicitation(solicitation);
-      setShowAppointmentModal(true);
-      
-      // Reset form
-      appointmentForm.reset({
-        provider_type: "App\Models\Clinic",
-        provider_id: "",
-        scheduled_date: new Date(),
-        location: "",
-        notes: "",
-      });
-
-      // Fetch availabilities
-      await fetchAvailabilities(solicitationId);
-    }
-  };
 
   const columns: ColumnDef<Solicitation>[] = [
     {
@@ -648,7 +400,7 @@ export default function SolicitationsPage() {
               )} */}
 
               {(hasRole('network_manager') || hasRole('super_admin')) && (
-                <DropdownMenuItem onClick={() => handleCreateAppointmentFromList(solicitation.id)}>
+                <DropdownMenuItem onClick={() => setShowCreateAppointmentModal(true)}>
                   <Calendar className="h-4 w-4 mr-2" />
                   Criar Agendamento
                 </DropdownMenuItem>
@@ -827,16 +579,14 @@ export default function SolicitationsPage() {
         isLoading={isLoading}
       />
       
-      {/* Add the AppointmentModal */}
-      <AppointmentModal
-        open={showAppointmentModal}
-        onOpenChange={setShowAppointmentModal}
-        selectedSolicitation={selectedSolicitation}
+      {/* Use the CreateAppointmentModal */}
+      <CreateAppointmentModal
+        open={showCreateAppointmentModal}
+        onOpenChange={setShowCreateAppointmentModal}
         onSuccess={() => {
-          setShowAppointmentModal(false)
+          setShowCreateAppointmentModal(false)
           fetchData()
         }}
-        showDirectScheduling={true}
       />
     </div>
   )
