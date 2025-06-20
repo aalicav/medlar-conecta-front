@@ -123,7 +123,7 @@ export function Sidebar({ className, items }: SidebarProps) {
       title: "Configurações",
       href: "/health-plans/settings",
       icon: Settings,
-      roles: ["plan_admin"],
+      roles: [],
     },
     {
       title: "Cadastros",

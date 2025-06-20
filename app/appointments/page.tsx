@@ -52,6 +52,8 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import api from "@/services/api-client"
 import { AppointmentModal } from "@/components/appointments/appointment-modal"
+import { hasExternalOtelApiPackage } from "next/dist/build/webpack-config"
+import { useAuth } from "@/contexts/auth-context"
 
 interface Appointment {
   id: number
@@ -383,7 +385,9 @@ export default function AppointmentsPage() {
   const [professionals, setProfessionals] = useState<Professional[]>([])
   const [selectedProvider, setSelectedProvider] = useState<Professional | null>(null)
 
-  const [showAppointmentModal, setShowAppointmentModal] = useState(false)
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false);
+
+  const { hasPermission } = useAuth()
 
   const fetchData = async () => {
     setIsLoading(true)
@@ -1048,6 +1052,7 @@ export default function AppointmentsPage() {
             <h1 className="text-3xl font-bold tracking-tight">Agendamentos</h1>
             <p className="text-muted-foreground">Gerencie os agendamentos de procedimentos médicos</p>
           </div>
+            {hasPermission("create appointment") && (
           <Dialog open={showAvailabilities} onOpenChange={setShowAvailabilities}>
             <DialogTrigger asChild>
               <Button>
@@ -1464,7 +1469,7 @@ export default function AppointmentsPage() {
                 </div>
               )}
             </DialogContent>
-          </Dialog>
+          </Dialog>)}
         </div>
 
         <Card>
