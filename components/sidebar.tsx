@@ -117,7 +117,7 @@ export function Sidebar({ className, items }: SidebarProps) {
       title: "Documentos",
       href: "/health-plans/documents",
       icon: FileText,
-      roles: ["plan_admin"],
+      roles: [],
     },
     {
       title: "Configurações",
