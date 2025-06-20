@@ -67,7 +67,7 @@ export default function AppointmentGuidePage() {
       setIsLoading(true)
       try {
         const response = await apiClient.get(`/appointments/${appointmentId}`)
-        if (response.data.success) {
+        if (response.data) {
           setAppointment(response.data.data)
         } else {
           toast({

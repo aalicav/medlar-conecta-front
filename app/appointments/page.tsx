@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/data-table/data-table"
 import { Badge } from "@/components/ui/badge"
 import { fetchResource, type QueryParams } from "@/services/resource-service"
-import { Plus, FileText, Edit, CheckCircle, XCircle, Search, Calendar, Clock, Loader2 } from "lucide-react"
+import { Plus, FileText, Edit, CheckCircle, XCircle, Search, Calendar, Clock, Loader2, Receipt, MoreHorizontal, RefreshCw, Bell } from "lucide-react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { formatDateTime } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -30,6 +30,26 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Checkbox } from "@/components/ui/checkbox"
 import api from "@/services/api-client"
 
 interface Appointment {
@@ -313,6 +333,14 @@ export default function AppointmentsPage() {
     postal_code: ''
   })
   const [isSearchingCep, setIsSearchingCep] = useState(false)
+  const [isLoadingCep, setIsLoadingCep] = useState(false)
+  const [isGeneratingNFe, setIsGeneratingNFe] = useState(false)
+
+  // Resend notifications state
+  const [showResendDialog, setShowResendDialog] = useState(false)
+  const [selectedAppointmentForResend, setSelectedAppointmentForResend] = useState<Appointment | null>(null)
+  const [selectedNotificationTypes, setSelectedNotificationTypes] = useState<string[]>([])
+  const [isResendingNotifications, setIsResendingNotifications] = useState(false)
 
   const fetchData = async () => {
     setIsLoading(true)
@@ -570,23 +598,135 @@ export default function AppointmentsPage() {
   }
 
   const handleCancelAppointment = async (id: number) => {
+    if (!confirm("Tem certeza que deseja cancelar este agendamento?")) {
+      return
+    }
+
     setIsActionLoading(true)
     try {
-      await api.put(`/appointments/${id}/cancel`)
+      await api.post(`/appointments/${id}/cancel`, {
+        cancellation_reason: "Cancelado pelo usuário"
+      })
+      
       toast({
         title: "Sucesso",
-        description: "Agendamento cancelado com sucesso"
+        description: "Agendamento cancelado com sucesso",
       })
+      
       fetchData()
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error cancelling appointment:", error)
       toast({
         title: "Erro",
-        description: "Não foi possível cancelar o agendamento",
+        description: error.response?.data?.message || "Erro ao cancelar agendamento",
         variant: "destructive"
       })
     } finally {
       setIsActionLoading(false)
+    }
+  }
+
+  const handleGenerateNFe = async (appointmentId: number) => {
+    setIsGeneratingNFe(true)
+    try {
+      const response = await api.post(`/appointments/${appointmentId}/generate-nfe`)
+      
+      toast({
+        title: "Sucesso",
+        description: `Nota fiscal gerada com sucesso! Número: ${response.data.nfe_number}`,
+      })
+      
+      // Redirecionar para a página da NFe
+      window.open(`/health-plans/billing/nfe/${response.data.nfe_id}`, '_blank')
+      
+    } catch (error: any) {
+      console.error("Error generating NFe:", error)
+      
+      let errorMessage = "Erro ao gerar nota fiscal"
+      
+      if (error.response?.status === 400) {
+        if (error.response.data.message.includes('Já existe uma nota fiscal')) {
+          // Se já existe NFe, redirecionar para ela
+          window.open(`/health-plans/billing/nfe/${error.response.data.nfe_id}`, '_blank')
+          errorMessage = "Nota fiscal já existe para este agendamento"
+        } else {
+          errorMessage = error.response.data.message
+        }
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message
+      }
+      
+      toast({
+        title: "Erro",
+        description: errorMessage,
+        variant: "destructive"
+      })
+    } finally {
+      setIsGeneratingNFe(false)
+    }
+  }
+
+  const handleOpenResendDialog = (appointment: Appointment) => {
+    setSelectedAppointmentForResend(appointment)
+    
+    // Pre-select notification types based on appointment status
+    const availableTypes = []
+    if (appointment.status === 'scheduled') availableTypes.push('scheduled', 'reminder')
+    if (appointment.status === 'confirmed') availableTypes.push('confirmed', 'reminder')
+    if (appointment.status === 'completed') availableTypes.push('completed')
+    if (appointment.status === 'cancelled') availableTypes.push('cancelled')
+    if (appointment.status === 'missed') availableTypes.push('missed')
+    
+    setSelectedNotificationTypes(availableTypes.length > 0 ? [availableTypes[0]] : [])
+    setShowResendDialog(true)
+  }
+
+  const handleResendNotifications = async () => {
+    if (!selectedAppointmentForResend || selectedNotificationTypes.length === 0) {
+      toast({
+        title: "Erro",
+        description: "Selecione pelo menos um tipo de notificação",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setIsResendingNotifications(true)
+    try {
+      const response = await api.post(`/appointments/${selectedAppointmentForResend.id}/resend-notifications`, {
+        notification_types: selectedNotificationTypes
+      })
+      
+      const { sent_count, failed_count, sent_notifications, failed_notifications } = response.data.data
+      
+      if (sent_count > 0) {
+        toast({
+          title: "Sucesso",
+          description: `${sent_count} notificação(ões) reenviada(s) com sucesso`,
+        })
+      }
+      
+      if (failed_count > 0) {
+        const failedTypes = failed_notifications.map((f: any) => f.type).join(', ')
+        toast({
+          title: "Aviso",
+          description: `${failed_count} notificação(ões) falharam: ${failedTypes}`,
+          variant: "destructive"
+        })
+      }
+      
+      setShowResendDialog(false)
+      setSelectedAppointmentForResend(null)
+      setSelectedNotificationTypes([])
+    } catch (error: any) {
+      console.error("Error resending notifications:", error)
+      toast({
+        title: "Erro",
+        description: error.response?.data?.message || "Erro ao reenviar notificações",
+        variant: "destructive"
+      })
+    } finally {
+      setIsResendingNotifications(false)
     }
   }
 
@@ -717,72 +857,101 @@ export default function AppointmentsPage() {
       cell: ({ row }) => {
         const appointment = row.original
         return (
-          <div className="flex items-center space-x-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => router.push(`/appointments/${appointment.id}`)}
-                >
-                  <FileText className="h-4 w-4" />
-                  <span className="sr-only">Ver detalhes</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Ver detalhes</TooltipContent>
-            </Tooltip>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" disabled={isActionLoading}>
+                <MoreHorizontal className="h-4 w-4" />
+                <span className="sr-only">Abrir menu</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel>Ações</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              
+              <DropdownMenuItem
+                onClick={() => router.push(`/appointments/${appointment.id}`)}
+              >
+                <FileText className="mr-2 h-4 w-4" />
+                Ver Detalhes
+              </DropdownMenuItem>
 
-            {appointment.status === "scheduled" && (
-              <>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => router.push(`/appointments/${appointment.id}/edit`)}
-                      disabled={isActionLoading}
-                    >
-                      <Edit className="h-4 w-4" />
-                      <span className="sr-only">Editar</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Editar agendamento</TooltipContent>
-                </Tooltip>
+              {appointment.status === "scheduled" && (
+                <>
+                  <DropdownMenuItem
+                    onClick={() => router.push(`/appointments/${appointment.id}/edit`)}
+                    disabled={isActionLoading}
+                  >
+                    <Edit className="mr-2 h-4 w-4" />
+                    Editar
+                  </DropdownMenuItem>
 
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-success"
-                      onClick={() => handleConfirmAppointment(appointment.id)}
-                      disabled={isActionLoading}
-                    >
-                      <CheckCircle className="h-4 w-4" />
-                      <span className="sr-only">Confirmar</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Confirmar agendamento</TooltipContent>
-                </Tooltip>
+                  <DropdownMenuItem
+                    onClick={() => handleConfirmAppointment(appointment.id)}
+                    disabled={isActionLoading}
+                    className="text-green-600"
+                  >
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Confirmar
+                  </DropdownMenuItem>
 
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-destructive"
-                      onClick={() => handleCancelAppointment(appointment.id)}
-                      disabled={isActionLoading}
+                  <DropdownMenuItem
+                    onClick={() => handleCancelAppointment(appointment.id)}
+                    disabled={isActionLoading}
+                    className="text-red-600"
+                  >
+                    <XCircle className="mr-2 h-4 w-4" />
+                    Cancelar
+                  </DropdownMenuItem>
+                </>
+              )}
+
+              {appointment.status === "completed" && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <DropdownMenuItem
+                      onSelect={(e) => e.preventDefault()}
+                      disabled={isGeneratingNFe}
+                      className="text-blue-600"
                     >
-                      <XCircle className="h-4 w-4" />
-                      <span className="sr-only">Cancelar</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Cancelar agendamento</TooltipContent>
-                </Tooltip>
-              </>
-            )}
-          </div>
+                      {isGeneratingNFe ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Receipt className="mr-2 h-4 w-4" />
+                      )}
+                      Gerar NFe
+                    </DropdownMenuItem>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Gerar Nota Fiscal</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Tem certeza que deseja gerar uma nota fiscal para este agendamento? 
+                        Esta ação criará uma nota fiscal eletrônica baseada nos dados do procedimento.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => handleGenerateNFe(appointment.id)}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        Gerar NFe
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => handleOpenResendDialog(appointment)}
+                className="text-orange-600"
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Reenviar Notificações
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )
       },
     },
@@ -1263,6 +1432,179 @@ export default function AppointmentsPage() {
             >
               {isActionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Criar Agendamento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Resend Notifications Dialog */}
+      <Dialog open={showResendDialog} onOpenChange={setShowResendDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reenviar Notificações</DialogTitle>
+            <DialogDescription>
+              Selecione os tipos de notificação que deseja reenviar para este agendamento
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedAppointmentForResend && (
+            <div className="space-y-4">
+              {/* Appointment Info */}
+              <div className="bg-muted p-3 rounded-lg">
+                <div className="text-sm">
+                  <div><strong>Paciente:</strong> {selectedAppointmentForResend.patient?.name}</div>
+                  <div><strong>Data:</strong> {formatDateTime(selectedAppointmentForResend.scheduled_date)}</div>
+                  <div><strong>Status:</strong> {getStatusBadge(selectedAppointmentForResend.status)}</div>
+                </div>
+              </div>
+
+              {/* Notification Types */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Tipos de Notificação</Label>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="scheduled"
+                      checked={selectedNotificationTypes.includes('scheduled')}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedNotificationTypes(prev => [...prev, 'scheduled'])
+                        } else {
+                          setSelectedNotificationTypes(prev => prev.filter(t => t !== 'scheduled'))
+                        }
+                      }}
+                    />
+                    <Label htmlFor="scheduled" className="text-sm">
+                      <div className="flex items-center">
+                        <Calendar className="mr-2 h-4 w-4" />
+                        Notificação de Agendamento
+                      </div>
+                    </Label>
+                  </div>
+
+                  {['confirmed', 'completed'].includes(selectedAppointmentForResend.status) && (
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="confirmed"
+                        checked={selectedNotificationTypes.includes('confirmed')}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedNotificationTypes(prev => [...prev, 'confirmed'])
+                          } else {
+                            setSelectedNotificationTypes(prev => prev.filter(t => t !== 'confirmed'))
+                          }
+                        }}
+                      />
+                      <Label htmlFor="confirmed" className="text-sm">
+                        <div className="flex items-center">
+                          <CheckCircle className="mr-2 h-4 w-4" />
+                          Notificação de Confirmação
+                        </div>
+                      </Label>
+                    </div>
+                  )}
+
+                  {selectedAppointmentForResend.status === 'completed' && (
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="completed"
+                        checked={selectedNotificationTypes.includes('completed')}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedNotificationTypes(prev => [...prev, 'completed'])
+                          } else {
+                            setSelectedNotificationTypes(prev => prev.filter(t => t !== 'completed'))
+                          }
+                        }}
+                      />
+                      <Label htmlFor="completed" className="text-sm">
+                        <div className="flex items-center">
+                          <CheckCircle className="mr-2 h-4 w-4" />
+                          Notificação de Conclusão
+                        </div>
+                      </Label>
+                    </div>
+                  )}
+
+                  {selectedAppointmentForResend.status === 'cancelled' && (
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="cancelled"
+                        checked={selectedNotificationTypes.includes('cancelled')}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedNotificationTypes(prev => [...prev, 'cancelled'])
+                          } else {
+                            setSelectedNotificationTypes(prev => prev.filter(t => t !== 'cancelled'))
+                          }
+                        }}
+                      />
+                      <Label htmlFor="cancelled" className="text-sm">
+                        <div className="flex items-center">
+                          <XCircle className="mr-2 h-4 w-4" />
+                          Notificação de Cancelamento
+                        </div>
+                      </Label>
+                    </div>
+                  )}
+
+                  {selectedAppointmentForResend.status === 'missed' && (
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="missed"
+                        checked={selectedNotificationTypes.includes('missed')}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedNotificationTypes(prev => [...prev, 'missed'])
+                          } else {
+                            setSelectedNotificationTypes(prev => prev.filter(t => t !== 'missed'))
+                          }
+                        }}
+                      />
+                      <Label htmlFor="missed" className="text-sm">
+                        <div className="flex items-center">
+                          <XCircle className="mr-2 h-4 w-4" />
+                          Notificação de Falta
+                        </div>
+                      </Label>
+                    </div>
+                  )}
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="reminder"
+                      checked={selectedNotificationTypes.includes('reminder')}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedNotificationTypes(prev => [...prev, 'reminder'])
+                        } else {
+                          setSelectedNotificationTypes(prev => prev.filter(t => t !== 'reminder'))
+                        }
+                      }}
+                    />
+                    <Label htmlFor="reminder" className="text-sm">
+                      <div className="flex items-center">
+                        <Bell className="mr-2 h-4 w-4" />
+                        Lembrete do Agendamento
+                      </div>
+                    </Label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowResendDialog(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleResendNotifications}
+              disabled={isResendingNotifications || selectedNotificationTypes.length === 0}
+            >
+              {isResendingNotifications && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Reenviar Notificações
             </Button>
           </DialogFooter>
         </DialogContent>

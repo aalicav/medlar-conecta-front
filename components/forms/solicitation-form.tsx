@@ -201,6 +201,14 @@ export function SolicitationForm({
 
   // Watch health plan ID to fetch procedures
   const selectedHealthPlanId = form.watch("health_plan_id");
+  
+  // Watch preferred_date to ensure it updates correctly
+  const preferredDate = form.watch("preferred_date");
+
+  // Debug log for preferred_date changes
+  useEffect(() => {
+    console.log('Preferred date changed:', preferredDate);
+  }, [preferredDate]);
 
   // Set price from query params if available
   useEffect(() => {
@@ -382,10 +390,7 @@ export function SolicitationForm({
 
     // On initial load, get the top patients if we don't have initialData
     const fetchInitialPatients = async () => {
-      if (initialData?.patient_id  && initialData?.health_plan_id) {
-        // If we have initialData with patient and health plan, fetch patients for that health plan
-        fetchPatientsForHealthPlan(initialData.health_plan_id)
-      } else if (isPlanAdmin && healthPlanId) {
+    if (isPlanAdmin && healthPlanId) {
         // If plan admin, fetch patients for their plan
         fetchPatientsForHealthPlan(healthPlanId)
       } else {
@@ -396,7 +401,9 @@ export function SolicitationForm({
     }
 
     // Load options
-    fetchHealthPlans()
+    if(!isPlanAdmin){
+      fetchHealthPlans()
+    }
     if(healthPlanId){ 
       fetchInitialPatients()
     }
@@ -405,7 +412,7 @@ export function SolicitationForm({
   // If there's initialData for patient, fetch that specific patient
   useEffect(() => {
     const fetchPatient = async () => {
-      if (initialData?.patient_id) {
+      if (initialData?.patient_id && initialData?.patient_id !== "") {
         setLoadingPatients(true)
         try {
           const response = await fetchResource(`patients/${initialData.patient_id}`) as ResourceResponse<Patient>
@@ -858,10 +865,23 @@ export function SolicitationForm({
                   <FormItem className="flex flex-col">
                     <FormLabel>Data Preferencial</FormLabel>
                     <DatePicker
-                      date={field.value || null}
-                      setDate={(date) => field.onChange(date)}
+                      date={field.value ? new Date(field.value) : null}
+                      setDate={(date) => {
+                        console.log('Date selected:', date); // Debug log
+                        // Ensure we're setting a valid Date object or null
+                        const normalizedDate = date instanceof Date && !isNaN(date.getTime()) ? date : null;
+                        field.onChange(normalizedDate);
+                        // Force form to recognize the change
+                        form.trigger('preferred_date');
+                      }}
                       placeholder="Selecione uma data preferencial"
                     />
+                    {field.value && (
+                      <div className="text-sm text-green-600 mt-1 flex items-center gap-1">
+                        <span>✓</span>
+                        <span>Data selecionada: {new Date(field.value).toLocaleDateString('pt-BR')}</span>
+                      </div>
+                    )}
                     <FormDescription>
                       Selecione uma data preferencial para o agendamento (opcional)
                     </FormDescription>

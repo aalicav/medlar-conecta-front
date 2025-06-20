@@ -10,6 +10,7 @@ export interface QueryParams {
   filters?: Record<string, string>
   search?: string;
   status?: string;
+  health_plan_id?: string;
 }
 
 export interface ApiResponse<T> {
@@ -30,7 +31,7 @@ export const fetchResource = async <T>(
 )
 : Promise<ApiResponse<T>> =>
 {
-  const { page = 1, per_page = 10, sort_by, sort_order, filters, search } = params
+  const { page = 1, per_page = 10, sort_by, sort_order, filters, search, health_plan_id } = params
 
   const queryParams = {
     search,
@@ -39,6 +40,7 @@ export const fetchResource = async <T>(
     ...(sort_by && { sort_by }),
     ...(sort_order && { sort_order }),
     ...filters,
+    ...(health_plan_id && { health_plan_id }),
   }
 
   const response = await api.get(`/${resource}`, { params: queryParams })

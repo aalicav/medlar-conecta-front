@@ -10,7 +10,7 @@ import { toast } from "@/components/ui/use-toast"
 import { 
   Loader2, Edit, ArrowLeft, Calendar, MapPin, 
   AlertCircle, Clock, User, Building, FileText, 
-  AlertTriangle, CheckCircle, XCircle, Printer, Search
+  AlertTriangle, CheckCircle, XCircle, Printer, Search, Receipt
 } from "lucide-react"
 import api from "@/services/api-client"
 import { formatDateTime } from "@/lib/utils"
@@ -44,6 +44,17 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 interface Appointment {
   id: number
@@ -156,6 +167,24 @@ interface Appointment {
   confirmed_by_user: any | null
   completed_by_user: any | null
   cancelled_by_user: any | null
+  address: {
+    id: number
+    street: string
+    number: string
+    complement: string | null
+    neighborhood: string | null
+    city: string
+    state: string
+    postal_code: string
+    latitude: number | null
+    longitude: number | null
+    is_primary: boolean
+    is_temporary: number
+    addressable_type: string
+    addressable_id: number
+    created_at: string
+    updated_at: string
+  } | null
   is_active: boolean
   is_upcoming: boolean
   is_past_due: boolean
@@ -198,6 +227,7 @@ export default function AppointmentDetailsPage() {
   const [cancelReason, setCancelReason] = useState("")
   const [completionNotes, setCompletionNotes] = useState("")
   const [isActionLoading, setIsActionLoading] = useState(false)
+  const [isGeneratingNFe, setIsGeneratingNFe] = useState(false)
   
   // Estados para busca de TUSS
   const [tussSearchOpen, setTussSearchOpen] = useState(false)
@@ -275,6 +305,21 @@ export default function AppointmentDetailsPage() {
         variant: "destructive"
       })
     }
+  }
+  
+  const formatAddress = (address: any) => {
+    if (!address) return "Não informado"
+    
+    let formatted = `${address.street}, ${address.number}`
+    if (address.complement) {
+      formatted += ` - ${address.complement}`
+    }
+    if (address.neighborhood) {
+      formatted += `, ${address.neighborhood}`
+    }
+    formatted += `, ${address.city} - ${address.state}, CEP: ${address.postal_code}`
+    
+    return formatted
   }
   
   const fetchAppointment = async () => {
@@ -437,6 +482,46 @@ export default function AppointmentDetailsPage() {
   const handlePrintGuide = () => {
     router.push(`/appointments/${appointmentId}/guide`)
   }
+
+  const handleGenerateNFe = async () => {
+    setIsGeneratingNFe(true)
+    try {
+      const response = await api.post(`/appointments/${appointmentId}/generate-nfe`)
+      
+      toast({
+        title: "Sucesso",
+        description: `Nota fiscal gerada com sucesso! Número: ${response.data.nfe_number}`,
+      })
+      
+      // Redirecionar para a página da NFe
+      window.open(`/health-plans/billing/nfe/${response.data.nfe_id}`, '_blank')
+      
+    } catch (error: any) {
+      console.error("Error generating NFe:", error)
+      
+      let errorMessage = "Erro ao gerar nota fiscal"
+      
+      if (error.response?.status === 400) {
+        if (error.response.data.message.includes('Já existe uma nota fiscal')) {
+          // Se já existe NFe, redirecionar para ela
+          window.open(`/health-plans/billing/nfe/${error.response.data.nfe_id}`, '_blank')
+          errorMessage = "Nota fiscal já existe para este agendamento"
+        } else {
+          errorMessage = error.response.data.message
+        }
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message
+      }
+      
+      toast({
+        title: "Erro",
+        description: errorMessage,
+        variant: "destructive"
+      })
+    } finally {
+      setIsGeneratingNFe(false)
+    }
+  }
   
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -554,6 +639,39 @@ export default function AppointmentDetailsPage() {
               </Button>
             )}
             
+            {appointment.status === "completed" && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" disabled={isGeneratingNFe}>
+                    {isGeneratingNFe ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Receipt className="h-4 w-4 mr-2" />
+                    )}
+                    Gerar NFe
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Gerar Nota Fiscal</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Tem certeza que deseja gerar uma nota fiscal para este agendamento? 
+                      Esta ação criará uma nota fiscal eletrônica baseada nos dados do procedimento.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleGenerateNFe}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      Gerar NFe
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+            
             {canEdit && (
               <Button variant="outline" onClick={() => router.push(`/appointments/${appointment.id}/edit`)}>
                 <Edit className="h-4 w-4 mr-2" />
@@ -619,6 +737,13 @@ export default function AppointmentDetailsPage() {
                 <Label>Gênero</Label>
                 <p className="text-sm text-muted-foreground">{appointment.solicitation.patient.gender}</p>
               </div>
+              <div>
+                <Label>Endereço</Label>
+                <p className="text-sm text-muted-foreground">
+                  {appointment.solicitation.patient.address}, {appointment.solicitation.patient.city} - {appointment.solicitation.patient.state}
+                </p>
+                <p className="text-sm text-muted-foreground">CEP: {appointment.solicitation.patient.postal_code}</p>
+              </div>
             </CardContent>
           </Card>
 
@@ -669,111 +794,6 @@ export default function AppointmentDetailsPage() {
                 <Label>Data/Hora</Label>
                 <p className="text-sm text-muted-foreground">{formatDateTime(appointment.scheduled_date)}</p>
               </div>
-              
-              {/* Busca de TUSS */}
-              <div className="pt-4 border-t">
-                <Label>Buscar Outros Procedimentos TUSS</Label>
-                <Popover open={tussSearchOpen} onOpenChange={setTussSearchOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={tussSearchOpen}
-                      className="w-full justify-between"
-                    >
-                      {selectedTuss ? (
-                        `${selectedTuss.code} - ${selectedTuss.description}`
-                      ) : (
-                        "Buscar procedimentos TUSS..."
-                      )}
-                      <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[400px] p-0">
-                    <Command>
-                      <CommandInput
-                        placeholder="Digite para buscar procedimentos TUSS..."
-                        value={tussSearchValue}
-                        onValueChange={setTussSearchValue}
-                      />
-                      <CommandList>
-                        <CommandEmpty>
-                          {isLoadingTuss ? (
-                            <div className="flex items-center justify-center py-6">
-                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                              Buscando...
-                            </div>
-                          ) : tussSearchValue.length < 3 ? (
-                            "Digite pelo menos 3 caracteres para buscar"
-                          ) : (
-                            "Nenhum procedimento encontrado"
-                          )}
-                        </CommandEmpty>
-                        <CommandGroup>
-                          {tussOptions.map((tuss) => (
-                            <CommandItem
-                              key={tuss.id}
-                              value={`${tuss.code} ${tuss.description}`}
-                              onSelect={() => {
-                                setSelectedTuss(tuss)
-                                setTussSearchOpen(false)
-                                setTussSearchValue("")
-                              }}
-                            >
-                              <div className="flex flex-col">
-                                <div className="font-medium">
-                                  {tuss.code} - {tuss.description}
-                                </div>
-                                {tuss.category && (
-                                  <div className="text-sm text-muted-foreground">
-                                    Categoria: {tuss.category}
-                                  </div>
-                                )}
-                              </div>
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-                
-                {selectedTuss && (
-                  <div className="mt-2 p-3 bg-muted rounded-md">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="text-sm font-medium">Procedimento Selecionado:</div>
-                        <div className="text-sm text-muted-foreground">
-                          <strong>{selectedTuss.code}</strong> - {selectedTuss.description}
-                        </div>
-                        {selectedTuss.category && (
-                          <div className="text-xs text-muted-foreground mt-1">
-                            Categoria: {selectedTuss.category}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => copyTussCode(selectedTuss.code)}
-                          className="h-6 w-6 p-0"
-                        >
-                          <FileText className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={clearTussSearch}
-                          className="h-6 w-6 p-0"
-                        >
-                          <XCircle className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
             </CardContent>
           </Card>
 
@@ -790,7 +810,7 @@ export default function AppointmentDetailsPage() {
                   </div>
                   <div>
                     <Label>CRM</Label>
-                    <p className="text-sm text-muted-foreground">{appointment.provider.registration_number}</p>
+                    <p className="text-sm text-muted-foreground">{appointment.provider.registration_number || "Não informado"}</p>
                   </div>
                   <div>
                     <Label>Especialidades</Label>
@@ -801,6 +821,101 @@ export default function AppointmentDetailsPage() {
                 </>
               ) : (
                 <p className="text-sm text-muted-foreground">Informações não disponíveis</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {appointment.address && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Endereço do Atendimento</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label>Endereço</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {formatAddress(appointment.address)}
+                  </p>
+                </div>
+                {appointment.address.neighborhood && (
+                  <div>
+                    <Label>Bairro</Label>
+                    <p className="text-sm text-muted-foreground">{appointment.address.neighborhood}</p>
+                  </div>
+                )}
+                <div>
+                  <Label>Cidade/Estado</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {appointment.address.city} - {appointment.address.state}
+                  </p>
+                </div>
+                <div>
+                  <Label>CEP</Label>
+                  <p className="text-sm text-muted-foreground">{appointment.address.postal_code}</p>
+                </div>
+                {appointment.address.is_temporary === 1 && (
+                  <div>
+                    <Badge variant="outline" className="text-orange-600 border-orange-600">
+                      Endereço Temporário
+                    </Badge>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Status do Agendamento</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Status Atual</Label>
+                <div className="mt-1">
+                  {getStatusBadge(appointment.status)}
+                </div>
+              </div>
+              
+              {appointment.confirmed_date && (
+                <div>
+                  <Label>Confirmado em</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {formatDateTime(appointment.confirmed_date)}
+                    {appointment.confirmed_by_user && (
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        por {appointment.confirmed_by_user.name}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              )}
+              
+              {appointment.completed_date && (
+                <div>
+                  <Label>Concluído em</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {formatDateTime(appointment.completed_date)}
+                    {appointment.completed_by_user && (
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        por {appointment.completed_by_user.name}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              )}
+              
+              {appointment.cancelled_date && (
+                <div>
+                  <Label>Cancelado em</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {formatDateTime(appointment.cancelled_date)}
+                    {appointment.cancelled_by_user && (
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        por {appointment.cancelled_by_user.name}
+                      </span>
+                    )}
+                  </p>
+                </div>
               )}
             </CardContent>
           </Card>

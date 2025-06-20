@@ -22,15 +22,18 @@ export function DatePicker({
   className,
   placeholder = "Selecionar data",
 }: DatePickerProps) {
+  const [open, setOpen] = React.useState(false)
+
   const handleSelect = React.useCallback(
     (selectedDate: Date | undefined) => {
       setDate(selectedDate || null)
+      setOpen(false) // Close popover after selection
     },
     [setDate]
   )
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -49,7 +52,6 @@ export function DatePicker({
           mode="single"
           selected={date || undefined}
           onSelect={handleSelect}
-          locale={ptBR}
         />
       </PopoverContent>
     </Popover>
