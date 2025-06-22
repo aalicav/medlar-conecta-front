@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { getExtemporaneousNegotiations, ExtemporaneousNegotiation } from "@/services/extemporaneous-negotiations";
+import { getExtemporaneousNegotiations, ExtemporaneousNegotiation, approveExtemporaneousNegotiation, rejectExtemporaneousNegotiation, formalizeExtemporaneousNegotiation, cancelExtemporaneousNegotiation } from "@/services/extemporaneous-negotiations";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/data-table/data-table";
 import { ColumnDef } from "@tanstack/react-table";
@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EyeIcon, PlusIcon, CheckCircle, AlertCircle, FileText, XCircle } from "lucide-react";
 import { formatDate } from "@/app/utils/format";
-import { useAuth } from "@/app/hooks/auth";
 import { parseISO } from "date-fns";
 import Link from 'next/link';
 import { usePermissions } from '@/app/hooks/usePermissions';
@@ -27,7 +26,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { toast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
-import { approveExtemporaneousNegotiation, rejectExtemporaneousNegotiation, formalizeExtemporaneousNegotiation, cancelExtemporaneousNegotiation } from "@/services/extemporaneous-negotiations";
+import { FilterIcon, Search, CalendarIcon } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAuth } from "@/contexts/auth-context";
 
 const formSchema = z.object({
   approval_notes: z.string().optional(),
@@ -59,10 +60,14 @@ type CancelFormData = z.infer<typeof cancelFormSchema>;
 
 export default function PaginaNegociacoesExtemporaneas() {
   const router = useRouter();
-  const { user } = useAuth();
-  const { hasPermission } = usePermissions();
+  const { user, hasPermission } = useAuth();
   
-  const [filtroStatus, setFiltroStatus] = useState<string>("");
+  const [filtroStatus, setFiltroStatus] = useState<string>("all");
+  const [termoBusca, setTermoBusca] = useState("");
+  const [buscaTuss, setBuscaTuss] = useState("");
+  const [filtroTipoEntidade, setFiltroTipoEntidade] = useState<string>("all");
+  const [dataInicial, setDataInicial] = useState<Date | null>(null);
+  const [dataFinal, setDataFinal] = useState<Date | null>(null);
   const [paginacao, setPaginacao] = useState({
     pageIndex: 0,
     pageSize: 10,
@@ -76,11 +81,15 @@ export default function PaginaNegociacoesExtemporaneas() {
   const [isActionLoading, setIsActionLoading] = useState(false);
 
   const { data, isLoading: queryLoading, refetch } = useQuery({
-    queryKey: ['extemporaneous-negotiations', paginacao.pageIndex + 1, paginacao.pageSize, filtroStatus],
+    queryKey: ['extemporaneous-negotiations', paginacao.pageIndex + 1, paginacao.pageSize, filtroStatus, termoBusca, buscaTuss, filtroTipoEntidade, dataInicial, dataFinal],
     queryFn: () => getExtemporaneousNegotiations({
       page: paginacao.pageIndex + 1,
       per_page: paginacao.pageSize,
-      status: filtroStatus || undefined,
+      status: filtroStatus && filtroStatus !== 'all' ? filtroStatus : undefined,
+      search: termoBusca || buscaTuss || undefined,
+      entity_type: filtroTipoEntidade && filtroTipoEntidade !== 'all' ? filtroTipoEntidade : undefined,
+      from_date: dataInicial ? formatDate(dataInicial, "yyyy-MM-dd") : undefined,
+      to_date: dataFinal ? formatDate(dataFinal, "yyyy-MM-dd") : undefined,
     }),
   });
 
@@ -243,7 +252,7 @@ export default function PaginaNegociacoesExtemporaneas() {
         <div className="max-w-[200px] truncate">
           <div className="font-medium">{row.original.negotiable.name}</div>
           <div className="text-sm text-muted-foreground">
-            {row.original.negotiable_type === 'App\\Models\\Clinic' ? 'Clínica' : 'Plano de Saúde'}
+            {row.original.negotiable_type === 'App\\Models\\Clinic' ? 'Clínica' : 'Profissional'}
           </div>
         </div>
       ),
@@ -406,6 +415,145 @@ export default function PaginaNegociacoesExtemporaneas() {
           </Link>
         )}
       </div>
+      
+      {/* Filtros de Busca */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FilterIcon className="h-5 w-5" />
+            Filtros de Busca
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+            {/* Busca por texto */}
+            <div className="space-y-2">
+              <Label htmlFor="search">Buscar por profissional/clínica</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="search"
+                  placeholder="Nome do profissional ou clínica..."
+                  value={termoBusca}
+                  onChange={(e) => setTermoBusca(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
+            {/* Busca por código TUSS */}
+            <div className="space-y-2">
+              <Label htmlFor="tuss-search">Buscar por código TUSS</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="tuss-search"
+                  placeholder="Código TUSS..."
+                  value={buscaTuss}
+                  onChange={(e) => setBuscaTuss(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
+            {/* Filtro por status */}
+            <div className="space-y-2">
+              <Label htmlFor="status">Status</Label>
+              <Select value={filtroStatus} onValueChange={setFiltroStatus}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos os status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os status</SelectItem>
+                  <SelectItem value="pending_approval">Pendente</SelectItem>
+                  <SelectItem value="approved">Aprovado</SelectItem>
+                  <SelectItem value="rejected">Rejeitado</SelectItem>
+                  <SelectItem value="formalized">Formalizado</SelectItem>
+                  <SelectItem value="cancelled">Cancelado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Filtro por tipo de entidade */}
+            <div className="space-y-2">
+              <Label htmlFor="entity-type">Tipo de Entidade</Label>
+              <Select value={filtroTipoEntidade} onValueChange={setFiltroTipoEntidade}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos os tipos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os tipos</SelectItem>
+                  <SelectItem value="App\\Models\\Clinic">Clínica</SelectItem>
+                  <SelectItem value="App\\Models\\Professional">Profissional</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Filtro por data inicial */}
+            <div className="space-y-2">
+              <Label htmlFor="start-date">Data Inicial</Label>
+              <div className="relative">
+                <CalendarIcon className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="start-date"
+                  type="date"
+                  value={dataInicial ? formatDate(dataInicial, "yyyy-MM-dd") : ""}
+                  onChange={(e) => setDataInicial(e.target.value ? new Date(e.target.value) : null)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
+            {/* Filtro por data final */}
+            <div className="space-y-2">
+              <Label htmlFor="end-date">Data Final</Label>
+              <div className="relative">
+                <CalendarIcon className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="end-date"
+                  type="date"
+                  value={dataFinal ? formatDate(dataFinal, "yyyy-MM-dd") : ""}
+                  onChange={(e) => setDataFinal(e.target.value ? new Date(e.target.value) : null)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Botões de ação dos filtros */}
+          <div className="flex justify-between items-center mt-4 pt-4 border-t">
+            <div className="text-sm text-muted-foreground">
+              {negociacoes.length > 0 && (
+                <span>
+                  {negociacoes.length} negociação{negociacoes.length !== 1 ? 'ões' : ''} encontrada{negociacoes.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setTermoBusca("");
+                  setBuscaTuss("");
+                  setFiltroTipoEntidade("all");
+                  setDataInicial(null);
+                  setDataFinal(null);
+                  setFiltroStatus("all");
+                }}
+              >
+                Limpar Filtros
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => refetch()}
+              >
+                Aplicar Filtros
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
       
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
