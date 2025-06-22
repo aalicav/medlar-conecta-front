@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { getExtemporaneousNegotiations, ExtemporaneousNegotiation } from "@/services/extemporaneous-negotiations";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,43 +8,25 @@ import { DataTable } from "@/components/data-table/data-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { EyeIcon, FilterIcon, CalendarIcon, PencilIcon, PlusIcon, CheckCircle, AlertCircle, FileText } from "lucide-react";
-import { formatDate, formatMoney } from "@/app/utils/format";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
+import { EyeIcon, PlusIcon, CheckCircle, AlertCircle, FileText, XCircle } from "lucide-react";
+import { formatDate } from "@/app/utils/format";
 import { useAuth } from "@/app/hooks/auth";
 import { parseISO } from "date-fns";
 import Link from 'next/link';
 import { usePermissions } from '@/app/hooks/usePermissions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LoadingSpinner } from '@/app/components/ui/loading-spinner';
-import { Plus } from 'lucide-react';
-import { toast } from "@/components/ui/use-toast"
-import { Search } from "lucide-react";
 import { useQuery } from '@tanstack/react-query';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import {
-  Loader2,
-} from "lucide-react"
-import { NewExtemporaneousNegotiation } from "./NewExtemporaneousNegotiation"
+import { Input } from '@/components/ui/input';
+import { toast } from "@/components/ui/use-toast";
+import { Loader2 } from "lucide-react";
 import { approveExtemporaneousNegotiation, rejectExtemporaneousNegotiation, formalizeExtemporaneousNegotiation, cancelExtemporaneousNegotiation } from "@/services/extemporaneous-negotiations";
 
 const formSchema = z.object({
@@ -80,18 +62,13 @@ export default function PaginaNegociacoesExtemporaneas() {
   const { user } = useAuth();
   const { hasPermission } = usePermissions();
   
-  // States
   const [filtroStatus, setFiltroStatus] = useState<string>("");
-  const [dataInicial, setDataInicial] = useState<Date | null>(null);
-  const [dataFinal, setDataFinal] = useState<Date | null>(null);
-  const [termoBusca, setTermoBusca] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
   const [paginacao, setPaginacao] = useState({
     pageIndex: 0,
     pageSize: 10,
   });
+
   const [selectedNegotiation, setSelectedNegotiation] = useState<ExtemporaneousNegotiation | null>(null);
-  const [showNewNegotiationModal, setShowNewNegotiationModal] = useState(false);
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showFormalizeModal, setShowFormalizeModal] = useState(false);
@@ -99,21 +76,11 @@ export default function PaginaNegociacoesExtemporaneas() {
   const [isActionLoading, setIsActionLoading] = useState(false);
 
   const { data, isLoading: queryLoading, refetch } = useQuery({
-    queryKey: ['extemporaneous-negotiations', paginacao.pageIndex + 1, paginacao.pageSize, {
-      status: filtroStatus || undefined,
-      from_date: dataInicial ? formatDate(dataInicial, "yyyy-MM-dd") : undefined,
-      to_date: dataFinal ? formatDate(dataFinal, "yyyy-MM-dd") : undefined,
-      search: termoBusca || undefined,
-    }],
+    queryKey: ['extemporaneous-negotiations', paginacao.pageIndex + 1, paginacao.pageSize, filtroStatus],
     queryFn: () => getExtemporaneousNegotiations({
       page: paginacao.pageIndex + 1,
       per_page: paginacao.pageSize,
-      ...{
-        status: filtroStatus || undefined,
-        from_date: dataInicial ? formatDate(dataInicial, "yyyy-MM-dd") : undefined,
-        to_date: dataFinal ? formatDate(dataFinal, "yyyy-MM-dd") : undefined,
-        search: termoBusca || undefined,
-      },
+      status: filtroStatus || undefined,
     }),
   });
 
@@ -394,7 +361,7 @@ export default function PaginaNegociacoesExtemporaneas() {
                   setShowCancelModal(true);
                 }}
               >
-                <AlertCircle className="h-4 w-4" />
+                <XCircle className="h-4 w-4" />
                 <span className="sr-only">Cancelar</span>
               </Button>
             )}
@@ -415,7 +382,7 @@ export default function PaginaNegociacoesExtemporaneas() {
   const negociacoesFormalizadas = negociacoes.filter(n => n.status === 'formalized');
   const negociacoesCanceladas = negociacoes.filter(n => n.status === 'cancelled');
 
-  // Cria um componente de estado vazio para usar em vez da propriedade emptyMessage
+  // Cria um componente de estado vazio
   const EstadoVazio = ({mensagem}: {mensagem: string}) => (
     <div className="text-center py-10">
       <p className="text-muted-foreground">{mensagem}</p>
