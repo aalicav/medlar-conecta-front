@@ -1,114 +1,191 @@
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/components/ui/use-toast';
-import { createExtemporaneousNegotiation } from '@/services/extemporaneous-negotiations';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Combobox } from '@/components/ui/combobox';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
-import { LoadingSpinner } from '@/app/components/ui/loading-spinner';
+"use client"
 
-interface Contract {
-  id: number;
-  contract_number: string;
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { toast } from "@/components/ui/use-toast"
+import { Loader2 } from "lucide-react"
+import { createExtemporaneousNegotiation } from "@/services/extemporaneous-negotiations"
+import api from "@/services/api-client"
+
+interface NewExtemporaneousNegotiationProps {
+  onSuccess: () => void
 }
 
-interface TussItem {
-  id: number;
-  code: string;
-  description: string;
+interface Entity {
+  id: number
+  name: string
+  cnpj?: string
 }
 
-interface ComboboxItem {
-  value: string;
-  label: string;
+interface TussProcedure {
+  id: number
+  code: string
+  description: string
 }
 
-const formSchema = z.object({
-  contract_id: z.number({
-    required_error: 'Selecione um contrato',
-  }),
-  tuss_id: z.number({
-    required_error: 'Selecione um procedimento',
-  }),
-  requested_value: z.number({
-    required_error: 'Informe o valor solicitado',
-  }).min(0, 'O valor deve ser maior que zero'),
-  justification: z.string({
-    required_error: 'Informe a justificativa',
-  }).min(10, 'A justificativa deve ter pelo menos 10 caracteres'),
-  urgency_level: z.enum(['low', 'medium', 'high'], {
-    required_error: 'Selecione o nível de urgência',
-  }),
-});
+export function NewExtemporaneousNegotiation({ onSuccess }: NewExtemporaneousNegotiationProps) {
+  const [entityType, setEntityType] = useState<string>("")
+  const [entityId, setEntityId] = useState<string>("")
+  const [tussProcedureId, setTussProcedureId] = useState<string>("")
+  const [negotiatedPrice, setNegotiatedPrice] = useState<string>("")
+  const [justification, setJustification] = useState<string>("")
+  const [isLoading, setIsLoading] = useState(false)
+  const [isLoadingEntities, setIsLoadingEntities] = useState(false)
+  const [isLoadingProcedures, setIsLoadingProcedures] = useState(false)
+  const [entities, setEntities] = useState<Entity[]>([])
+  const [procedures, setProcedures] = useState<TussProcedure[]>([])
 
-type FormData = z.infer<typeof formSchema>;
+  // Load entities when type changes
+  const handleEntityTypeChange = async (type: string) => {
+    setEntityType(type)
+    setEntityId("")
+    setEntities([])
+    setTussProcedureId("")
+    setProcedures([])
 
-export function NewExtemporaneousNegotiation() {
-  const router = useRouter();
-  const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
-
-  const form = useForm<FormData>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      urgency_level: 'medium',
-    },
-  });
-
-  const { data: contracts, isLoading: isLoadingContracts } = useQuery<Contract[]>({
-    queryKey: ['contracts'],
-    queryFn: async () => {
-      const response = await api.get('/contracts');
-      return response.data.data?.data ?? [];
-    },
-  });
-
-  const { data: tuss, isLoading: isLoadingTuss } = useQuery<TussItem[]>({
-    queryKey: ['tuss'],
-    queryFn: async () => {
-      const response = await api.get('/tuss');
-      return response.data.data;
-    },
-  });
-
-  const onSubmit = async (data: FormData) => {
+    setIsLoadingEntities(true)
     try {
-      setIsLoading(true);
-      await createExtemporaneousNegotiation(data);
-      toast({
-        title: 'Sucesso',
-        description: 'Negociação extemporânea criada com sucesso',
-      });
-      router.push('/negotiations/extemporaneous');
-    } catch (error) {
-      toast({
-        title: 'Erro',
-        description: 'Erro ao criar negociação extemporânea',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      const endpoint = type === 'App\\Models\\Clinic' ? '/clinics' : '/health-plans'
+      const response = await api.get(endpoint, {
+        params: {
+          status: 'active',
+          per_page: 100
+        }
+      })
 
-  if (isLoadingContracts || isLoadingTuss) {
-    return (
-      <Card>
-        <CardContent className="flex justify-center items-center min-h-[400px]">
-          <LoadingSpinner size="lg" />
-        </CardContent>
-      </Card>
-    );
+      if (response.data.status === 'success') {
+        setEntities(response.data.data)
+      } else {
+        throw new Error('Failed to load entities')
+      }
+    } catch (error) {
+      console.error('Error loading entities:', error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar as entidades",
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoadingEntities(false)
+    }
+  }
+
+  // Load procedures when entity changes
+  const handleEntityChange = async (id: string) => {
+    setEntityId(id)
+    setTussProcedureId("")
+    setProcedures([])
+
+    setIsLoadingProcedures(true)
+    try {
+      const response = await api.get('/tuss-procedures', {
+        params: {
+          per_page: 100,
+          is_active: true
+        }
+      })
+
+      if (response.data.status === 'success') {
+        setProcedures(response.data.data)
+      } else {
+        throw new Error('Failed to load procedures')
+      }
+    } catch (error) {
+      console.error('Error loading procedures:', error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os procedimentos",
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoadingProcedures(false)
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!entityType || !entityId || !tussProcedureId || !negotiatedPrice || !justification) {
+      toast({
+        title: "Erro",
+        description: "Por favor, preencha todos os campos obrigatórios",
+        variant: "destructive"
+      })
+      return
+    }
+
+    if (justification.length < 10) {
+      toast({
+        title: "Erro",
+        description: "A justificativa deve ter pelo menos 10 caracteres",
+        variant: "destructive"
+      })
+      return
+    }
+
+    const price = parseFloat(negotiatedPrice)
+    if (isNaN(price) || price <= 0) {
+      toast({
+        title: "Erro",
+        description: "O valor negociado deve ser maior que zero",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const response = await createExtemporaneousNegotiation({
+        negotiable_type: entityType,
+        negotiable_id: parseInt(entityId),
+        tuss_procedure_id: parseInt(tussProcedureId),
+        negotiated_price: price,
+        justification
+      })
+
+      if (response.data.status === 'success') {
+        toast({
+          title: "Sucesso",
+          description: "Negociação extemporânea criada com sucesso"
+        })
+        
+        // Reset form
+        setEntityType("")
+        setEntityId("")
+        setTussProcedureId("")
+        setNegotiatedPrice("")
+        setJustification("")
+        setEntities([])
+        setProcedures([])
+        
+        onSuccess()
+      } else {
+        throw new Error('Failed to create negotiation')
+      }
+    } catch (error: any) {
+      console.error('Error creating negotiation:', error)
+      const errorMessage = error.response?.data?.message || "Não foi possível criar a negociação"
+      toast({
+        title: "Erro",
+        description: errorMessage,
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const getEntityTypeLabel = (type: string) => {
+    return type === 'App\\Models\\Clinic' ? 'Clínica' : 'Plano de Saúde'
+  }
+
+  const getEntitySelectLabel = (type: string) => {
+    return type === 'App\\Models\\Clinic' ? 'a clínica' : 'o plano'
   }
 
   return (
@@ -117,131 +194,130 @@ export function NewExtemporaneousNegotiation() {
         <CardTitle>Nova Negociação Extemporânea</CardTitle>
       </CardHeader>
       <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="contract_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Contrato</FormLabel>
-                  <Select
-                    onValueChange={(value) => field.onChange(Number(value))}
-                    defaultValue={field.value?.toString()}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione um contrato" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {contracts?.map((contract) => (
-                        <SelectItem key={contract.id} value={contract.id.toString()}>
-                          {contract.contract_number}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="entity-type">Tipo de Entidade *</Label>
+            <Select
+              value={entityType}
+              onValueChange={handleEntityTypeChange}
+              disabled={isLoading}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o tipo de entidade" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="App\\Models\\Clinic">Clínica</SelectItem>
+                <SelectItem value="App\\Models\\HealthPlan">Plano de Saúde</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-            <FormField
-              control={form.control}
-              name="tuss_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Procedimento</FormLabel>
-                  <Combobox
-                    options={tuss?.map((item): ComboboxItem => ({
-                      value: item.id.toString(),
-                      label: `${item.code} - ${item.description}`,
-                    })) || []}
-                    value={field.value?.toString() || ''}
-                    onValueChange={(value: string) => field.onChange(Number(value))}
-                    placeholder="Selecione um procedimento"
-                  />
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="requested_value"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Valor Solicitado</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      {...field}
-                      onChange={(e) => field.onChange(Number(e.target.value))}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="justification"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Justificativa</FormLabel>
-                  <FormControl>
-                    <Textarea {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="urgency_level"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nível de Urgência</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o nível de urgência" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="low">Baixa</SelectItem>
-                      <SelectItem value="medium">Média</SelectItem>
-                      <SelectItem value="high">Alta</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="flex justify-end space-x-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => router.back()}
-                disabled={isLoading}
+          {entityType && (
+            <div className="space-y-2">
+              <Label htmlFor="entity">
+                {getEntityTypeLabel(entityType)} *
+              </Label>
+              <Select
+                value={entityId}
+                onValueChange={handleEntityChange}
+                disabled={isLoading || isLoadingEntities}
               >
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? 'Criando...' : 'Criar Negociação'}
-              </Button>
+                <SelectTrigger>
+                  <SelectValue placeholder={`Selecione ${getEntitySelectLabel(entityType)}`} />
+                </SelectTrigger>
+                <SelectContent>
+                  {isLoadingEntities ? (
+                    <SelectItem value="" disabled>
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Carregando...
+                      </div>
+                    </SelectItem>
+                  ) : (
+                    entities.map((entity) => (
+                      <SelectItem key={entity.id} value={entity.id.toString()}>
+                        {entity.name}
+                        {entity.cnpj && ` (${entity.cnpj})`}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
             </div>
-          </form>
-        </Form>
+          )}
+
+          {entityId && (
+            <div className="space-y-2">
+              <Label htmlFor="procedure">Procedimento TUSS *</Label>
+              <Select
+                value={tussProcedureId}
+                onValueChange={setTussProcedureId}
+                disabled={isLoading || isLoadingProcedures}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o procedimento" />
+                </SelectTrigger>
+                <SelectContent>
+                  {isLoadingProcedures ? (
+                    <SelectItem value="" disabled>
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Carregando...
+                      </div>
+                    </SelectItem>
+                  ) : (
+                    procedures.map((procedure) => (
+                      <SelectItem key={procedure.id} value={procedure.id.toString()}>
+                        {procedure.code} - {procedure.description}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="price">Valor Negociado (R$) *</Label>
+            <Input
+              id="price"
+              type="number"
+              step="0.01"
+              min="0"
+              value={negotiatedPrice}
+              onChange={(e) => setNegotiatedPrice(e.target.value)}
+              placeholder="0,00"
+              disabled={isLoading}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="justification">Justificativa *</Label>
+            <Textarea
+              id="justification"
+              value={justification}
+              onChange={(e) => setJustification(e.target.value)}
+              placeholder="Explique o motivo desta negociação extemporânea (mínimo 10 caracteres)"
+              rows={4}
+              disabled={isLoading}
+            />
+            <p className="text-sm text-muted-foreground">
+              {justification.length}/10 caracteres mínimos
+            </p>
+          </div>
+
+          <Button type="submit" disabled={isLoading || !entityType || !entityId || !tussProcedureId || !negotiatedPrice || justification.length < 10}>
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Criando...
+              </>
+            ) : (
+              'Criar Negociação'
+            )}
+          </Button>
+        </form>
       </CardContent>
     </Card>
-  );
+  )
 } 

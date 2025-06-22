@@ -3,35 +3,42 @@ import { formatDate } from '@/app/utils/format';
 
 export interface ExtemporaneousNegotiation {
   id: number;
-  contract_id: number;
-  contract: {
+  negotiable_type: string;
+  negotiable_id: number;
+  negotiable: {
     id: number;
-    contract_number: string;
+    name: string;
+    cnpj?: string;
   };
-  tuss: {
+  tuss_procedure_id: number;
+  tussProcedure: {
     id: number;
     code: string;
     description: string;
   };
-  requested_value: number;
-  approved_value: number | null;
+  negotiated_price: number;
   justification: string;
-  approval_notes: string | null;
-  rejection_reason: string | null;
-  status: 'pending' | 'approved' | 'rejected';
-  urgency_level: 'low' | 'medium' | 'high';
-  requested_by: number;
+  status: 'pending_approval' | 'approved' | 'rejected' | 'formalized' | 'cancelled';
+  created_by: number;
   approved_by: number | null;
+  rejected_by: number | null;
+  formalized_by: number | null;
+  cancelled_by: number | null;
   approved_at: string | null;
-  is_requiring_addendum: boolean;
-  addendum_included: boolean;
+  rejected_at: string | null;
+  formalized_at: string | null;
+  cancelled_at: string | null;
+  contract_id: number | null;
   addendum_number: string | null;
-  addendum_date: string | null;
-  addendum_notes: string | null;
-  addendum_updated_by: number | null;
+  addendum_signed_at: string | null;
+  approval_notes: string | null;
+  rejection_notes: string | null;
+  formalization_notes: string | null;
+  cancellation_notes: string | null;
+  solicitation_id: number | null;
   created_at: string;
   updated_at: string;
-  requestedBy: {
+  createdBy: {
     id: number;
     name: string;
   };
@@ -39,12 +46,21 @@ export interface ExtemporaneousNegotiation {
     id: number;
     name: string;
   } | null;
-  pricingContract: {
+  rejectedBy: {
     id: number;
-    price: number;
-    notes: string;
-    start_date: string;
-    end_date: string | null;
+    name: string;
+  } | null;
+  formalizedBy: {
+    id: number;
+    name: string;
+  } | null;
+  cancelledBy: {
+    id: number;
+    name: string;
+  } | null;
+  solicitation?: {
+    id: number;
+    patient_name: string;
   } | null;
 }
 
@@ -55,9 +71,12 @@ interface GetExtemporaneousNegotiationsParams {
   from_date?: string;
   to_date?: string;
   search?: string;
+  entity_type?: string;
+  entity_id?: number;
 }
 
 interface ApiResponse<T> {
+  status: string;
   data: T;
   meta?: {
     current_page: number;
@@ -71,7 +90,7 @@ interface ApiResponse<T> {
  * Obtém a lista de negociações extemporâneas com filtros opcionais
  */
 export const getExtemporaneousNegotiations = async (params?: GetExtemporaneousNegotiationsParams) => {
-  const response = await api.get<ApiResponse<ExtemporaneousNegotiation[]>>('/extemporaneous-negotiations', { params });
+  const response = await api.get<ApiResponse<ExtemporaneousNegotiation[]>>('/negotiations/extemporaneous', { params });
   return response;
 };
 
@@ -79,21 +98,22 @@ export const getExtemporaneousNegotiations = async (params?: GetExtemporaneousNe
  * Obtém os detalhes de uma negociação extemporânea específica
  */
 export const getExtemporaneousNegotiation = async (id: number) => {
-  const response = await api.get<ApiResponse<ExtemporaneousNegotiation>>(`/extemporaneous-negotiations/${id}`);
+  const response = await api.get<ApiResponse<ExtemporaneousNegotiation>>(`/negotiations/extemporaneous/${id}`);
   return response;
 };
 
 /**
- * Cria uma nova solicitação de negociação extemporânea
+ * Cria uma nova negociação extemporânea
  */
 export const createExtemporaneousNegotiation = async (data: {
-  contract_id: number;
-  tuss_id: number;
-  requested_value: number;
+  negotiable_type: string;
+  negotiable_id: number;
+  tuss_procedure_id: number;
+  negotiated_price: number;
   justification: string;
-  urgency_level?: 'low' | 'medium' | 'high';
+  solicitation_id?: number;
 }) => {
-  const response = await api.post<ApiResponse<ExtemporaneousNegotiation>>('/extemporaneous-negotiations', data);
+  const response = await api.post<ApiResponse<ExtemporaneousNegotiation>>('/negotiations/extemporaneous', data);
   return response;
 };
 
@@ -101,11 +121,9 @@ export const createExtemporaneousNegotiation = async (data: {
  * Aprova uma negociação extemporânea
  */
 export const approveExtemporaneousNegotiation = async (id: number, data: {
-  approved_value: number;
   approval_notes?: string;
-  is_requiring_addendum?: boolean;
 }) => {
-  const response = await api.post<ApiResponse<ExtemporaneousNegotiation>>(`/extemporaneous-negotiations/${id}/approve`, data);
+  const response = await api.post<ApiResponse<ExtemporaneousNegotiation>>(`/negotiations/extemporaneous/${id}/approve`, data);
   return response;
 };
 
@@ -113,21 +131,30 @@ export const approveExtemporaneousNegotiation = async (id: number, data: {
  * Rejeita uma negociação extemporânea
  */
 export const rejectExtemporaneousNegotiation = async (id: number, data: {
-  rejection_reason: string;
+  rejection_notes: string;
 }) => {
-  const response = await api.post<ApiResponse<ExtemporaneousNegotiation>>(`/extemporaneous-negotiations/${id}/reject`, data);
+  const response = await api.post<ApiResponse<ExtemporaneousNegotiation>>(`/negotiations/extemporaneous/${id}/reject`, data);
   return response;
 };
 
 /**
- * Marca uma negociação extemporânea como incluída em aditivo contratual
+ * Formaliza uma negociação extemporânea
  */
-export const markExtemporaneousNegotiationAsAddendumIncluded = async (id: number, data: {
+export const formalizeExtemporaneousNegotiation = async (id: number, data: {
   addendum_number: string;
-  addendum_date: string;
-  notes?: string;
+  formalization_notes?: string;
 }) => {
-  const response = await api.post<ApiResponse<ExtemporaneousNegotiation>>(`/extemporaneous-negotiations/${id}/mark-as-addendum-included`, data);
+  const response = await api.post<ApiResponse<ExtemporaneousNegotiation>>(`/negotiations/extemporaneous/${id}/formalize`, data);
+  return response;
+};
+
+/**
+ * Cancela uma negociação extemporânea
+ */
+export const cancelExtemporaneousNegotiation = async (id: number, data: {
+  cancellation_notes: string;
+}) => {
+  const response = await api.post<ApiResponse<ExtemporaneousNegotiation>>(`/negotiations/extemporaneous/${id}/cancel`, data);
   return response;
 };
 
