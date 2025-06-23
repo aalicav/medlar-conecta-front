@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getExtemporaneousNegotiations, ExtemporaneousNegotiation, approveExtemporaneousNegotiation, rejectExtemporaneousNegotiation, formalizeExtemporaneousNegotiation, cancelExtemporaneousNegotiation } from "@/services/extemporaneous-negotiations";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -58,6 +58,17 @@ type RejectFormData = z.infer<typeof rejectFormSchema>;
 type FormalizeFormData = z.infer<typeof formalizeFormSchema>;
 type CancelFormData = z.infer<typeof cancelFormSchema>;
 
+interface ApiResponse<T> {
+  status: string;
+  data: T;
+  meta?: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+}
+
 export default function PaginaNegociacoesExtemporaneas() {
   const router = useRouter();
   const { user, hasPermission } = useAuth();
@@ -82,15 +93,18 @@ export default function PaginaNegociacoesExtemporaneas() {
 
   const { data, isLoading: queryLoading, refetch } = useQuery({
     queryKey: ['extemporaneous-negotiations', paginacao.pageIndex + 1, paginacao.pageSize, filtroStatus, termoBusca, buscaTuss, filtroTipoEntidade, dataInicial, dataFinal],
-    queryFn: () => getExtemporaneousNegotiations({
-      page: paginacao.pageIndex + 1,
-      per_page: paginacao.pageSize,
-      status: filtroStatus && filtroStatus !== 'all' ? filtroStatus : undefined,
-      search: termoBusca || buscaTuss || undefined,
-      entity_type: filtroTipoEntidade && filtroTipoEntidade !== 'all' ? filtroTipoEntidade : undefined,
-      from_date: dataInicial ? formatDate(dataInicial, "yyyy-MM-dd") : undefined,
-      to_date: dataFinal ? formatDate(dataFinal, "yyyy-MM-dd") : undefined,
-    }),
+    queryFn: async () => {
+      const response = await getExtemporaneousNegotiations({
+        page: paginacao.pageIndex + 1,
+        per_page: paginacao.pageSize,
+        status: filtroStatus && filtroStatus !== 'all' ? filtroStatus : undefined,
+        search: termoBusca || buscaTuss || undefined,
+        entity_type: filtroTipoEntidade && filtroTipoEntidade !== 'all' ? filtroTipoEntidade : undefined,
+        from_date: dataInicial ? formatDate(dataInicial, "yyyy-MM-dd") : undefined,
+        to_date: dataFinal ? formatDate(dataFinal, "yyyy-MM-dd") : undefined,
+      });
+      return response.data;
+    },
   });
 
   const approveForm = useForm<FormData>({
@@ -258,13 +272,13 @@ export default function PaginaNegociacoesExtemporaneas() {
       ),
     },
     {
-      accessorKey: "tussProcedure",
+      accessorKey: "tuss",
       header: "Procedimento",
       cell: ({ row }) => (
         <div className="max-w-[300px]">
-          <div className="font-medium">{row.original.tussProcedure.description}</div>
+          <div className="font-medium">{row.original.tuss?.description}</div>
           <div className="text-sm text-muted-foreground">
-            Código TUSS: {row.original.tussProcedure.code}
+            Código TUSS: {row.original.tuss?.code}
           </div>
         </div>
       ),
@@ -385,11 +399,11 @@ export default function PaginaNegociacoesExtemporaneas() {
   
   // Filtra negociações por status
   const negociacoes = data?.data?.data || [];
-  const negociacoesPendentes = negociacoes.filter(n => n.status === 'pending_approval');
-  const negociacoesAprovadas = negociacoes.filter(n => n.status === 'approved');
-  const negociacoesRejeitadas = negociacoes.filter(n => n.status === 'rejected');
-  const negociacoesFormalizadas = negociacoes.filter(n => n.status === 'formalized');
-  const negociacoesCanceladas = negociacoes.filter(n => n.status === 'cancelled');
+  const negociacoesPendentes = negociacoes.filter((n: ExtemporaneousNegotiation) => n.status === 'pending_approval');
+  const negociacoesAprovadas = negociacoes.filter((n: ExtemporaneousNegotiation) => n.status === 'approved');
+  const negociacoesRejeitadas = negociacoes.filter((n: ExtemporaneousNegotiation) => n.status === 'rejected');
+  const negociacoesFormalizadas = negociacoes.filter((n: ExtemporaneousNegotiation) => n.status === 'formalized');
+  const negociacoesCanceladas = negociacoes.filter((n: ExtemporaneousNegotiation) => n.status === 'cancelled');
 
   // Cria um componente de estado vazio
   const EstadoVazio = ({mensagem}: {mensagem: string}) => (

@@ -12,6 +12,8 @@ import { Loader2, Search } from "lucide-react"
 import { createExtemporaneousNegotiation } from "@/services/extemporaneous-negotiations"
 import api from "@/services/api-client"
 import debounce from 'lodash/debounce'
+import { useToast } from "@/components/ui/use-toast"
+import { Switch } from "@/components/ui/switch"
 
 interface NewExtemporaneousNegotiationProps {
   onSuccess: () => void
@@ -21,112 +23,146 @@ interface Entity {
   id: number
   name: string
   cnpj?: string
-}
-
-interface TussProcedure {
-  id: number
-  code: string
-  description: string
+  cpf?: string
+  council_number?: string
+  specialty?: string
+  type?: string
 }
 
 interface Solicitation {
   id: number
-  patient_name: string
-  tuss_procedure?: {
+  patient: {
+    id: number
+    name: string
+  }
+  tuss: {
     id: number
     code: string
     description: string
   }
+  status: string
+  priority: string
 }
-
-const buscarEntidades = async (tipo: string, termo: string = '') => {
-  if (!tipo) return [];
-  
-  try {
-    let endpoint = '';
-    if (tipo === 'App\\Models\\Professional') {
-      endpoint = '/professionals';
-    } else if (tipo === 'App\\Models\\Clinic') {
-      endpoint = '/clinics';
-    } else {
-      return [];
-    }
-
-    const response = await api.get(endpoint, { 
-      params: { search: termo } 
-    });
-    
-    if (response?.data?.data) {
-      return response.data.data;
-    }
-    
-    return [];
-  } catch (error) {
-    console.error('Erro ao buscar entidades:', error);
-    return [];
-  }
-};
 
 export function NewExtemporaneousNegotiation({ onSuccess }: NewExtemporaneousNegotiationProps) {
   const [entityType, setEntityType] = useState<string>("")
   const [entityId, setEntityId] = useState<string>("")
-  const [tussProcedureId, setTussProcedureId] = useState<string>("")
-  const [negotiatedPrice, setNegotiatedPrice] = useState<string>("")
+  const [requestedValue, setRequestedValue] = useState<string>("")
   const [justification, setJustification] = useState<string>("")
   const [solicitationId, setSolicitationId] = useState<string>("")
+  const [urgencyLevel, setUrgencyLevel] = useState<string>("medium")
+  const [isRequiringAddendum, setIsRequiringAddendum] = useState<boolean>(true)
+  const [addendumIncluded, setAddendumIncluded] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingEntities, setIsLoadingEntities] = useState(false)
-  const [isLoadingProcedures, setIsLoadingProcedures] = useState(false)
   const [isLoadingSolicitations, setIsLoadingSolicitations] = useState(false)
   const [entities, setEntities] = useState<Entity[]>([])
-  const [procedures, setProcedures] = useState<TussProcedure[]>([])
   const [solicitations, setSolicitations] = useState<Solicitation[]>([])
+  const { toast } = useToast()
+
+  // Buscar entidades com debounce
+  const debouncedBuscarEntidades = useCallback(
+    debounce(async (tipo: string, termo: string) => {
+      if (!termo || termo.length < 3) {
+        setEntities([]);
+        return;
+      }
+      
+      setIsLoadingEntities(true);
+      try {
+        let endpoint = tipo.includes('Professional') ? '/professionals' : '/clinics';
+        const response = await api.get(endpoint, {
+          params: {
+            search: termo,
+            status: 'approved',
+            is_active: true,
+            per_page: 100
+          }
+        });
+
+        if (response?.data?.data) {
+          const entidades = response.data.data.map((item: any) => ({
+            id: item.id,
+            name: item.name,
+            cnpj: item.cnpj,
+            cpf: item.cpf,
+            council_number: item.council_number,
+            specialty: item.specialty,
+            type: tipo
+          }));
+          setEntities(entidades);
+        } else {
+          setEntities([]);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar entidades:', error);
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar as entidades",
+          variant: "destructive"
+        });
+        setEntities([]);
+      } finally {
+        setIsLoadingEntities(false);
+      }
+    }, 300),
+    [toast]
+  );
 
   // Buscar solicitações com debounce
-  const buscarSolicitacoes = debounce(async (termo: string = '') => {
-    if (!termo || termo.length < 3) return;
-    
-    setIsLoadingSolicitations(true);
-    try {
-      const response = await api.get('/solicitations', {
-        params: {
-          search: termo,
-          status: 'approved',
-          per_page: 100
-        }
-      });
-
-      if (response?.data?.data) {
-        setSolicitations(response.data.data);
-      } else {
+  const debouncedBuscarSolicitacoes = useCallback(
+    debounce(async (termo: string) => {
+      if (!termo || termo.length < 3) {
         setSolicitations([]);
+        return;
       }
-    } catch (error) {
-      console.error('Erro ao buscar solicitações:', error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível carregar as solicitações",
-        variant: "destructive"
-      });
-      setSolicitations([]);
-    } finally {
-      setIsLoadingSolicitations(false);
+      
+      setIsLoadingSolicitations(true);
+      try {
+        const response = await api.get('/solicitations', {
+          params: {
+            search: termo,
+            status: 'pending',
+            per_page: 100
+          }
+        });
+
+        if (response?.data?.data) {
+          setSolicitations(response.data.data);
+        } else {
+          setSolicitations([]);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar solicitações:', error);
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar as solicitações",
+          variant: "destructive"
+        });
+        setSolicitations([]);
+      } finally {
+        setIsLoadingSolicitations(false);
+      }
+    }, 300),
+    [toast]
+  );
+
+  // Atualizar busca de entidades quando o tipo ou termo mudar
+  const handleEntitySearch = useCallback((termo: string) => {
+    if (entityType) {
+      debouncedBuscarEntidades(entityType, termo);
     }
-  }, 300);
+  }, [entityType, debouncedBuscarEntidades]);
+
+  // Atualizar busca de solicitações quando o termo mudar
+  const handleSolicitationSearch = useCallback((termo: string) => {
+    debouncedBuscarSolicitacoes(termo);
+  }, [debouncedBuscarSolicitacoes]);
 
   // Handle solicitation selection
   const handleSolicitationChange = async (id: string) => {
     setSolicitationId(id);
     const solicitation = solicitations.find(s => s.id.toString() === id);
-    
-    // If solicitation has a TUSS procedure, auto-select it
-    if (solicitation?.tuss_procedure) {
-      setTussProcedureId(solicitation.tuss_procedure.id.toString());
-      setProcedures([solicitation.tuss_procedure]);
-    } else {
-      setTussProcedureId("");
-      setProcedures([]);
-    }
   };
 
   // Handle entity type change
@@ -135,160 +171,53 @@ export function NewExtemporaneousNegotiation({ onSuccess }: NewExtemporaneousNeg
     setEntityId("");
     setEntities([]);
     
-    const novasEntidades = await buscarEntidades(type);
-    setEntities(novasEntidades);
+    // Trigger initial search with empty term
+    handleEntitySearch("");
   };
 
-  // Buscar entidades com debounce
-  const buscarEntidadesDebounced = debounce(async (tipo: string, termo: string = '') => {
-    if (!tipo) return;
-    
-    setIsLoadingEntities(true);
-    try {
-      const novasEntidades = await buscarEntidades(tipo, termo);
-      setEntities(novasEntidades);
-    } catch (error) {
-      console.error('Erro ao buscar entidades:', error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível carregar as entidades",
-        variant: "destructive"
-      });
-      setEntities([]);
-    } finally {
-      setIsLoadingEntities(false);
-    }
-  }, 300);
-
-  // Buscar procedimentos TUSS com debounce
-  const buscarProcedimentosTuss = debounce(async (termo: string = '') => {
-    if (!termo || termo.length < 3) return;
-    
-    setIsLoadingProcedures(true);
-    try {
-      const response = await api.get('/tuss-procedures', {
-        params: {
-          search: termo,
-          is_active: true,
-          per_page: 100
-        }
-      });
-
-      if (response?.data?.data) {
-        setProcedures(response.data.data);
-      } else {
-        setProcedures([]);
-      }
-    } catch (error) {
-      console.error('Erro ao buscar procedimentos TUSS:', error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível carregar os procedimentos",
-        variant: "destructive"
-      });
-      setProcedures([]);
-    } finally {
-      setIsLoadingProcedures(false);
-    }
-  }, 300);
-
+  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!solicitationId || !entityType || !entityId || !tussProcedureId || !negotiatedPrice || !justification) {
+    e.preventDefault();
+    if (!entityType || !entityId || !requestedValue || !justification) {
       toast({
         title: "Erro",
         description: "Por favor, preencha todos os campos obrigatórios",
         variant: "destructive"
-      })
-      return
+      });
+      return;
     }
 
-    if (justification.length < 10) {
-      toast({
-        title: "Erro",
-        description: "A justificativa deve ter pelo menos 10 caracteres",
-        variant: "destructive"
-      })
-      return
-    }
-
-    const price = parseFloat(negotiatedPrice)
-    if (isNaN(price) || price <= 0) {
-      toast({
-        title: "Erro",
-        description: "O valor negociado deve ser maior que zero",
-        variant: "destructive"
-      })
-      return
-    }
-
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      const response = await createExtemporaneousNegotiation({
+      const response = await api.post('/extemporaneous-negotiations', {
         negotiable_type: entityType,
-        negotiable_id: parseInt(entityId),
-        tuss_procedure_id: parseInt(tussProcedureId),
-        negotiated_price: price,
+        negotiable_id: entityId,
+        solicitation_id: solicitationId || null,
+        requested_value: parseFloat(requestedValue.replace(',', '.')),
         justification,
-        solicitation_id: parseInt(solicitationId)
-      })
+        urgency_level: urgencyLevel,
+        is_requiring_addendum: isRequiringAddendum,
+        addendum_included: addendumIncluded
+      });
 
-      if (response.data.status === 'success') {
+      if (response.status === 201) {
         toast({
           title: "Sucesso",
-          description: "Negociação extemporânea criada com sucesso"
-        })
-        
-        // Reset form
-        setEntityType("")
-        setEntityId("")
-        setTussProcedureId("")
-        setNegotiatedPrice("")
-        setJustification("")
-        setSolicitationId("")
-        setEntities([])
-        setProcedures([])
-        setSolicitations([])
-        
-        onSuccess()
-      } else {
-        throw new Error('Failed to create negotiation')
+          description: "Negociação extemporânea criada com sucesso",
+        });
+        onSuccess();
       }
-    } catch (error: any) {
-      console.error('Error creating negotiation:', error)
-      const errorMessage = error.response?.data?.message || "Não foi possível criar a negociação"
+    } catch (error) {
+      console.error('Erro ao criar negociação:', error);
       toast({
         title: "Erro",
-        description: errorMessage,
+        description: "Falha ao criar negociação extemporânea",
         variant: "destructive"
-      })
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
-
-  const getEntityTypeLabel = (type: string) => {
-    switch (type) {
-      case 'App\\Models\\Clinic':
-        return 'Clínica'
-      case 'App\\Models\\HealthPlan':
-        return 'Plano de Saúde'
-      default:
-        return 'Entidade'
-    }
-  }
-
-  const getEntitySelectLabel = (type: string) => {
-    switch (type) {
-      case 'App\\Models\\Clinic':
-        return 'a clínica'
-      case 'App\\Models\\HealthPlan':
-        return 'o plano de saúde'
-      default:
-        return 'a entidade'
-    }
-  }
+  };
 
   return (
     <Card>
@@ -304,7 +233,7 @@ export function NewExtemporaneousNegotiation({ onSuccess }: NewExtemporaneousNeg
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Digite pelo menos 3 caracteres para buscar solicitações..."
-                  onChange={(e) => buscarSolicitacoes(e.target.value)}
+                  onChange={(e) => handleSolicitationSearch(e.target.value)}
                   className="pl-10"
                 />
               </div>
@@ -330,8 +259,8 @@ export function NewExtemporaneousNegotiation({ onSuccess }: NewExtemporaneousNeg
                 ) : (
                   solicitations.map((solicitation) => (
                     <SelectItem key={solicitation.id} value={solicitation.id.toString()}>
-                      {solicitation.patient_name}
-                      {solicitation.tuss_procedure && ` - ${solicitation.tuss_procedure.code}`}
+                      {solicitation.patient.name}
+                      {solicitation.tuss.code && ` - ${solicitation.tuss.description}`}
                     </SelectItem>
                   ))
                 )}
@@ -350,8 +279,8 @@ export function NewExtemporaneousNegotiation({ onSuccess }: NewExtemporaneousNeg
                 <SelectValue placeholder="Selecione o tipo de entidade" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="App\\Models\\Professional">Profissional</SelectItem>
-                <SelectItem value="App\\Models\\Clinic">Clínica</SelectItem>
+                <SelectItem value="App\Models\Professional">Profissional</SelectItem>
+                <SelectItem value="App\Models\Clinic">Clínica</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -366,7 +295,7 @@ export function NewExtemporaneousNegotiation({ onSuccess }: NewExtemporaneousNeg
                   <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder={`Buscar ${entityType === 'App\\Models\\Clinic' ? 'clínica' : 'profissional'}...`}
-                    onChange={(e) => buscarEntidadesDebounced(entityType, e.target.value)}
+                    onChange={(e) => handleEntitySearch(e.target.value)}
                     className="pl-10"
                   />
                 </div>
@@ -393,53 +322,9 @@ export function NewExtemporaneousNegotiation({ onSuccess }: NewExtemporaneousNeg
                     entities.map((entity) => (
                       <SelectItem key={entity.id} value={entity.id.toString()}>
                         {entity.name}
-                        {entity.cnpj && ` (${entity.cnpj})`}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {entityId && (
-            <div className="space-y-2">
-              <Label htmlFor="procedure">Procedimento TUSS *</Label>
-              
-              {/* Campo de busca para procedimentos TUSS */}
-              <div className="space-y-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar por código ou descrição TUSS..."
-                    onChange={(e) => buscarProcedimentosTuss(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-              
-              <Select
-                value={tussProcedureId}
-                onValueChange={setTussProcedureId}
-                disabled={isLoading || isLoadingProcedures}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o procedimento" />
-                </SelectTrigger>
-                <SelectContent>
-                  {isLoadingProcedures ? (
-                      <div className="flex items-center gap-2 p-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Carregando...
-                      </div>
-                  ) : procedures.length === 0 ? (
-                      <div className="p-2 text-sm text-muted-foreground">
-                        Nenhum procedimento encontrado
-                      </div>
-                  ) : (
-                    procedures.map((procedure) => (
-                      <SelectItem key={procedure.id} value={procedure.id.toString()}>
-                        {procedure.code} - {procedure.description}
+                        {entity.type === 'professional' && entity.council_number && ` - ${entity.council_number}`}
+                        {entity.type === 'professional' && entity.specialty && ` (${entity.specialty})`}
+                        {entity.type === 'clinic' && entity.cnpj && ` - ${entity.cnpj}`}
                       </SelectItem>
                     ))
                   )}
@@ -449,17 +334,57 @@ export function NewExtemporaneousNegotiation({ onSuccess }: NewExtemporaneousNeg
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="price">Valor Negociado (R$) *</Label>
+            <Label htmlFor="requested-value">Valor Solicitado (R$) *</Label>
             <Input
-              id="price"
+              id="requested-value"
               type="number"
               step="0.01"
               min="0"
-              value={negotiatedPrice}
-              onChange={(e) => setNegotiatedPrice(e.target.value)}
+              value={requestedValue}
+              onChange={(e) => setRequestedValue(e.target.value)}
               placeholder="0,00"
               disabled={isLoading}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="urgency-level">Nível de Urgência *</Label>
+            <Select
+              value={urgencyLevel}
+              onValueChange={setUrgencyLevel}
+              disabled={isLoading}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o nível de urgência" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="low">Baixa</SelectItem>
+                <SelectItem value="medium">Média</SelectItem>
+                <SelectItem value="high">Alta</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex flex-col space-y-4">
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="requiring-addendum"
+                checked={isRequiringAddendum}
+                onCheckedChange={setIsRequiringAddendum}
+                disabled={isLoading}
+              />
+              <Label htmlFor="requiring-addendum">Requer Aditivo</Label>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="addendum-included"
+                checked={addendumIncluded}
+                onCheckedChange={setAddendumIncluded}
+                disabled={isLoading}
+              />
+              <Label htmlFor="addendum-included">Aditivo Incluído</Label>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -477,7 +402,10 @@ export function NewExtemporaneousNegotiation({ onSuccess }: NewExtemporaneousNeg
             </p>
           </div>
 
-          <Button type="submit" disabled={isLoading || !entityType || !entityId || !tussProcedureId || !negotiatedPrice || justification.length < 10}>
+          <Button 
+            type="submit" 
+            disabled={isLoading || !entityType || !entityId || !requestedValue || justification.length < 10}
+          >
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

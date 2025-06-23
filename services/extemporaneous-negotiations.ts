@@ -90,7 +90,7 @@ interface ApiResponse<T> {
  * Obtém a lista de negociações extemporâneas com filtros opcionais
  */
 export const getExtemporaneousNegotiations = async (params?: GetExtemporaneousNegotiationsParams) => {
-  const response = await api.get<ApiResponse<ExtemporaneousNegotiation[]>>('/negotiations/extemporaneous', { params });
+  const response = await api.get<ApiResponse<ExtemporaneousNegotiation[]>>('/extemporaneous-negotiations', { params });
   return response;
 };
 
@@ -123,7 +123,7 @@ export const createExtemporaneousNegotiation = async (data: {
 export const approveExtemporaneousNegotiation = async (id: number, data: {
   approval_notes?: string;
 }) => {
-  const response = await api.post<ApiResponse<ExtemporaneousNegotiation>>(`/negotiations/extemporaneous/${id}/approve`, data);
+  const response = await api.post<ApiResponse<ExtemporaneousNegotiation>>(`/extemporaneous-negotiations/${id}/approve`, data);
   return response;
 };
 
