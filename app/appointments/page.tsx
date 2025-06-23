@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/data-table/data-table"
 import { Badge } from "@/components/ui/badge"
 import { fetchResource, type QueryParams } from "@/services/resource-service"
-import { FileText, Edit, CheckCircle, XCircle, Search, Calendar, Clock, Loader2, Receipt, MoreHorizontal, RefreshCw, Bell } from "lucide-react"
+import { FileText, Edit, CheckCircle, XCircle, Search, Calendar, Clock, Loader2, Receipt, MoreHorizontal, RefreshCw, Bell, DollarSign } from "lucide-react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { formatDateTime } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -214,6 +214,7 @@ export default function AppointmentsPage() {
     created_to: "",
   })
   const [isGeneratingNFe, setIsGeneratingNFe] = useState(false)
+  const [isGeneratingBilling, setIsGeneratingBilling] = useState(false)
 
   // Resend notifications state
   const [showResendDialog, setShowResendDialog] = useState(false)
@@ -404,6 +405,46 @@ export default function AppointmentsPage() {
       })
     } finally {
       setIsGeneratingNFe(false)
+    }
+  }
+
+  const handleGenerateBilling = async (appointmentId: number) => {
+    setIsGeneratingBilling(true)
+    try {
+      const response = await api.post(`/appointments/${appointmentId}/generate-billing`)
+      
+      toast({
+        title: "Sucesso",
+        description: `Cobrança gerada com sucesso! Lote: #${response.data.billing_batch_id}`,
+      })
+      
+      // Redirecionar para a página de faturamento
+      window.open(`/health-plans/billing/batches/${response.data.billing_batch_id}`, '_blank')
+      
+    } catch (error: any) {
+      console.error("Error generating billing:", error)
+      
+      let errorMessage = "Erro ao gerar cobrança"
+      
+      if (error.response?.status === 400) {
+        if (error.response.data.message.includes('já existe uma cobrança')) {
+          // Se já existe cobrança, redirecionar para ela
+          window.open(`/health-plans/billing/batches/${error.response.data.billing_batch_id}`, '_blank')
+          errorMessage = "Cobrança já existe para este agendamento"
+        } else {
+          errorMessage = error.response.data.message
+        }
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message
+      }
+      
+      toast({
+        title: "Erro",
+        description: errorMessage,
+        variant: "destructive"
+      })
+    } finally {
+      setIsGeneratingBilling(false)
     }
   }
 
@@ -741,40 +782,77 @@ export default function AppointmentsPage() {
               )}
 
               {appointment.status === "completed" && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <DropdownMenuItem
-                      onSelect={(e) => e.preventDefault()}
-                      disabled={isGeneratingNFe}
-                      className="text-blue-600"
-                    >
-                      {isGeneratingNFe ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Receipt className="mr-2 h-4 w-4" />
-                      )}
-                      Gerar NFe
-                    </DropdownMenuItem>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Gerar Nota Fiscal</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Tem certeza que deseja gerar uma nota fiscal para este agendamento? 
-                        Esta ação criará uma nota fiscal eletrônica baseada nos dados do procedimento.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => handleGenerateNFe(appointment.id)}
-                        className="bg-blue-600 hover:bg-blue-700"
+                <>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <DropdownMenuItem
+                        onSelect={(e) => e.preventDefault()}
+                        disabled={isGeneratingNFe}
+                        className="text-blue-600"
                       >
+                        {isGeneratingNFe ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Receipt className="mr-2 h-4 w-4" />
+                        )}
                         Gerar NFe
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                      </DropdownMenuItem>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Gerar Nota Fiscal</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Tem certeza que deseja gerar uma nota fiscal para este agendamento? 
+                          Esta ação criará uma nota fiscal eletrônica baseada nos dados do procedimento.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleGenerateNFe(appointment.id)}
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          Gerar NFe
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <DropdownMenuItem
+                        onSelect={(e) => e.preventDefault()}
+                        disabled={isGeneratingBilling}
+                        className="text-green-600"
+                      >
+                        {isGeneratingBilling ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <DollarSign className="mr-2 h-4 w-4" />
+                        )}
+                        Emitir Cobrança
+                      </DropdownMenuItem>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Emitir Cobrança</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Tem certeza que deseja emitir uma cobrança para este agendamento? 
+                          Esta ação criará um lote de faturamento baseado nos dados do procedimento.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleGenerateBilling(appointment.id)}
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          Emitir Cobrança
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </>
               )}
 
               <DropdownMenuSeparator />
