@@ -69,6 +69,12 @@ interface Appointment {
   created_by: number | null
   created_at: string
   updated_at: string
+  patient_attended: boolean | null
+  attendance_confirmed_at: string | null
+  attendance_confirmed_by: number | null
+  attendance_notes: string | null
+  eligible_for_billing: boolean
+  billing_batch_id: number | null
   solicitation: {
     id: number
     health_plan_id: number
@@ -164,6 +170,8 @@ interface Appointment {
   confirmed_by_user: any | null
   completed_by_user: any | null
   cancelled_by_user: any | null
+  attendance_confirmed_by_user: any | null
+  billing_batch: any | null
   is_active: boolean
   is_upcoming: boolean
   is_past_due: boolean
@@ -212,6 +220,15 @@ export default function AppointmentsPage() {
   const [selectedAppointmentForResend, setSelectedAppointmentForResend] = useState<Appointment | null>(null)
   const [selectedNotificationTypes, setSelectedNotificationTypes] = useState<string[]>([])
   const [isResendingNotifications, setIsResendingNotifications] = useState(false)
+
+  // Attendance marking state
+  const [showAttendanceDialog, setShowAttendanceDialog] = useState(false)
+  const [selectedAppointmentForAttendance, setSelectedAppointmentForAttendance] = useState<Appointment | null>(null)
+  const [attendanceData, setAttendanceData] = useState({
+    patient_attended: true,
+    notes: ''
+  })
+  const [isMarkingAttendance, setIsMarkingAttendance] = useState(false)
 
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
   const [showCreateAppointmentModal, setShowCreateAppointmentModal] = useState(false)
@@ -405,6 +422,47 @@ export default function AppointmentsPage() {
     setShowResendDialog(true)
   }
 
+  const handleOpenAttendanceDialog = (appointment: Appointment) => {
+    setSelectedAppointmentForAttendance(appointment)
+    setAttendanceData({
+      patient_attended: true,
+      notes: ''
+    })
+    setShowAttendanceDialog(true)
+  }
+
+  const handleMarkAttendance = async () => {
+    if (!selectedAppointmentForAttendance) return
+
+    setIsMarkingAttendance(true)
+    try {
+      await api.post(`/appointments/${selectedAppointmentForAttendance.id}/complete`, {
+        patient_attended: attendanceData.patient_attended,
+        notes: attendanceData.notes || undefined
+      })
+      
+      toast({
+        title: "Sucesso",
+        description: attendanceData.patient_attended 
+          ? "Paciente marcado como compareceu" 
+          : "Paciente marcado como não compareceu"
+      })
+      
+      setShowAttendanceDialog(false)
+      setSelectedAppointmentForAttendance(null)
+      fetchData()
+    } catch (error: any) {
+      console.error("Error marking attendance:", error)
+      toast({
+        title: "Erro",
+        description: error.response?.data?.message || "Erro ao marcar comparecimento",
+        variant: "destructive"
+      })
+    } finally {
+      setIsMarkingAttendance(false)
+    }
+  }
+
   const handleResendNotifications = async () => {
     if (!selectedAppointmentForResend || selectedNotificationTypes.length === 0) {
       toast({
@@ -576,6 +634,48 @@ export default function AppointmentsPage() {
       enableSorting: true,
     },
     {
+      accessorKey: "attendance",
+      header: "Comparecimento",
+      cell: ({ row }) => {
+        const appointment = row.original
+        if (appointment.patient_attended === null) {
+          return (
+            <Tooltip>
+              <TooltipTrigger>
+                <Badge variant="outline">Pendente</Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                Comparecimento ainda não foi marcado
+              </TooltipContent>
+            </Tooltip>
+          )
+        } else if (appointment.patient_attended === true) {
+          return (
+            <Tooltip>
+              <TooltipTrigger>
+                <Badge variant="secondary">Compareceu</Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                Paciente compareceu ao agendamento
+              </TooltipContent>
+            </Tooltip>
+          )
+        } else {
+          return (
+            <Tooltip>
+              <TooltipTrigger>
+                <Badge variant="destructive">Não Compareceu</Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                Paciente não compareceu ao agendamento
+              </TooltipContent>
+            </Tooltip>
+          )
+        }
+      },
+      enableSorting: true,
+    },
+    {
       id: "actions",
       header: "Ações",
       cell: ({ row }) => {
@@ -627,6 +727,17 @@ export default function AppointmentsPage() {
                     Cancelar
                   </DropdownMenuItem>
                 </>
+              )}
+
+              {(appointment.status === "confirmed" || appointment.status === "scheduled") && appointment.patient_attended === null && (
+                <DropdownMenuItem
+                  onClick={() => handleOpenAttendanceDialog(appointment)}
+                  disabled={isActionLoading}
+                  className="text-blue-600"
+                >
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Marcar Comparecimento
+                </DropdownMenuItem>
               )}
 
               {appointment.status === "completed" && (
@@ -725,6 +836,23 @@ export default function AppointmentsPage() {
                     <SelectItem value="completed">Concluído</SelectItem>
                     <SelectItem value="cancelled">Cancelado</SelectItem>
                     <SelectItem value="missed">Não Compareceu</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="attendance-filter">Comparecimento</Label>
+                <Select 
+                  onValueChange={(value) => handleFilterChange("patient_attended", value)}
+                  value={filters.patient_attended || ""}
+                >
+                  <SelectTrigger id="attendance-filter">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Compareceu</SelectItem>
+                    <SelectItem value="false">Não Compareceu</SelectItem>
+                    <SelectItem value="null">Pendente</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -998,6 +1126,106 @@ export default function AppointmentsPage() {
             >
               {isResendingNotifications && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Reenviar Notificações
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Attendance Marking Dialog */}
+      <Dialog open={showAttendanceDialog} onOpenChange={setShowAttendanceDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Marcar Comparecimento</DialogTitle>
+            <DialogDescription>
+              Marque se o paciente compareceu ou não ao agendamento
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedAppointmentForAttendance && (
+            <div className="space-y-4">
+              {/* Appointment Info */}
+              <div className="bg-muted p-3 rounded-lg">
+                <div className="text-sm">
+                  <div><strong>Paciente:</strong> {selectedAppointmentForAttendance.patient?.name}</div>
+                  <div><strong>Data:</strong> {formatDateTime(selectedAppointmentForAttendance.scheduled_date)}</div>
+                  <div><strong>Status:</strong> {getStatusBadge(selectedAppointmentForAttendance.status)}</div>
+                </div>
+              </div>
+
+              {/* Attendance Options */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Comparecimento</Label>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="attended"
+                      checked={attendanceData.patient_attended}
+                      onCheckedChange={(checked) => {
+                        setAttendanceData(prev => ({
+                          ...prev,
+                          patient_attended: checked as boolean
+                        }))
+                      }}
+                    />
+                    <Label htmlFor="attended" className="text-sm">
+                      <div className="flex items-center">
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                        Paciente compareceu
+                      </div>
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="missed"
+                      checked={!attendanceData.patient_attended}
+                      onCheckedChange={(checked) => {
+                        setAttendanceData(prev => ({
+                          ...prev,
+                          patient_attended: !checked
+                        }))
+                      }}
+                    />
+                    <Label htmlFor="missed" className="text-sm">
+                      <div className="flex items-center">
+                        <XCircle className="mr-2 h-4 w-4" />
+                        Paciente não compareceu
+                      </div>
+                    </Label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-2">
+                <Label htmlFor="attendance-notes" className="text-sm font-medium">
+                  Observações (opcional)
+                </Label>
+                <textarea
+                  id="attendance-notes"
+                  className="w-full min-h-[80px] p-2 border border-gray-300 rounded-md text-sm"
+                  placeholder="Adicione observações sobre o comparecimento..."
+                  value={attendanceData.notes}
+                  onChange={(e) => setAttendanceData(prev => ({
+                    ...prev,
+                    notes: e.target.value
+                  }))}
+                />
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAttendanceDialog(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleMarkAttendance}
+              disabled={isMarkingAttendance}
+            >
+              {isMarkingAttendance && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Confirmar
             </Button>
           </DialogFooter>
         </DialogContent>
