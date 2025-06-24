@@ -39,7 +39,7 @@ import {
   CreditCard
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
-import { fetchResource, updateResource, ApiResponse } from "@/services/resource-service"
+import { fetchResource, updateResource, ApiResponse, createResource } from "@/services/resource-service"
 import { formatDistanceToNow } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { useRouter } from "next/navigation"
@@ -140,7 +140,7 @@ export function Header({ className }: HeaderProps) {
   const markAllAsRead = async () => {
     try {
       setIsMarkingRead(true)
-      await updateResource<{ success: boolean }>('notifications/read-all', {}, 'PATCH')
+      await createResource<{ success: boolean }>('notifications/read-all', {}, 'PATCH')
       // Update local state instead of refetching
       setNotifications(notifications.map(notification => ({
         ...notification,

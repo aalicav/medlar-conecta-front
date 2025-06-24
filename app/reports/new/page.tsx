@@ -58,20 +58,148 @@ interface ReportConfig {
 }
 
 interface ReportParameters {
-  [key: string]: string | number | boolean | null;
+  start_date?: string | undefined;
+  end_date?: string | undefined;
+  health_plan_id?: number | undefined;
+  clinic_id?: number | undefined;
+  professional_id?: number | undefined;
+  status?: 'pending' | 'scheduled' | 'completed' | 'cancelled' | 'missed' | undefined;
+  city?: string | undefined;
+  state?: string | undefined;
+  include_summary?: boolean;
+  payment_type?: string | undefined;
+  specialty?: string | undefined;
+  [key: string]: any;
 }
 
 interface FormData {
   name: string;
-  type: string;
-  description: string;
+  type: 'financial' | 'appointment' | 'performance' | 'custom';
+  description: string | undefined;
   parameters: ReportParameters;
   file_format: 'pdf' | 'csv' | 'xlsx';
   is_scheduled: boolean;
-  schedule_frequency: string;
+  schedule_frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | undefined;
   recipients: string[];
   is_public: boolean;
+  is_template: boolean;
+  save_as_report?: boolean;
 }
+
+// Default form data
+const defaultFormData: FormData = {
+  name: '',
+  type: 'financial',
+  description: undefined,
+  parameters: {
+    start_date: undefined,
+    end_date: undefined,
+    health_plan_id: undefined,
+    clinic_id: undefined,
+    professional_id: undefined,
+    status: undefined,
+    city: undefined,
+    state: undefined,
+    include_summary: true,
+    payment_type: undefined,
+    specialty: undefined
+  },
+  file_format: 'pdf',
+  is_scheduled: false,
+  schedule_frequency: undefined,
+  recipients: [],
+  is_public: false,
+  is_template: false,
+  save_as_report: false
+};
+
+const validateFormData = (data: FormData): { isValid: boolean; errors: string[] } => {
+  const errors: string[] = [];
+
+  // Required fields
+  if (!data.name?.trim()) {
+    errors.push('Nome do relatório é obrigatório');
+  }
+
+  if (!data.type) {
+    errors.push('Tipo de relatório é obrigatório');
+  }
+
+  if (!data.file_format) {
+    errors.push('Formato do arquivo é obrigatório');
+  }
+
+  // Validate schedule frequency if scheduled
+  if (data.is_scheduled && !data.schedule_frequency) {
+    errors.push('Frequência de agendamento é obrigatória para relatórios agendados');
+  }
+
+  // Validate recipients if any
+  if (data.recipients?.length > 0) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    data.recipients.forEach((email, index) => {
+      if (!emailRegex.test(email)) {
+        errors.push(`Formato de e-mail inválido para o destinatário ${index + 1}`);
+      }
+    });
+  }
+
+  // Validate parameters based on report type
+  if (data.type === 'financial') {
+    if (!data.parameters.start_date) {
+      errors.push('Data inicial é obrigatória para relatórios financeiros');
+    }
+    if (!data.parameters.end_date) {
+      errors.push('Data final é obrigatória para relatórios financeiros');
+    }
+    if (!data.parameters.health_plan_id) {
+      errors.push('Plano de saúde é obrigatório para relatórios financeiros');
+    }
+  }
+
+  if (data.type === 'appointment') {
+    if (!data.parameters.start_date) {
+      errors.push('Data inicial é obrigatória para relatórios de agendamentos');
+    }
+    if (!data.parameters.end_date) {
+      errors.push('Data final é obrigatória para relatórios de agendamentos');
+    }
+  }
+
+  if (data.type === 'performance') {
+    if (!data.parameters.start_date) {
+      errors.push('Data inicial é obrigatória para relatórios de desempenho');
+    }
+    if (!data.parameters.end_date) {
+      errors.push('Data final é obrigatória para relatórios de desempenho');
+    }
+    if (!data.parameters.professional_id && !data.parameters.clinic_id) {
+      errors.push('Profissional ou clínica é obrigatório para relatórios de desempenho');
+    }
+  }
+
+  // Validate date ranges
+  if (data.parameters.start_date && data.parameters.end_date) {
+    const start = new Date(data.parameters.start_date);
+    const end = new Date(data.parameters.end_date);
+    if (end < start) {
+      errors.push('A data final não pode ser anterior à data inicial');
+    }
+  }
+
+  // Log validation results
+  console.log('Form data being validated:', data);
+  if (errors.length > 0) {
+    console.log('Validation errors:', errors);
+  } else {
+    console.log('Validation passed');
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+};
 
 // Client component that uses useSearchParams
 const NewReportContent = () => {
@@ -80,6 +208,9 @@ const NewReportContent = () => {
   const typeParam = searchParams?.get('type') ?? '';
   const [loading, setLoading] = useState(false);
   const [currentTab, setCurrentTab] = useState('report-type');
+  
+  // Form data state
+  const [formData, setFormData] = useState<FormData>(defaultFormData);
   
   // Comum para todos os relatórios
   const [reportType, setReportType] = useState(typeParam || 'financial');
@@ -122,17 +253,6 @@ const NewReportContent = () => {
   const { hasPermission, hasRole, user: authUser } = useAuth();
 
   const [reportConfig, setReportConfig] = useState<ReportConfig | null>(null);
-  const [formData, setFormData] = useState<FormData>({
-    name: '',
-    type: typeParam,
-    description: '',
-    parameters: {},
-    file_format: 'pdf',
-    is_scheduled: false,
-    schedule_frequency: 'daily',
-    recipients: [],
-    is_public: false,
-  });
 
   // Definir os tipos de relatórios e suas permissões necessárias
   const reportTypes = [
@@ -159,6 +279,14 @@ const NewReportContent = () => {
       icon: BarChart3,
       description: 'Analise o desempenho dos profissionais e satisfação dos pacientes',
       roles: ['super_admin', 'clinic_admin']
+    },
+    {
+      value: 'custom',
+      label: 'Personalizado',
+      permission: 'create custom reports',
+      icon: FileText,
+      description: 'Crie relatórios personalizados com filtros específicos',
+      roles: ['super_admin']
     }
   ];
 
@@ -171,9 +299,7 @@ const NewReportContent = () => {
     if (hasRole('super_admin')) return true;
 
     // Verifica se o usuário tem uma das roles necessárias
-    const hasRequiredRole = hasRole(reportType.roles);
-
-    return hasRequiredRole;
+    return hasRole(reportType.roles);
   };
 
   // Filtrar os tipos de relatórios baseado nas permissões e roles
@@ -306,117 +432,103 @@ const NewReportContent = () => {
   };
 
   const handleCreateReport = async () => {
-    if (!reportName) {
-      toast({
-        variant: "destructive",
-        title: "Erro",
-        description: "Por favor, forneça um nome para o relatório"
-      });
-      return;
-    }
-
-    if (!reportType) {
-      toast({
-        variant: "destructive",
-        title: "Erro",
-        description: "Por favor, selecione o tipo de relatório"
-      });
-      return;
-    }
-
-    setLoading(true);
     try {
-      const healthPlanId = getHealthPlanId();
+      console.group('Creating Report');
+      console.log('Initial form data:', formData);
+      setLoading(true);
 
-      // Mapear o tipo de relatório para o formato esperado pelo backend
-      const reportTypeMap: { [key: string]: string } = {
-        'financial': 'financial',
-        'appointment': 'appointment',
-        'performance': 'performance'
-      };
+      // Validate form data
+      const validation = validateFormData(formData);
+      if (!validation.isValid) {
+        console.log('Validation failed:', validation.errors);
+        validation.errors.forEach(error => {
+          toast({
+            variant: "destructive",
+            title: "Erro de Validação",
+            description: error
+          });
+        });
+        return;
+      }
 
-      const params: any = {
-        name: reportName,
-        description: reportDescription || `Relatório gerado em ${new Date().toLocaleDateString('pt-BR')}`,
-        type: reportTypeMap[reportType],
-        report_type: reportTypeMap[reportType],
-        is_template: saveAsTemplate,
-        is_scheduled: scheduleReport,
-        schedule_frequency: scheduleReport ? scheduleFrequency : null,
-        format: reportFormat,
+      // Prepare report data according to backend structure
+      const reportData = {
+        report_type: formData.type,
+        name: formData.name,
+        description: formData.description || null,
         parameters: {
-          start_date: startDate ? startDate.toISOString().split('T')[0] : null,
-          end_date: endDate ? endDate.toISOString().split('T')[0] : null,
-          health_plan_id: healthPlanId
-        }
+          start_date: formData.parameters.start_date,
+          end_date: formData.parameters.end_date,
+          health_plan_id: formData.parameters.health_plan_id ? Number(formData.parameters.health_plan_id) : undefined,
+          clinic_id: formData.parameters.clinic_id ? Number(formData.parameters.clinic_id) : undefined,
+          professional_id: formData.parameters.professional_id ? Number(formData.parameters.professional_id) : undefined,
+          status: formData.parameters.status,
+          city: formData.parameters.city,
+          state: formData.parameters.state,
+          include_summary: formData.parameters.include_summary,
+          payment_type: formData.parameters.payment_type,
+          specialty: formData.parameters.specialty
+        },
+        format: formData.file_format,
+        save_as_report: formData.save_as_report || false
       };
 
-      // Adicionar parâmetros específicos de cada tipo de relatório
-      if (reportType === 'financial') {
-        params.parameters = {
-          ...params.parameters,
-          include_summary: includeSummary,
-          type: 'financial'
-        };
-      } else if (reportType === 'appointment') {
-        params.parameters = {
-          ...params.parameters,
-          clinic_id: clinicId || null,
-          professional_id: professionalId || null,
-          status: appointmentStatus !== 'all' ? appointmentStatus : null,
-          include_summary: true,
-          city: cityAppointment || null,
-          state: stateAppointment || null,
-          type: 'appointment'
-        };
-      } else if (reportType === 'performance') {
-        params.parameters = {
-          ...params.parameters,
-          professional_id: professionalIdPerformance || null,
-          clinic_id: clinicIdPerformance || null,
-          city: cityPerformance || null,
-          state: statePerformance || null,
-          type: 'performance'
-        };
-      }
-
-      console.log('Enviando parâmetros:', params); // Log para debug
-
-      // Criar o relatório
-      const response = await api.post('/reports/export', params);
+      console.log('Prepared request data:', reportData);
+      console.log('Making API request to:', '/reports/export');
       
-      if (response.data.status === 'success') {
-        toast({
-          title: "Sucesso",
-          description: "Relatório criado com sucesso"
-        });
-        
-        // Se for agendado, apenas redireciona para a página de relatórios
-        if (scheduleReport) {
-          router.push('/reports');
-        } else {
-          // Se não for agendado, abre o download do relatório
-          if (response.data.data.download_url) {
-            window.open(response.data.data.download_url, '_blank');
-          }
-          router.push('/reports');
-        }
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Erro",
-          description: "Erro ao criar relatório"
-        });
+      const response = await api.post('/reports/export', reportData);
+      console.log('API Response:', response.data);
+
+      if (!response.data.status || response.data.status === 'error') {
+        console.error('API returned error status:', response.data);
+        throw new Error(response.data.message || 'Falha ao criar relatório');
       }
-    } catch (error) {
-      console.error('Erro ao criar relatório:', error);
+
+      toast({
+        title: "Sucesso",
+        description: "Relatório criado com sucesso. Você receberá uma notificação quando estiver pronto para download.",
+      });
+
+      // Log redirect information
+      console.log('Processing response for redirect:', {
+        hasGenerationId: !!response.data.data?.generation?.id,
+        hasReportId: !!response.data.data?.report?.id
+      });
+
+      // If report was created successfully and we have a generation ID, redirect to download
+      if (response.data.data?.generation?.id) {
+        const downloadUrl = `/reports/generations/${response.data.data.generation.id}/download`;
+        console.log('Redirecting to download:', downloadUrl);
+        router.push(downloadUrl);
+      } 
+      // If report was saved, redirect to report page
+      else if (response.data.data?.report?.id) {
+        const reportUrl = `/reports/${response.data.data.report.id}`;
+        console.log('Redirecting to report:', reportUrl);
+        router.push(reportUrl);
+      }
+      // Otherwise, redirect to reports list
+      else {
+        console.log('Redirecting to reports list');
+        router.push('/reports');
+      }
+
+    } catch (error: any) {
+      console.error('Error creating report:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        stack: error.stack
+      });
+      
       toast({
         variant: "destructive",
         title: "Erro",
-        description: "Não foi possível criar o relatório"
+        description: error.message || 'Falha ao criar relatório'
       });
     } finally {
       setLoading(false);
+      console.groupEnd();
     }
   };
 
@@ -499,50 +611,39 @@ const NewReportContent = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    console.group('Form Submission');
+    console.log('Form submitted with data:', formData);
 
-    try {
-      const response = await api.post('/reports/export', formData);
-
-      if (response.data.status === 'success') {
+    // Validate form data
+    const validation = validateFormData(formData);
+    if (!validation.isValid) {
+      console.log('Form validation failed:', validation.errors);
+      validation.errors.forEach(error => {
         toast({
-          title: 'Sucesso',
-          description: 'Relatório criado com sucesso',
+          variant: "destructive",
+          title: "Erro de Validação",
+          description: error
         });
-        
-        // If it's a scheduled report, just redirect to reports page
-        if (formData.is_scheduled) {
-          router.push('/reports');
-        } else {
-          // If not scheduled, open the report download
-          if (response.data.data.download_url) {
-            window.open(response.data.data.download_url, '_blank');
-          }
-          router.push('/reports');
-        }
-      } else {
-        throw new Error(response.data.message || 'Erro ao criar relatório');
-      }
-    } catch (error) {
-      console.error('Error creating report:', error);
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível criar o relatório',
-        variant: 'destructive',
       });
-    } finally {
-      setLoading(false);
+      console.groupEnd();
+      return;
     }
+
+    console.log('Form validation passed, creating report...');
+    await handleCreateReport();
+    console.groupEnd();
   };
 
-  const handleInputChange = (field: string, value: any) => {
+  const handleInputChange = (field: keyof FormData, value: any) => {
+    console.log('Input changed:', field, value);
     setFormData((prev) => ({
       ...prev,
       [field]: value,
     }));
   };
 
-  const handleParameterChange = (name: string, value: any) => {
+  const handleParameterChange = (name: keyof ReportParameters, value: any) => {
+    console.log('Parameter changed:', name, value);
     setFormData((prev) => ({
       ...prev,
       parameters: {
@@ -550,6 +651,53 @@ const NewReportContent = () => {
         [name]: value,
       },
     }));
+  };
+
+  // Update the filter rendering to use type-safe parameter names
+  const renderFilter = (key: string, filter: ReportFilter) => {
+    const paramKey = key as keyof ReportParameters;
+    return (
+      <div key={key} className="space-y-2">
+        <Label className="block">{filter.label}</Label>
+        {filter.type === 'select' && filter.options ? (
+          <Select
+            value={String(formData.parameters[paramKey] || '')}
+            onValueChange={(value) => handleParameterChange(paramKey, value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder={`Selecione ${filter.label}`} />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(filter.options).map(([optKey, optValue]) => (
+                <SelectItem key={optKey} value={optKey}>
+                  {optValue}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : filter.type === 'date' ? (
+          <DatePicker
+            date={formData.parameters[paramKey] ? new Date(formData.parameters[paramKey] as string) : null}
+            setDate={(date: Date | null) =>
+              handleParameterChange(paramKey, date?.toISOString() ?? null)
+            }
+          />
+        ) : (
+          <Input
+            className="mt-1"
+            type={filter.type === 'number' ? 'number' : 'text'}
+            value={String(formData.parameters[paramKey] || '')}
+            onChange={(e) =>
+              handleParameterChange(
+                paramKey,
+                filter.type === 'number' ? Number(e.target.value) : e.target.value
+              )
+            }
+            required={filter.required}
+          />
+        )}
+      </div>
+    );
   };
 
   if (!reportConfig) {
@@ -574,24 +722,26 @@ const NewReportContent = () => {
         </Button>
       </div>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="space-y-6">
         <Card className="p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="name">Nome do Relatório</Label>
+              <Label htmlFor="name" className="required">Nome do Relatório</Label>
               <Input
                 id="name"
                 value={formData.name}
                 onChange={(e) => handleInputChange('name', e.target.value)}
                 required
+                placeholder="Digite o nome do relatório"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="type">Tipo de Relatório</Label>
+              <Label htmlFor="type" className="required">Tipo de Relatório</Label>
               <Select
                 value={formData.type}
                 onValueChange={(value) => handleInputChange('type', value)}
+                required
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o tipo" />
@@ -613,55 +763,18 @@ const NewReportContent = () => {
                 value={formData.description}
                 onChange={(e) => handleInputChange('description', e.target.value)}
                 rows={3}
+                placeholder="Digite uma descrição para o relatório"
               />
             </div>
           </div>
 
-          {formData.type && reportConfig.types[formData.type].filters && (
+          {formData.type && reportConfig.types[formData.type]?.filters && (
             <div className="border-t pt-6">
               <h3 className="text-lg font-medium mb-4">Filtros</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {Object.entries(reportConfig.types[formData.type].filters).map(([key, filter]) => (
-                  <div key={key} className="space-y-2">
-                    <Label htmlFor={key}>{filter.label}</Label>
-                    {filter.type === 'select' && filter.options ? (
-                      <Select
-                        value={String(formData.parameters[key] || '')}
-                        onValueChange={(value) =>
-                          handleParameterChange(key, value)
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder={`Selecione ${filter.label}`} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(filter.options).map(([optKey, optValue]) => (
-                            <SelectItem key={optKey} value={optKey}>
-                              {optValue}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : filter.type === 'date' ? (
-                      <DatePicker
-                        date={formData.parameters[key] ? new Date(formData.parameters[key] as string) : null}
-                        setDate={(date: Date | null) =>
-                          handleParameterChange(key, date?.toISOString() ?? null)
-                        }
-                      />
-                    ) : (
-                      <Input
-                        id={key}
-                        type={filter.type === 'number' ? 'number' : 'text'}
-                        value={String(formData.parameters[key] || '')}
-                        onChange={(e) =>
-                          handleParameterChange(key, filter.type === 'number' ? Number(e.target.value) : e.target.value)
-                        }
-                        required={filter.required}
-                      />
-                    )}
-                  </div>
-                ))}
+                {Object.entries(reportConfig.types[formData.type].filters).map(([key, filter]) =>
+                  renderFilter(key, filter)
+                )}
               </div>
             </div>
           )}
@@ -670,10 +783,11 @@ const NewReportContent = () => {
             <h3 className="text-lg font-medium mb-4">Configurações</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label htmlFor="file_format">Formato do Arquivo</Label>
+                <Label htmlFor="file_format" className="required">Formato do Arquivo</Label>
                 <Select
                   value={formData.file_format}
                   onValueChange={(value) => handleInputChange('file_format', value)}
+                  required
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o formato" />
@@ -702,39 +816,24 @@ const NewReportContent = () => {
               <div className="flex items-center space-x-4">
                 <div className="flex items-center space-x-2">
                   <Switch
-                    id="is_scheduled"
-                    checked={formData.is_scheduled}
+                    id="save_as_report"
+                    checked={formData.save_as_report}
                     onCheckedChange={(checked) =>
-                      handleInputChange('is_scheduled', checked)
+                      handleInputChange('save_as_report', checked)
                     }
                   />
-                  <Label htmlFor="is_scheduled">Agendar Relatório</Label>
+                  <Label htmlFor="save_as_report">Salvar como Relatório</Label>
                 </div>
               </div>
-
-              {formData.is_scheduled && (
-                <div className="space-y-2">
-                  <Label htmlFor="schedule_frequency">Frequência</Label>
-                  <Select
-                    value={formData.schedule_frequency}
-                    onValueChange={(value) =>
-                      handleInputChange('schedule_frequency', value)
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione a frequência" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="daily">Diário</SelectItem>
-                      <SelectItem value="weekly">Semanal</SelectItem>
-                      <SelectItem value="monthly">Mensal</SelectItem>
-                      <SelectItem value="quarterly">Trimestral</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
             </div>
           </div>
+
+          <style jsx global>{`
+            .required:after {
+              content: " *";
+              color: red;
+            }
+          `}</style>
 
           <div className="flex justify-end space-x-4">
             <Button
@@ -745,7 +844,11 @@ const NewReportContent = () => {
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button 
+              type="submit"
+              disabled={loading}
+              className="bg-primary text-white hover:bg-primary/90"
+            >
               {loading ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>

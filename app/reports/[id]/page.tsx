@@ -18,6 +18,7 @@ import { toast } from '@/components/ui/use-toast';
 import { FileText, Download, Clock, ArrowLeft, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { api } from '@/lib/api';
 
 interface Report {
   id: number;
@@ -49,11 +50,12 @@ export default function ReportDetailsPage({ params }: { params: { id: string } }
 
   const fetchReport = async () => {
     try {
-      const response = await fetch(`/api/reports/${params.id}`);
-      const data = await response.json();
+      const response = await api.get(`/reports/${params.id}`);
+      const data = response.data;
       
-      if (data.status === 'success') {
-        setReport(data.data);
+      if (data.success) {
+        console.log(data.data);
+        setReport(data.data.report);
       } else {
         throw new Error(data.message || 'Failed to fetch report');
       }
@@ -72,19 +74,13 @@ export default function ReportDetailsPage({ params }: { params: { id: string } }
   const handleGenerateReport = async () => {
     setGeneratingReport(true);
     try {
-      const response = await fetch(`/api/reports/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const response = await api.post(`/reports/generate`, {
           type: report?.type,
           format: report?.file_format,
           filters: report?.parameters,
-        }),
-      });
+        });
 
-      const data = await response.json();
+      const data = response.data;
 
       if (data.success) {
         toast({
@@ -109,18 +105,40 @@ export default function ReportDetailsPage({ params }: { params: { id: string } }
 
   const handleDownload = async (generationId: number) => {
     try {
-      const response = await fetch(`/api/reports/generations/${generationId}/download`);
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `report-${generationId}.${report?.file_format}`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+      const response = await api.get(`/reports/download/${generationId}`, {
+        responseType: 'blob',
+        headers: {
+          Accept: '*/*'
+        }
+      });
+
+      // Create blob from response data
+      const blob = new Blob([response.data], { 
+        type: response.headers['content-type'] || 'application/octet-stream' 
+      });
+
+      // Get filename from content-disposition or generate default
+      let filename = `${report?.name?.toLowerCase().replace(/ /g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.${report?.file_format}`;
+      const disposition = response.headers['content-disposition'];
+      if (disposition && disposition.includes('filename=')) {
+        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        const matches = filenameRegex.exec(disposition);
+        if (matches?.[1]) {
+          filename = matches[1].replace(/['"]/g, '');
+        }
       }
+
+      // Create and trigger download
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
     } catch (error) {
       console.error('Error downloading report:', error);
       toast({
@@ -135,11 +153,9 @@ export default function ReportDetailsPage({ params }: { params: { id: string } }
     if (!report) return;
 
     try {
-      const response = await fetch(`/api/reports/${report.id}/toggle-schedule`, {
-        method: 'POST',
-      });
+      const response = await api.post(`/reports/${report.id}/toggle-schedule`);
 
-      const data = await response.json();
+      const data = response.data;
 
       if (data.success) {
         setReport(data.data);

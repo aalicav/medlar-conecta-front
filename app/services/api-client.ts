@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { toast } from "@/hooks/use-toast";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/conecta-backend/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
 // Error message translator for negotiation-related errors
 const negotiationErrorMessages: Record<string, string> = {
@@ -74,18 +74,45 @@ const apiClient = axios.create({
 // Add request interceptor to include auth token
 apiClient.interceptors.request.use(
   (config) => {
+    console.group('API Request');
+    console.log('URL:', config.url);
+    console.log('Method:', config.method?.toUpperCase());
+    console.log('Headers:', config.headers);
+    if (config.data) {
+      console.log('Request Data:', config.data);
+    }
+    if (config.params) {
+      console.log('Query Params:', config.params);
+    }
+    
     const token = localStorage.getItem('token');
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
+    console.groupEnd();
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    console.group('Request Error');
+    console.error('Error details:', {
+      message: error.message,
+      config: error.config,
+      stack: error.stack
+    });
+    console.groupEnd();
+    return Promise.reject(error);
+  }
 );
 
 // Add response interceptor to handle common errors
 apiClient.interceptors.response.use(
   (response) => {
+    console.group('API Response');
+    console.log('Status:', response.status);
+    console.log('Status Text:', response.statusText);
+    console.log('Response Data:', response.data);
+    console.groupEnd();
+    
     // Show success toast for POST, PUT, PATCH and DELETE operations
     const method = response.config.method?.toUpperCase();
     
@@ -120,21 +147,32 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
-    // Handle common error statuses
+    console.group('API Error');
+    console.error('Error:', error);
+    
     if (error.response) {
+      console.error('Response Error Details:', {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data,
+        headers: error.response.headers
+      });
+      
       const status = error.response.status;
       const data = error.response.data;
 
       // Handle validation errors (422)
       if (status === 422) {
+        console.log('Validation Error:', data);
         if (data?.errors) {
-          // Get first validation error message
-          const firstErrorField = Object.keys(data.errors)[0];
-          const firstErrorMessage = data.errors[firstErrorField][0];
+          // Get all validation error messages
+          const errorMessages = Object.entries(data.errors)
+            .map(([field, messages]) => `${field}: ${(messages as string[]).join(', ')}`)
+            .join('\n');
           
           toast({
             title: "Erro de validação",
-            description: firstErrorMessage || "Verifique os dados informados",
+            description: errorMessages || "Verifique os dados informados",
             variant: "destructive",
           });
         } else if (data?.message) {
@@ -154,6 +192,7 @@ apiClient.interceptors.response.use(
 
       // Handle 401 Unauthorized errors
       if (status === 401) {
+        console.log('Authentication Error:', data);
         toast({
           title: "Erro de autenticação",
           description: "Ocorreu um problema com sua autenticação.",
@@ -167,6 +206,7 @@ apiClient.interceptors.response.use(
 
       // Handle forbidden errors
       if (status === 403) {
+        console.log('Forbidden Error:', data);
         const errorMessage = data?.message ? translateErrorMessage(data.message) : "Você não tem permissão para acessar este recurso.";
         
         toast({
@@ -178,6 +218,7 @@ apiClient.interceptors.response.use(
 
       // Handle not found errors
       if (status === 404) {
+        console.log('Not Found Error:', data);
         const errorMessage = data?.message ? translateErrorMessage(data.message) : "O recurso solicitado não foi encontrado.";
         
         toast({
@@ -189,6 +230,7 @@ apiClient.interceptors.response.use(
 
       // Handle server errors
       if (status >= 500) {
+        console.log('Server Error:', data);
         const errorMessage = data?.message ? translateErrorMessage(data.message) : "Ocorreu um erro no servidor. Tente novamente mais tarde.";
         
         toast({
@@ -200,6 +242,7 @@ apiClient.interceptors.response.use(
       
       // Handle 400 bad request errors
       if (status === 400) {
+        console.log('Bad Request Error:', data);
         const errorMessage = data?.message ? translateErrorMessage(data.message) : "A requisição não pôde ser processada.";
         
         toast({
@@ -210,6 +253,11 @@ apiClient.interceptors.response.use(
       }
     } else {
       // Network or other errors
+      console.error('Network Error:', {
+        message: error.message,
+        stack: error.stack
+      });
+      
       toast({
         title: "Erro de conexão",
         description: "Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.",
@@ -217,6 +265,7 @@ apiClient.interceptors.response.use(
       });
     }
     
+    console.groupEnd();
     return Promise.reject(error);
   }
 );

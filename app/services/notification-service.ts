@@ -92,7 +92,7 @@ class NotificationService {
    */
   async markAllAsRead(): Promise<any> {
     try {
-      const response = await apiClient.patch('/notifications/read-all');
+      const response = await apiClient.post('/notifications/read-all');
       return response.data;
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
