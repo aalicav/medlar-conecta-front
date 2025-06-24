@@ -250,18 +250,23 @@ export default function AppointmentsPage() {
 
       const response = await fetchResource<Appointment[]>("appointments", params)
 
-      setData(response.data)
-      setPagination({
-        ...pagination,
-        pageCount: response.meta?.last_page || 1,
-        total: response.meta?.total || 0,
-      })
+      if (response.data) {
+        setData(response.data)
+      }
+      
+      if (response.meta) {
+        setPagination({
+          ...pagination,
+          pageCount: response.meta.last_page || 0,
+          total: response.meta.total || 0,
+        })
+      }
     } catch (error) {
       console.error("Error fetching appointments:", error)
       toast({
         title: "Erro",
         description: "Não foi possível carregar os agendamentos",
-        variant: "destructive"
+        variant: "destructive",
       })
     } finally {
       setIsLoading(false)
@@ -271,7 +276,7 @@ export default function AppointmentsPage() {
   useEffect(() => {
     fetchData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagination.pageIndex, pagination.pageSize, sorting, filters, dateFilters])
+  }, [pagination.pageIndex, pagination.pageSize, sorting.column, sorting.direction, filters, dateFilters])
 
   const handlePaginationChange = (page: number, pageSize: number) => {
     setPagination({
@@ -281,8 +286,21 @@ export default function AppointmentsPage() {
     })
   }
 
-  const handleSortingChange = (column: string, direction: "asc" | "desc") => {
-    setSorting({ column, direction })
+  const handleSortingChange = (newSorting: any) => {
+    if (newSorting.length > 0) {
+      const column = newSorting[0].id
+      const direction = newSorting[0].desc ? "desc" : "asc"
+      
+      // Só atualiza se realmente mudou
+      if (sorting.column !== column || sorting.direction !== direction) {
+        setSorting({ column, direction })
+        // Reset para a primeira página ao ordenar
+        setPagination(prev => ({
+          ...prev,
+          pageIndex: 0
+        }))
+      }
+    }
   }
 
   const handleFilterChange = (columnId: string, value: string) => {
@@ -1012,11 +1030,7 @@ export default function AppointmentsPage() {
           columns={columns}
           data={data}
           onPaginationChange={handlePaginationChange}
-          onSortingChange={(sorting) => {
-            if (sorting.length > 0) {
-              handleSortingChange(sorting[0].id, sorting[0].desc ? "desc" : "asc")
-            }
-          }}
+          onSortingChange={handleSortingChange}
           onFilterChange={handleFilterChange}
           pageCount={pagination.pageCount}
           currentPage={pagination.pageIndex + 1}

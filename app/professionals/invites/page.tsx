@@ -313,7 +313,6 @@ export default function InvitesPage() {
                         const end = new Date(selectedInvite.solicitation.preferred_date_end);
                         return date < start || date > end;
                       }}
-                      initialFocus
                       locale={ptBR}
                     />
                   </PopoverContent>
