@@ -146,7 +146,7 @@ export default function ContractsPage() {
   const getContractTypeName = (type) => {
     const typeMap = {
       health_plan: 'Plano de Saúde',
-      clinic: 'Clínica',
+      clinic: 'Estabelecimento',
       professional: 'Profissional'
     }
     
@@ -200,7 +200,7 @@ export default function ContractsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="health_plan">Plano de Saúde</SelectItem>
-                  <SelectItem value="clinic">Clínica</SelectItem>
+                  <SelectItem value="clinic">Estabelecimento</SelectItem>
                   <SelectItem value="professional">Profissional</SelectItem>
                 </SelectContent>
               </Select>

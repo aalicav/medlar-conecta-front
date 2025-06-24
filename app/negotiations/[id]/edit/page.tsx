@@ -562,7 +562,7 @@ const EditNegotiationPage = ({ params }: { params: { id: string } }) => {
                           <SelectContent>
                             <SelectItem value="App\Models\HealthPlan">Plano de Saúde</SelectItem>
                             <SelectItem value="App\Models\Professional">Profissional</SelectItem>
-                            <SelectItem value="App\Models\Clinic">Clínica</SelectItem>
+                            <SelectItem value="App\Models\Clinic">Estabelecimento</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />

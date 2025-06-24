@@ -203,7 +203,7 @@ export default function ExportTemplatePage({ params }: { params: { id: string } 
       case 'health_plan':
         return 'Plano de Saúde'
       case 'clinic':
-        return 'Clínica'
+        return 'Estabelecimento'
       case 'professional':
         return 'Profissional'
       default:

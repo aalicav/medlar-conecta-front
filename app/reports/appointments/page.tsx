@@ -255,7 +255,7 @@ export default function AppointmentsReportsPage() {
 
             <div className="space-y-2">
               <label className="text-sm font-medium">
-                Clínica
+                Estabelecimento
               </label>
               <Select
                 value={clinicId}
@@ -384,7 +384,7 @@ export default function AppointmentsReportsPage() {
                     <TableHead>Horário</TableHead>
                     <TableHead>Paciente</TableHead>
                     <TableHead>Profissional</TableHead>
-                    <TableHead>Clínica</TableHead>
+                    <TableHead>Estabelecimento</TableHead>
                     <TableHead>Procedimento</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>

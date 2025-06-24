@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
-  BarChart3, 
   FileText, 
-  Calendar, 
-  Receipt,
-  ChevronDown 
+  Download, 
+  Clock, 
+  ChevronDown,
+  Settings
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { ReportConfig } from '@/types/report';
 
 interface ReportButtonProps {
   variant?: 'default' | 'outline' | 'ghost' | 'link';
@@ -32,13 +33,34 @@ export default function ReportButton({
   showLabel = true 
 }: ReportButtonProps) {
   const router = useRouter();
+  const [reportConfig, setReportConfig] = useState<ReportConfig | null>(null);
   
+  useEffect(() => {
+    fetchReportConfig();
+  }, []);
+
+  const fetchReportConfig = async () => {
+    try {
+      const response = await fetch('/api/reports/config');
+      const data = await response.json();
+      if (data.success) {
+        setReportConfig(data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching report config:', error);
+    }
+  };
+
   const handleCreateReport = (type: string) => {
     router.push(`/reports/new?type=${type}`);
   };
 
   const handleViewReports = () => {
     router.push('/reports');
+  };
+
+  const handleScheduledReports = () => {
+    router.push('/reports/scheduled');
   };
 
   return (
@@ -50,25 +72,23 @@ export default function ReportButton({
           <ChevronDown className="h-4 w-4 ml-2" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel>Gerar Relatório</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => handleCreateReport('financial')}>
-          <Receipt className="h-4 w-4 mr-2" />
-          Financeiro
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handleCreateReport('appointment')}>
-          <Calendar className="h-4 w-4 mr-2" />
-          Agendamentos
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handleCreateReport('performance')}>
-          <BarChart3 className="h-4 w-4 mr-2" />
-          Desempenho
-        </DropdownMenuItem>
+        {reportConfig && Object.entries(reportConfig.types).map(([key, type]) => (
+          <DropdownMenuItem key={key} onClick={() => handleCreateReport(key)}>
+            <FileText className="h-4 w-4 mr-2" />
+            {type.name}
+          </DropdownMenuItem>
+        ))}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleViewReports}>
-          <FileText className="h-4 w-4 mr-2" />
-          Ver Todos os Relatórios
+          <Download className="h-4 w-4 mr-2" />
+          Relatórios Gerados
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleScheduledReports}>
+          <Clock className="h-4 w-4 mr-2" />
+          Relatórios Agendados
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

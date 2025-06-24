@@ -95,7 +95,7 @@ export function BillingOverview({ data, loading }: BillingOverviewProps) {
           <div className="space-y-4">
             <div>
               <h4 className="text-sm font-medium text-muted-foreground">
-                Clínicas
+                Estabelecimentos
               </h4>
               <p className="mt-1 text-2xl font-semibold">
                 {formatCurrency(data.clinic_revenue)}

@@ -266,7 +266,7 @@ export default function PaginaNegociacoesExtemporaneas() {
         <div className="max-w-[200px] truncate">
           <div className="font-medium">{row.original.negotiable.name}</div>
           <div className="text-sm text-muted-foreground">
-            {row.original.negotiable_type === 'App\\Models\\Clinic' ? 'Clínica' : 'Profissional'}
+            {row.original.negotiable_type === 'App\\Models\\Clinic' ? 'Estabelecimento' : 'Profissional'}
           </div>
         </div>
       ),
@@ -497,7 +497,7 @@ export default function PaginaNegociacoesExtemporaneas() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os tipos</SelectItem>
-                  <SelectItem value="App\\Models\\Clinic">Clínica</SelectItem>
+                  <SelectItem value="App\\Models\\Clinic">Estabelecimento</SelectItem>
                   <SelectItem value="App\\Models\\Professional">Profissional</SelectItem>
                 </SelectContent>
               </Select>

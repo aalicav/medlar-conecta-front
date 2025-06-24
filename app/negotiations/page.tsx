@@ -589,12 +589,12 @@ export default function NegotiationsPage() {
     },
     {
       accessorKey: "negotiable_name",
-      header: "Profissional/Clínica",
+      header: "Profissional/Estabelecimento",
       cell: ({ row }) => (
         <div className="max-w-[200px] truncate" title={row.getValue("negotiable_name")}>
           {row.getValue("negotiable_name")}
           <div className="text-xs text-muted-foreground">
-            {row.original.negotiable_type === "App\\Models\\Professional" ? "Profissional" : "Clínica"}
+            {row.original.negotiable_type === "App\\Models\\Professional" ? "Profissional" : "Estabelecimento"}
           </div>
         </div>
       ),
@@ -746,7 +746,7 @@ export default function NegotiationsPage() {
                 >
                   <option value="">Todos</option>
                   <option value="App\\Models\\Professional">Profissional</option>
-                  <option value="App\\Models\\Clinic">Clínica</option>
+                  <option value="App\\Models\\Clinic">Estabelecimento</option>
                 </select>
               </div>
 

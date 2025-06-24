@@ -349,7 +349,7 @@ export default function BillingPage() {
                         <div>
                           <h4 className="font-medium mb-2">Prestador</h4>
                           <p>Nome: {item.provider.name}</p>
-                          <p>Tipo: {item.provider.type === 'professional' ? 'Profissional' : 'Clínica'}</p>
+                          <p>Tipo: {item.provider.type === 'professional' ? 'Profissional' : 'Estabelecimento'}</p>
                           {item.provider.specialty && (
                             <p>Especialidade: {item.provider.specialty}</p>
                           )}

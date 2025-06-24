@@ -123,7 +123,7 @@ export default function ContractTemplateDetailPage({ params }: { params: { id: s
       case 'health_plan':
         return 'Plano de Saúde'
       case 'clinic':
-        return 'Clínica'
+        return 'Estabelecimento'
       case 'professional':
         return 'Profissional'
       default:

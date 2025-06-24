@@ -306,6 +306,35 @@ export default function SolicitationsPage() {
     }
   }
 
+  const handleForceSchedule = async (solicitation: Solicitation) => {
+    try {
+      setIsLoading(true);
+      const response = await api.post(`/solicitations/${solicitation.id}/force-schedule`, {
+        cancel_pending_invites: true
+      });
+      
+      if (response.data.success) {
+        toast({
+          title: "Solicitação reprocessada",
+          description: response.data.message || "A solicitação foi enviada para reprocessamento.",
+        });
+        
+        fetchData();
+      } else {
+        throw new Error(response.data.message);
+      }
+    } catch (error: any) {
+      console.error("Error reprocessing solicitation:", error);
+      toast({
+        title: "Erro",
+        description: error.response?.data?.message || error.message || "Não foi possível reprocessar a solicitação.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const columns: ColumnDef<Solicitation>[] = [
     {
       accessorKey: "id",
@@ -392,12 +421,12 @@ export default function SolicitationsPage() {
                 </DropdownMenuItem>
               )}
               
-              {/* {solicitation.status === "failed" && (
-                <DropdownMenuItem onClick={() => handleRetryScheduling(solicitation.id)}>
-                  <AlertCircle className="h-4 w-4 mr-2" />
-                  Tentar novamente
+              {(solicitation.status === "pending" || solicitation.status === "processing" || solicitation.status === "failed") && (hasRole('network_manager') || hasRole('super_admin')) && (
+                <DropdownMenuItem onClick={() => handleForceSchedule(solicitation)}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Reprocessar
                 </DropdownMenuItem>
-              )} */}
+              )}
 
               {(hasRole('network_manager') || hasRole('super_admin')) && (
                 <DropdownMenuItem onClick={() => setShowCreateAppointmentModal(true)}>

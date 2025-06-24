@@ -240,7 +240,7 @@ export function AppointmentModal({
                               <RadioGroupItem value="App\\Models\\Clinic" />
                             </FormControl>
                             <FormLabel className="font-normal">
-                              Clínica
+                              Estabelecimento
                             </FormLabel>
                           </FormItem>
                           <FormItem className="flex items-center space-x-3 space-y-0">
@@ -264,7 +264,7 @@ export function AppointmentModal({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>
-                        {providerType === "App\\Models\\Clinic" ? "Clínica" : "Profissional"}
+                        {providerType === "App\\Models\\Clinic" ? "Estabelecimento" : "Profissional"}
                       </FormLabel>
                       <Select 
                         onValueChange={field.onChange} 

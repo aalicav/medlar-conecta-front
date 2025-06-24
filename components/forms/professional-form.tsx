@@ -92,7 +92,7 @@ const COUNCIL_TYPES = [
 
 // Medical specialties list
 const MEDICAL_SPECIALTIES = [
-  { value: "general_practice", label: "Clínica Geral" },
+  { value: "general_practice", label: "Estabelecimento Geral" },
   { value: "cardiology", label: "Cardiologia" },
   { value: "dermatology", label: "Dermatologia" },
   { value: "endocrinology", label: "Endocrinologia" },
@@ -139,7 +139,7 @@ const PHYSICAL_THERAPY_SPECIALTIES = [
 
 // Psychologist specialties
 const PSYCHOLOGY_SPECIALTIES = [
-  { value: "clinical_psychology", label: "Psicologia Clínica" },
+  { value: "clinical_psychology", label: "Psicologia Estabelecimento" },
   { value: "neuropsychology", label: "Neuropsicologia" },
   { value: "health_psychology", label: "Psicologia da Saúde" },
   { value: "child_psychology", label: "Psicologia Infantil" },
@@ -158,7 +158,7 @@ const NURSING_SPECIALTIES = [
 
 // Nutrition specialties
 const NUTRITION_SPECIALTIES = [
-  { value: "clinical_nutrition", label: "Nutrição Clínica" },
+  { value: "clinical_nutrition", label: "Nutrição Estabelecimento" },
   { value: "sports_nutrition", label: "Nutrição Esportiva" },
   { value: "pediatric_nutrition", label: "Nutrição Pediátrica" },
   { value: "nutritional_therapy", label: "Terapia Nutricional" }
@@ -851,7 +851,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     const fetchClinics = async () => {
       if (isClinicAdmin) {
         // Se for admin da clínica, não precisa buscar clínicas
-        setClinics([{ id: clinicId ?? '', name: "Minha Clínica" }])
+        setClinics([{ id: clinicId ?? '', name: "Minha Estabelecimento" }])
         return
       }
 
@@ -1487,7 +1487,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
 
       showToast(toast, {
         title: "Sucesso",
-            description: documentType === "cpf" ? "Profissional atualizado com sucesso" : "Clínica atualizada com sucesso",
+            description: documentType === "cpf" ? "Profissional atualizado com sucesso" : "Estabelecimento atualizada com sucesso",
         variant: "success"
       });
 
@@ -2402,7 +2402,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                                 <FormLabel className="font-normal cursor-pointer" htmlFor="cnpj">
                                   <div className="flex items-center">
                                     <Building2 className="h-4 w-4 mr-2" />
-                                    <span>Estabelecimento/Clínica (CNPJ)</span>
+                                    <span>Estabelecimento/Estabelecimento (CNPJ)</span>
                                   </div>
                                 </FormLabel>
                               </FormItem>
@@ -2995,7 +2995,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                                 name="clinic_id"
                                 render={({ field }) => (
                                   <FormItem>
-                                    <FormLabel>Clínica</FormLabel>
+                                    <FormLabel>Estabelecimento</FormLabel>
                                     <Select
                                       disabled={loadingClinics}
                                       onValueChange={field.onChange}
@@ -3600,7 +3600,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                               name="clinic_id"
                               render={({ field }) => (
                                 <FormItem>
-                                  <FormLabel>Clínica</FormLabel>
+                                  <FormLabel>Estabelecimento</FormLabel>
                                   <Select
                                     disabled={loadingClinics}
                                     onValueChange={field.onChange}

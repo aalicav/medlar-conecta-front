@@ -197,7 +197,7 @@ const ClinicDashboard: React.FC<ClinicDashboardProps> = ({
               <Col span={12}>
                 <Card size="small">
                   <Statistic
-                    title="Profissionais na Clínica"
+                    title="Profissionais na Estabelecimento"
                     value={12}
                     prefix={<UserOutlined />}
                   />
@@ -277,7 +277,7 @@ const ClinicDashboard: React.FC<ClinicDashboardProps> = ({
         {/* Clinic Performance */}
         <Col xs={24}>
           <Card 
-            title="Desempenho da Clínica" 
+            title="Desempenho da Estabelecimento" 
             extra={<Link href="/reports/clinic-performance">Ver relatório completo</Link>}
             loading={loading}
           >

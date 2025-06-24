@@ -341,7 +341,7 @@ export default function PaginaCriarNegociacao() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="App\Models\Professional">Profissional</SelectItem>
-                            <SelectItem value="App\Models\Clinic">Clínica</SelectItem>
+                            <SelectItem value="App\Models\Clinic">Estabelecimento</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />

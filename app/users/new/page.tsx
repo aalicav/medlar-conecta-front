@@ -291,7 +291,7 @@ export default function NewUserPage() {
                         </FormControl>
                         <SelectContent>
                           
-                          <SelectItem value="clinic">Clínica</SelectItem>
+                          <SelectItem value="clinic">Estabelecimento</SelectItem>
                           <SelectItem value="professional">Profissional</SelectItem>
                           <SelectItem value="health_plan">Plano de Saúde</SelectItem>
                         </SelectContent>

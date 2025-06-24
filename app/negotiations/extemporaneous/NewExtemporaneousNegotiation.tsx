@@ -280,7 +280,7 @@ export function NewExtemporaneousNegotiation({ onSuccess }: NewExtemporaneousNeg
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="App\Models\Professional">Profissional</SelectItem>
-                <SelectItem value="App\Models\Clinic">Clínica</SelectItem>
+                <SelectItem value="App\Models\Clinic">Estabelecimento</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -288,7 +288,7 @@ export function NewExtemporaneousNegotiation({ onSuccess }: NewExtemporaneousNeg
           {entityType && (
             <div className="space-y-2">
               <Label htmlFor="entity">
-                {entityType === 'App\\Models\\Clinic' ? 'Clínica' : 'Profissional'} *
+                {entityType === 'App\\Models\\Clinic' ? 'Estabelecimento' : 'Profissional'} *
               </Label>
               <div className="space-y-2">
                 <div className="relative">

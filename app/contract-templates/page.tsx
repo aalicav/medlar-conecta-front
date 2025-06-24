@@ -204,7 +204,7 @@ function ContractTemplatesContent() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="health_plan">Plano de Saúde</SelectItem>
-                  <SelectItem value="clinic">Clínica</SelectItem>
+                  <SelectItem value="clinic">Estabelecimento</SelectItem>
                   <SelectItem value="professional">Profissional</SelectItem>
                 </SelectContent>
               </Select>
@@ -271,7 +271,7 @@ function ContractTemplatesContent() {
                       <TableCell className="font-medium">{template.name}</TableCell>
                       <TableCell>
                         {template.entity_type === 'health_plan' && 'Plano de Saúde'}
-                        {template.entity_type === 'clinic' && 'Clínica'}
+                        {template.entity_type === 'clinic' && 'Estabelecimento'}
                         {template.entity_type === 'professional' && 'Profissional'}
                       </TableCell>
                       <TableCell>

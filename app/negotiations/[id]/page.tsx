@@ -875,7 +875,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     switch(entity) {
       case 'HealthPlan': return 'Plano de Saúde';
       case 'Professional': return 'Profissional';
-      case 'Clinic': return 'Clínica';
+      case 'Clinic': return 'Estabelecimento';
       default: return entity;
     }
   };

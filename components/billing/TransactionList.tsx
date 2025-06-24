@@ -108,7 +108,7 @@ export function TransactionList({ transactions, loading, onRefresh }: Transactio
                     <div className="flex flex-col">
                       <span>{transaction.entity.name}</span>
                       <span className="text-xs text-muted-foreground">
-                        {transaction.entity.type === 'clinic' && 'Clínica'}
+                        {transaction.entity.type === 'clinic' && 'Estabelecimento'}
                         {transaction.entity.type === 'professional' && 'Profissional'}
                         {transaction.entity.type === 'health_plan' && 'Plano de Saúde'}
                       </span>

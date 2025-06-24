@@ -713,14 +713,14 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess }: Create
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="App\\Models\\Professional">Profissional</SelectItem>
-                      <SelectItem value="App\\Models\\Clinic">Clínica</SelectItem>
+                      <SelectItem value="App\\Models\\Clinic">Estabelecimento</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 {providerType && (
                   <div className="space-y-2">
-                    <Label>Profissional/Clínica</Label>
+                    <Label>Profissional/Estabelecimento</Label>
                     <Select onValueChange={(value) => setSelectedProviderId(Number(value))}>
                       <SelectTrigger>
                         <SelectValue placeholder={`Selecione ${providerType.includes('Clinic') ? 'a clínica' : 'o profissional'}`} />

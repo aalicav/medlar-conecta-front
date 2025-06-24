@@ -69,7 +69,7 @@ export default function DashboardLayout({
     {
       key: 'clinics',
       icon: <BankOutlined />,
-      label: <Link href="/clinics">Clínicas</Link>,
+      label: <Link href="/clinics">Estabelecimentos</Link>,
     },
     {
       key: 'billing',

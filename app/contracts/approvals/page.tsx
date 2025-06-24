@@ -139,7 +139,7 @@ export default function ContractApprovalsPage() {
             {type === 'health_plan' 
               ? 'Operadora' 
               : type === 'clinic' 
-                ? 'Clínica' 
+                ? 'Estabelecimento' 
                 : type === 'professional' 
                   ? 'Profissional' 
                   : type}
@@ -226,7 +226,7 @@ export default function ContractApprovalsPage() {
                 <SelectContent>
                   
                   <SelectItem value="health_plan">Operadora</SelectItem>
-                  <SelectItem value="clinic">Clínica</SelectItem>
+                  <SelectItem value="clinic">Estabelecimento</SelectItem>
                   <SelectItem value="professional">Profissional</SelectItem>
                 </SelectContent>
               </Select>

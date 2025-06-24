@@ -634,14 +634,14 @@ export default function ProfessionalDetailsPage({ params }: { params: { id: stri
             {!isClinic && professional.parent_clinic && (
               <Card className="md:col-span-2">
                 <CardHeader>
-                  <CardTitle>Clínica</CardTitle>
+                  <CardTitle>Estabelecimento</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="font-medium">{professional.parent_clinic.name}</h3>
                       <p className="text-sm text-muted-foreground">
-                        Clínica associada
+                        Estabelecimento associada
                       </p>
                     </div>
                     <Button
@@ -782,7 +782,7 @@ export default function ProfessionalDetailsPage({ params }: { params: { id: stri
         onSuccess={handleEditSuccess}
         entityType={type as "clinic" | "professional"}
         entityId={params.id}
-        title={isClinic ? "Editar Clínica" : "Editar Profissional"}
+        title={isClinic ? "Editar Estabelecimento" : "Editar Profissional"}
       />
     </div>
   )

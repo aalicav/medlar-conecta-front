@@ -217,7 +217,7 @@ export default function EditContractPage({ params }: { params: { id: string } })
   const getContractTypeName = (type) => {
     const typeMap = {
       health_plan: 'Plano de Saúde',
-      clinic: 'Clínica',
+      clinic: 'Estabelecimento',
       professional: 'Profissional'
     }
     
@@ -366,7 +366,7 @@ export default function EditContractPage({ params }: { params: { id: string } })
                       Dados de {contract?.type === 'health_plan'
                         ? 'Plano de Saúde'
                         : contract?.type === 'clinic'
-                        ? 'Clínica'
+                        ? 'Estabelecimento'
                         : 'Profissional'}
                     </TabsTrigger>
                   </TabsList>

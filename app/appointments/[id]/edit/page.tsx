@@ -441,7 +441,7 @@ export default function EditAppointmentPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="clinic">Clínica</SelectItem>
+                          <SelectItem value="clinic">Estabelecimento</SelectItem>
                           <SelectItem value="professional">Profissional</SelectItem>
                         </SelectContent>
                       </Select>
@@ -456,7 +456,7 @@ export default function EditAppointmentPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>
-                        {providerType === "clinic" ? "Clínica" : "Profissional"}
+                        {providerType === "clinic" ? "Estabelecimento" : "Profissional"}
                       </FormLabel>
                       <FormControl>
                         <Combobox

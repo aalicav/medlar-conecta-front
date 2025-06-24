@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { useAuth } from '@/contexts/auth-context';
+import { Switch } from '@/components/ui/switch';
 
 interface Clinic {
   id: number;
@@ -37,11 +38,46 @@ interface Professional {
   specialty: string;
 }
 
+interface ReportFilter {
+  type: 'text' | 'number' | 'date' | 'select' | 'boolean';
+  label: string;
+  options?: { [key: string]: string };
+  required?: boolean;
+}
+
+interface ReportConfig {
+  types: {
+    [key: string]: {
+      name: string;
+      description: string;
+      filters: {
+        [key: string]: ReportFilter;
+      };
+    };
+  };
+}
+
+interface ReportParameters {
+  [key: string]: string | number | boolean | null;
+}
+
+interface FormData {
+  name: string;
+  type: string;
+  description: string;
+  parameters: ReportParameters;
+  file_format: 'pdf' | 'csv' | 'xlsx';
+  is_scheduled: boolean;
+  schedule_frequency: string;
+  recipients: string[];
+  is_public: boolean;
+}
+
 // Client component that uses useSearchParams
 const NewReportContent = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const typeParam = searchParams?.get('type') || null;
+  const typeParam = searchParams?.get('type') ?? '';
   const [loading, setLoading] = useState(false);
   const [currentTab, setCurrentTab] = useState('report-type');
   
@@ -85,6 +121,19 @@ const NewReportContent = () => {
   const [user, setUser] = useState<any>({});
   const { hasPermission, hasRole, user: authUser } = useAuth();
 
+  const [reportConfig, setReportConfig] = useState<ReportConfig | null>(null);
+  const [formData, setFormData] = useState<FormData>({
+    name: '',
+    type: typeParam,
+    description: '',
+    parameters: {},
+    file_format: 'pdf',
+    is_scheduled: false,
+    schedule_frequency: 'daily',
+    recipients: [],
+    is_public: false,
+  });
+
   // Definir os tipos de relatórios e suas permissões necessárias
   const reportTypes = [
     { 
@@ -120,9 +169,6 @@ const NewReportContent = () => {
 
     // Super admin tem acesso a tudo
     if (hasRole('super_admin')) return true;
-
-    // Verifica se o usuário tem a permissão necessária
-    // const hasRequiredPermission = hasPermission(reportType.permission);
 
     // Verifica se o usuário tem uma das roles necessárias
     const hasRequiredRole = hasRole(reportType.roles);
@@ -230,6 +276,26 @@ const NewReportContent = () => {
       setReportName(getDefaultReportName());
     }
   }, [typeParam]);
+
+  useEffect(() => {
+    fetchReportConfig();
+  }, []);
+
+  const fetchReportConfig = async () => {
+    try {
+      const response = await api.get('/reports/config');
+      if (response.data.success) {
+        setReportConfig(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching report config:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar a configuração dos relatórios',
+        variant: 'destructive',
+      });
+    }
+  };
 
   // Função para obter o health_plan_id baseado no papel do usuário
   const getHealthPlanId = () => {
@@ -431,643 +497,267 @@ const NewReportContent = () => {
     );
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const response = await api.post('/reports/export', formData);
+
+      if (response.data.status === 'success') {
+        toast({
+          title: 'Sucesso',
+          description: 'Relatório criado com sucesso',
+        });
+        
+        // If it's a scheduled report, just redirect to reports page
+        if (formData.is_scheduled) {
+          router.push('/reports');
+        } else {
+          // If not scheduled, open the report download
+          if (response.data.data.download_url) {
+            window.open(response.data.data.download_url, '_blank');
+          }
+          router.push('/reports');
+        }
+      } else {
+        throw new Error(response.data.message || 'Erro ao criar relatório');
+      }
+    } catch (error) {
+      console.error('Error creating report:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível criar o relatório',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInputChange = (field: string, value: any) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleParameterChange = (name: string, value: any) => {
+    setFormData((prev) => ({
+      ...prev,
+      parameters: {
+        ...prev.parameters,
+        [name]: value,
+      },
+    }));
+  };
+
+  if (!reportConfig) {
+    return (
+      <div className="container mx-auto py-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="mt-4">Carregando configurações...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="container mx-auto py-8 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Novo Relatório</h1>
-        <Button variant="outline" onClick={() => router.push('/reports')}>
+    <div className="container mx-auto py-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Novo Relatório</h1>
+        <Button variant="outline" onClick={() => router.back()}>
           Voltar
         </Button>
       </div>
 
-      <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-6">
-        <TabsList className="grid grid-cols-3 w-full md:w-[600px] mx-auto">
-          <TabsTrigger value="report-type">1. Tipo de Relatório</TabsTrigger>
-          <TabsTrigger value="parameters">2. Parâmetros</TabsTrigger>
-          <TabsTrigger value="schedule">3. Configurações</TabsTrigger>
-        </TabsList>
-        
-        {/* Passo 1: Seleção do tipo de relatório */}
-        <TabsContent value="report-type">
-          <Card>
-            <CardHeader>
-              <CardTitle>Escolha o tipo de relatório</CardTitle>
-              <CardDescription>Selecione o tipo de relatório que deseja gerar</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap justify-center gap-4 max-w-5xl mx-auto">
-                {allowedReportTypes.map((type) => (
-                  <Card 
-                    key={type.value}
-                    className={`cursor-pointer border-2 ${reportType === type.value ? 'border-primary' : 'border-transparent'} w-full md:w-[calc(33.33%-1rem)] min-w-[280px] max-w-[350px]`}
-                    onClick={() => setReportType(type.value)}
-                  >
-                    <CardHeader className="text-center">
-                      <type.icon className="w-12 h-12 mx-auto text-primary" />
-                      <CardTitle>{type.label}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground text-center">
-                        {type.description}
-                      </p>
-                    </CardContent>
-                  </Card>
-                ))}
-                
-                {allowedReportTypes.length === 0 && (
-                  <div className="w-full text-center py-8">
-                    <p className="text-muted-foreground">
-                      Você não tem permissão para gerar relatórios.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-between">
-              <Button variant="outline" onClick={handleRedirectToReportPage}>
-                Ir para página do relatório
-              </Button>
-              <Button onClick={goToNextTab}>
-                Próximo
-              </Button>
-            </CardFooter>
-          </Card>
-        </TabsContent>
-        
-        {/* Passo 2: Parâmetros específicos do relatório */}
-        <TabsContent value="parameters">
-          <Card>
-            <CardHeader>
-              <CardTitle>Parâmetros do Relatório {reportType === 'financial' ? 'Financeiro' : 
-                                                  reportType === 'appointment' ? 'de Agendamentos' : 
-                                                  'de Desempenho'}</CardTitle>
-              <CardDescription>Configure os parâmetros para geração do relatório</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {/* Informações básicas do relatório */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold">Informações Básicas</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="reportName">Nome do Relatório</Label>
-                      <Input 
-                        id="reportName"
-                        value={reportName}
-                        onChange={(e) => setReportName(e.target.value)}
-                        placeholder={getDefaultReportName()}
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="reportDescription">Descrição (opcional)</Label>
-                      <Textarea 
-                        id="reportDescription"
-                        value={reportDescription}
-                        onChange={(e) => setReportDescription(e.target.value)}
-                        placeholder="Descreva o propósito deste relatório"
-                        className="resize-none"
-                        rows={1}
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Data Inicial</Label>
-                      <DatePicker 
-                        date={startDate}
-                        setDate={(date: Date | null) => setStartDate(date)}
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label>Data Final</Label>
-                      <DatePicker 
-                        date={endDate}
-                        setDate={(date: Date | null) => setEndDate(date)}
-                      />
-                    </div>
-                  </div>
-                </div>
+      <form onSubmit={handleSubmit}>
+        <Card className="p-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="name">Nome do Relatório</Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => handleInputChange('name', e.target.value)}
+                required
+              />
+            </div>
 
-                <Separator />
-                
-                {/* Parâmetros específicos para cada tipo de relatório */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold">Filtros Específicos</h3>
-                  
-                  {reportType === 'financial' && (
-                    <div className="space-y-4">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox 
-                          id="includeSummary" 
-                          checked={includeSummary}
-                          onCheckedChange={(checked) => 
-                            setIncludeSummary(checked as boolean)
-                          }
-                        />
-                        <Label htmlFor="includeSummary">Incluir resumo financeiro</Label>
-                      </div>
-                      
-                      <Accordion type="single" collapsible className="w-full">
-                        <AccordionItem value="financialFilters">
-                          <AccordionTrigger className="text-sm">
-                            <span className="flex items-center">
-                              <Filter className="h-4 w-4 mr-2" />
-                              Filtros adicionais
-                            </span>
-                          </AccordionTrigger>
-                          <AccordionContent>
-                            <div className="space-y-4 mt-2">
-                              {renderHealthPlanSelect()}
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                      </Accordion>
-                    </div>
-                  )}
-                  
-                  {reportType === 'appointment' && (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="appointmentStatus">Status</Label>
-                          <Select
-                            value={appointmentStatus}
-                            onValueChange={setAppointmentStatus}
-                          >
-                            <SelectTrigger id="appointmentStatus">
-                              <SelectValue placeholder="Selecione o status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="all">Todos</SelectItem>
-                              <SelectItem value="scheduled">Agendado</SelectItem>
-                              <SelectItem value="confirmed">Confirmado</SelectItem>
-                              <SelectItem value="completed">Realizado</SelectItem>
-                              <SelectItem value="cancelled">Cancelado</SelectItem>
-                              <SelectItem value="no_show">Não Compareceu</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        
-                        {!hasRole(['plan_admin', 'health_plan']) && (
-                          <div className="space-y-2">
-                            <Label htmlFor="healthPlanIdAppointment">Plano de Saúde</Label>
-                            <Select
-                              value={healthPlanIdAppointment}
-                              onValueChange={setHealthPlanIdAppointment}
-                              disabled={loadingOptions}
-                            >
-                              <SelectTrigger id="healthPlanIdAppointment">
-                                <SelectValue placeholder="Selecione o plano de saúde" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {healthPlans.map((plan) => (
-                                  <SelectItem key={plan.id} value={plan.id.toString()}>
-                                    {plan.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
-                      </div>
-                      
-                      <Accordion type="single" collapsible className="w-full">
-                        <AccordionItem value="locationFilters">
-                          <AccordionTrigger className="text-sm">
-                            <span className="flex items-center">
-                              <MapPin className="h-4 w-4 mr-2" />
-                              Filtros de localização
-                            </span>
-                          </AccordionTrigger>
-                          <AccordionContent>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                              <div className="space-y-2">
-                                <Label htmlFor="stateAppointment">Estado</Label>
-                                <Select
-                                  value={stateAppointment}
-                                  onValueChange={(value) => {
-                                    setStateAppointment(value);
-                                    setCityAppointment(''); // Reset city when state changes
-                                  }}
-                                  disabled={loadingOptions || states.length === 0}
-                                >
-                                  <SelectTrigger id="stateAppointment">
-                                    <SelectValue placeholder="Selecione o estado" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {states.map((state) => (
-                                      <SelectItem key={state} value={state}>
-                                        {state}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              
-                              <div className="space-y-2">
-                                <Label htmlFor="cityAppointment">Cidade</Label>
-                                <Select
-                                  value={cityAppointment}
-                                  onValueChange={setCityAppointment}
-                                  disabled={loadingOptions || !stateAppointment}
-                                >
-                                  <SelectTrigger id="cityAppointment">
-                                    <SelectValue placeholder="Selecione a cidade" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {getFilteredCities(stateAppointment).map((city) => (
-                                      <SelectItem key={city} value={city}>
-                                        {city}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            </div>
-                            
-                            <div className="space-y-2 mt-4">
-                              <Label htmlFor="clinicId">Clínica</Label>
-                              <Select
-                                value={clinicId}
-                                onValueChange={setClinicId}
-                                disabled={loadingOptions}
-                              >
-                                <SelectTrigger id="clinicId">
-                                  <SelectValue placeholder="Selecione a clínica" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {getFilteredClinics(stateAppointment, cityAppointment).map((clinic) => (
-                                    <SelectItem key={clinic.id} value={clinic.id.toString()}>
-                                      {clinic.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                        
-                        <AccordionItem value="professionalFilters">
-                          <AccordionTrigger className="text-sm">
-                            <span className="flex items-center">
-                              <Building className="h-4 w-4 mr-2" />
-                              Filtros de profissional
-                            </span>
-                          </AccordionTrigger>
-                          <AccordionContent>
-                            <div className="space-y-2 mt-2">
-                              <Label htmlFor="professionalId">Profissional</Label>
-                              <Select
-                                value={professionalId}
-                                onValueChange={setProfessionalId}
-                                disabled={loadingOptions}
-                              >
-                                <SelectTrigger id="professionalId">
-                                  <SelectValue placeholder="Selecione o profissional" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {professionals.map((professional) => (
-                                    <SelectItem key={professional.id} value={professional.id.toString()}>
-                                      {professional.name} - {professional.specialty}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                      </Accordion>
-                    </div>
-                  )}
-                  
-                  {reportType === 'performance' && (
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="professionalIdPerformance">Profissional</Label>
-                        <Select
-                          value={professionalIdPerformance}
-                          onValueChange={setProfessionalIdPerformance}
-                          disabled={loadingOptions}
-                        >
-                          <SelectTrigger id="professionalIdPerformance">
-                            <SelectValue placeholder="Selecione o profissional" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {professionals.map((professional) => (
-                              <SelectItem key={professional.id} value={professional.id.toString()}>
-                                {professional.name} - {professional.specialty}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <Accordion type="single" collapsible className="w-full">
-                        <AccordionItem value="performanceLocationFilters">
-                          <AccordionTrigger className="text-sm">
-                            <span className="flex items-center">
-                              <MapPin className="h-4 w-4 mr-2" />
-                              Filtros de localização
-                            </span>
-                          </AccordionTrigger>
-                          <AccordionContent>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                              <div className="space-y-2">
-                                <Label htmlFor="statePerformance">Estado</Label>
-                                <Select
-                                  value={statePerformance}
-                                  onValueChange={(value) => {
-                                    setStatePerformance(value);
-                                    setCityPerformance(''); // Reset city when state changes
-                                  }}
-                                  disabled={loadingOptions || states.length === 0}
-                                >
-                                  <SelectTrigger id="statePerformance">
-                                    <SelectValue placeholder="Selecione o estado" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {states.map((state) => (
-                                      <SelectItem key={state} value={state}>
-                                        {state}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              
-                              <div className="space-y-2">
-                                <Label htmlFor="cityPerformance">Cidade</Label>
-                                <Select
-                                  value={cityPerformance}
-                                  onValueChange={setCityPerformance}
-                                  disabled={loadingOptions || !statePerformance}
-                                >
-                                  <SelectTrigger id="cityPerformance">
-                                    <SelectValue placeholder="Selecione a cidade" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {getFilteredCities(statePerformance).map((city) => (
-                                      <SelectItem key={city} value={city}>
-                                        {city}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            </div>
-                            
-                            <div className="space-y-2 mt-4">
-                              <Label htmlFor="clinicIdPerformance">Clínica</Label>
-                              <Select
-                                value={clinicIdPerformance}
-                                onValueChange={setClinicIdPerformance}
-                                disabled={loadingOptions}
-                              >
-                                <SelectTrigger id="clinicIdPerformance">
-                                  <SelectValue placeholder="Selecione a clínica" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {getFilteredClinics(statePerformance, cityPerformance).map((clinic) => (
-                                    <SelectItem key={clinic.id} value={clinic.id.toString()}>
-                                      {clinic.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                      </Accordion>
-                    </div>
-                  )}
+            <div className="space-y-2">
+              <Label htmlFor="type">Tipo de Relatório</Label>
+              <Select
+                value={formData.type}
+                onValueChange={(value) => handleInputChange('type', value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(reportConfig.types).map(([key, type]) => (
+                    <SelectItem key={key} value={key}>
+                      {type.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2 col-span-2">
+              <Label htmlFor="description">Descrição</Label>
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) => handleInputChange('description', e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+
+          {formData.type && reportConfig.types[formData.type].filters && (
+            <div className="border-t pt-6">
+              <h3 className="text-lg font-medium mb-4">Filtros</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {Object.entries(reportConfig.types[formData.type].filters).map(([key, filter]) => (
+                  <div key={key} className="space-y-2">
+                    <Label htmlFor={key}>{filter.label}</Label>
+                    {filter.type === 'select' && filter.options ? (
+                      <Select
+                        value={String(formData.parameters[key] || '')}
+                        onValueChange={(value) =>
+                          handleParameterChange(key, value)
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={`Selecione ${filter.label}`} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(filter.options).map(([optKey, optValue]) => (
+                            <SelectItem key={optKey} value={optKey}>
+                              {optValue}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : filter.type === 'date' ? (
+                      <DatePicker
+                        date={formData.parameters[key] ? new Date(formData.parameters[key] as string) : null}
+                        setDate={(date: Date | null) =>
+                          handleParameterChange(key, date?.toISOString() ?? null)
+                        }
+                      />
+                    ) : (
+                      <Input
+                        id={key}
+                        type={filter.type === 'number' ? 'number' : 'text'}
+                        value={String(formData.parameters[key] || '')}
+                        onChange={(e) =>
+                          handleParameterChange(key, filter.type === 'number' ? Number(e.target.value) : e.target.value)
+                        }
+                        required={filter.required}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="border-t pt-6">
+            <h3 className="text-lg font-medium mb-4">Configurações</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="file_format">Formato do Arquivo</Label>
+                <Select
+                  value={formData.file_format}
+                  onValueChange={(value) => handleInputChange('file_format', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o formato" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pdf">PDF</SelectItem>
+                    <SelectItem value="csv">CSV</SelectItem>
+                    <SelectItem value="xlsx">Excel</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="is_public"
+                    checked={formData.is_public}
+                    onCheckedChange={(checked) =>
+                      handleInputChange('is_public', checked)
+                    }
+                  />
+                  <Label htmlFor="is_public">Relatório Público</Label>
                 </div>
               </div>
-            </CardContent>
-            <CardFooter className="flex justify-between">
-              <Button variant="outline" onClick={goToPreviousTab}>
-                Voltar
-              </Button>
-              <Button onClick={goToNextTab}>
-                Próximo
-              </Button>
-            </CardFooter>
-          </Card>
-        </TabsContent>
-        
-        {/* Passo 3: Configurações de agendamento e template */}
-        <TabsContent value="schedule">
-          <Card>
-            <CardHeader>
-              <CardTitle>Configurações Adicionais</CardTitle>
-              <CardDescription>Escolha como o relatório será gerado e armazenado</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id="saveAsTemplate" 
-                      checked={saveAsTemplate}
-                      onCheckedChange={(checked) => 
-                        setSaveAsTemplate(checked as boolean)
-                      }
-                    />
-                    <Label htmlFor="saveAsTemplate">Salvar como modelo de relatório</Label>
-                  </div>
-                  <p className="text-sm text-muted-foreground ml-6">
-                    Modelos podem ser reutilizados para gerar relatórios com os mesmos parâmetros no futuro
-                  </p>
+
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="is_scheduled"
+                    checked={formData.is_scheduled}
+                    onCheckedChange={(checked) =>
+                      handleInputChange('is_scheduled', checked)
+                    }
+                  />
+                  <Label htmlFor="is_scheduled">Agendar Relatório</Label>
                 </div>
-                
+              </div>
+
+              {formData.is_scheduled && (
                 <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id="scheduleReport" 
-                      checked={scheduleReport}
-                      onCheckedChange={(checked) => {
-                        setScheduleReport(checked as boolean);
-                        if (checked && !saveAsTemplate) {
-                          setSaveAsTemplate(true);
-                        }
-                      }}
-                    />
-                    <Label htmlFor="scheduleReport">Agendar geração automática</Label>
-                  </div>
-                  <p className="text-sm text-muted-foreground ml-6">
-                    O relatório será gerado automaticamente na frequência selecionada
-                  </p>
-                </div>
-                
-                {scheduleReport && (
-                  <div className="space-y-2 ml-6">
-                    <Label htmlFor="scheduleFrequency">Frequência</Label>
-                    <Select
-                      value={scheduleFrequency}
-                      onValueChange={setScheduleFrequency}
-                    >
-                      <SelectTrigger id="scheduleFrequency">
-                        <SelectValue placeholder="Selecione a frequência" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="daily">Diário</SelectItem>
-                        <SelectItem value="weekly">Semanal</SelectItem>
-                        <SelectItem value="biweekly">Quinzenal</SelectItem>
-                        <SelectItem value="monthly">Mensal</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                
-                <div className="space-y-2">
-                  <Label htmlFor="reportFormat">Formato do Relatório</Label>
+                  <Label htmlFor="schedule_frequency">Frequência</Label>
                   <Select
-                    value={reportFormat}
-                    onValueChange={setReportFormat}
+                    value={formData.schedule_frequency}
+                    onValueChange={(value) =>
+                      handleInputChange('schedule_frequency', value)
+                    }
                   >
-                    <SelectTrigger id="reportFormat">
-                      <SelectValue placeholder="Selecione o formato" />
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a frequência" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="pdf">PDF</SelectItem>
-                      <SelectItem value="csv">CSV</SelectItem>
+                      <SelectItem value="daily">Diário</SelectItem>
+                      <SelectItem value="weekly">Semanal</SelectItem>
+                      <SelectItem value="monthly">Mensal</SelectItem>
+                      <SelectItem value="quarterly">Trimestral</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                
-                <div className="bg-muted p-4 rounded-lg mt-4">
-                  <h3 className="font-medium mb-2 flex items-center">
-                    <FileText className="mr-2 h-4 w-4" />
-                    Resumo do Relatório
-                  </h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="grid grid-cols-3 gap-2">
-                      <span className="text-muted-foreground">Nome:</span>
-                      <span className="col-span-2">{reportName || getDefaultReportName()}</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <span className="text-muted-foreground">Tipo:</span>
-                      <span className="col-span-2">
-                        {reportType === 'financial' ? 'Financeiro' : 
-                        reportType === 'appointment' ? 'Agendamentos' : 
-                        'Desempenho'}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <span className="text-muted-foreground">Período:</span>
-                      <span className="col-span-2">
-                        {startDate ? startDate.toLocaleDateString('pt-BR') : 'Início'} até {endDate ? endDate.toLocaleDateString('pt-BR') : 'Hoje'}
-                      </span>
-                    </div>
-                    
-                    {/* Exibir filtros selecionados */}
-                    {reportType === 'financial' && healthPlanIdFinancial && (
-                      <div className="grid grid-cols-3 gap-2">
-                        <span className="text-muted-foreground">Plano de Saúde:</span>
-                        <span className="col-span-2">
-                          {healthPlans.find(p => p.id.toString() === healthPlanIdFinancial)?.name || 'Desconhecido'}
-                        </span>
-                      </div>
-                    )}
-                    
-                    {reportType === 'appointment' && (
-                      <>
-                        {appointmentStatus !== 'all' && (
-                          <div className="grid grid-cols-3 gap-2">
-                            <span className="text-muted-foreground">Status:</span>
-                            <span className="col-span-2">
-                              {appointmentStatus === 'scheduled' ? 'Agendado' :
-                               appointmentStatus === 'confirmed' ? 'Confirmado' :
-                               appointmentStatus === 'completed' ? 'Realizado' :
-                               appointmentStatus === 'cancelled' ? 'Cancelado' : 
-                               appointmentStatus === 'no_show' ? 'Não Compareceu' : appointmentStatus}
-                            </span>
-                          </div>
-                        )}
-                        
-                        {(clinicId || stateAppointment || cityAppointment) && (
-                          <div className="grid grid-cols-3 gap-2">
-                            <span className="text-muted-foreground">Localização:</span>
-                            <span className="col-span-2">
-                              {clinicId ? clinics.find(c => c.id.toString() === clinicId)?.name :
-                               cityAppointment ? `${cityAppointment}/${stateAppointment}` :
-                               stateAppointment ? stateAppointment : ''}
-                            </span>
-                          </div>
-                        )}
-                        
-                        {professionalId && (
-                          <div className="grid grid-cols-3 gap-2">
-                            <span className="text-muted-foreground">Profissional:</span>
-                            <span className="col-span-2">
-                              {professionals.find(p => p.id.toString() === professionalId)?.name || 'Desconhecido'}
-                            </span>
-                          </div>
-                        )}
-                      </>
-                    )}
-                    
-                    {reportType === 'performance' && (
-                      <>
-                        {professionalIdPerformance && (
-                          <div className="grid grid-cols-3 gap-2">
-                            <span className="text-muted-foreground">Profissional:</span>
-                            <span className="col-span-2">
-                              {professionals.find(p => p.id.toString() === professionalIdPerformance)?.name || 'Desconhecido'}
-                            </span>
-                          </div>
-                        )}
-                        
-                        {(clinicIdPerformance || statePerformance || cityPerformance) && (
-                          <div className="grid grid-cols-3 gap-2">
-                            <span className="text-muted-foreground">Localização:</span>
-                            <span className="col-span-2">
-                              {clinicIdPerformance ? clinics.find(c => c.id.toString() === clinicIdPerformance)?.name :
-                               cityPerformance ? `${cityPerformance}/${statePerformance}` :
-                               statePerformance ? statePerformance : ''}
-                            </span>
-                          </div>
-                        )}
-                      </>
-                    )}
-                    
-                    {scheduleReport && (
-                      <div className="grid grid-cols-3 gap-2">
-                        <span className="text-muted-foreground">Agendamento:</span>
-                        <span className="col-span-2">
-                          {scheduleFrequency === 'daily' ? 'Diário' : 
-                          scheduleFrequency === 'weekly' ? 'Semanal' : 
-                          scheduleFrequency === 'biweekly' ? 'Quinzenal' : 
-                          'Mensal'}
-                        </span>
-                      </div>
-                    )}
-                    
-                    <div className="grid grid-cols-3 gap-2">
-                      <span className="text-muted-foreground">Formato:</span>
-                      <span className="col-span-2">
-                        {reportFormat === 'pdf' ? 'PDF' : 
-                         reportFormat === 'excel' ? 'Excel' : 
-                         'CSV'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-between">
-              <Button variant="outline" onClick={goToPreviousTab}>
-                Voltar
-              </Button>
-              <Button onClick={handleCreateReport} disabled={loading}>
-                {loading ? "Processando..." : "Gerar Relatório"}
-              </Button>
-            </CardFooter>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.back()}
+              disabled={loading}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Criando...
+                </>
+              ) : (
+                'Criar Relatório'
+              )}
+            </Button>
+          </div>
+        </Card>
+      </form>
     </div>
   );
 };

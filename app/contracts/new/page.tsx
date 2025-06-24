@@ -469,7 +469,7 @@ export default function NewContractPage() {
                           </FormControl>
                           <SelectContent>
                             <SelectItem value="health_plan">Plano de Saúde</SelectItem>
-                            <SelectItem value="clinic">Clínica</SelectItem>
+                            <SelectItem value="clinic">Estabelecimento</SelectItem>
                             <SelectItem value="professional">Profissional</SelectItem>
                           </SelectContent>
                         </Select>
@@ -636,7 +636,7 @@ export default function NewContractPage() {
                         Dados de {entityType === 'health_plan'
                           ? 'Plano de Saúde'
                           : entityType === 'clinic'
-                          ? 'Clínica'
+                          ? 'Estabelecimento'
                           : 'Profissional'}
                       </TabsTrigger>
                     </TabsList>

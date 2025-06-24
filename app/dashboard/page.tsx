@@ -336,7 +336,7 @@ export default function DashboardHomepage() {
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
                           <BankOutlined style={{ fontSize: 24, color: '#13c2c2' }} />
-                          <Text strong style={{ marginLeft: 12, color: 'rgba(255, 255, 255, 0.95)' }}>Clínicas</Text>
+                          <Text strong style={{ marginLeft: 12, color: 'rgba(255, 255, 255, 0.95)' }}>Estabelecimentos</Text>
                         </div>
                       </div>
                       <Paragraph style={{ flex: 1, marginBottom: 12, color: 'rgba(255, 255, 255, 0.8)' }}>

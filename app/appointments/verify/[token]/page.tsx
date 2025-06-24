@@ -279,7 +279,7 @@ export default function VerifyAppointmentPage() {
               <div>
                 <p className="font-medium">{appointment.provider_name}</p>
                 <p className="text-sm text-muted-foreground">
-                  {appointment.provider_type === "Clinic" ? "Clínica" : "Profissional"}
+                  {appointment.provider_type === "Clinic" ? "Estabelecimento" : "Profissional"}
                 </p>
               </div>
             </div>

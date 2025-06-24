@@ -245,7 +245,7 @@ export default function AppointmentGuidePage() {
             <h3 className="font-semibold mb-2">Prestador</h3>
             <div className="space-y-1">
               <p><span className="text-muted-foreground">Nome:</span> {appointment.provider.name}</p>
-              <p><span className="text-muted-foreground">Tipo:</span> {appointment.provider_type === "App\\Models\\Clinic" ? "Clínica" : "Profissional"}</p>
+              <p><span className="text-muted-foreground">Tipo:</span> {appointment.provider_type === "App\\Models\\Clinic" ? "Estabelecimento" : "Profissional"}</p>
               {appointment.provider.address && (
                 <p>
                   <span className="text-muted-foreground">Endereço:</span> {appointment.provider.address}

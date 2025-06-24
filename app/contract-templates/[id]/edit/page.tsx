@@ -357,7 +357,7 @@ export default function EditTemplateFormPage({ params }: { params: { id: string 
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="health_plan">Plano de Saúde</SelectItem>
-                      <SelectItem value="clinic">Clínica</SelectItem>
+                      <SelectItem value="clinic">Estabelecimento</SelectItem>
                       <SelectItem value="professional">Profissional</SelectItem>
                     </SelectContent>
                   </Select>
@@ -429,7 +429,7 @@ export default function EditTemplateFormPage({ params }: { params: { id: string 
                   </div>
                   
                   <div>
-                    <h3 className="text-sm font-medium mb-2">Placeholders de {form.entity_type === 'health_plan' ? 'Plano de Saúde' : form.entity_type === 'clinic' ? 'Clínica' : 'Profissional'}</h3>
+                    <h3 className="text-sm font-medium mb-2">Placeholders de {form.entity_type === 'health_plan' ? 'Plano de Saúde' : form.entity_type === 'clinic' ? 'Estabelecimento' : 'Profissional'}</h3>
                     <div className="space-y-2">
                       {Object.entries(placeholders.entity).map(([key, description]) => (
                         <div

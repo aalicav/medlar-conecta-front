@@ -98,7 +98,7 @@ export function ClinicForm({
       await onSubmit(data)
       toast({
         title: "Sucesso",
-        description: "Clínica salva com sucesso",
+        description: "Estabelecimento salva com sucesso",
       })
     } catch (error) {
       toast({
@@ -114,7 +114,7 @@ export function ClinicForm({
   return (
     <Card className="w-full max-w-3xl mx-auto">
       <CardHeader>
-        <CardTitle>Nova Clínica</CardTitle>
+        <CardTitle>Nova Estabelecimento</CardTitle>
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[calc(100vh-16rem)]">
@@ -126,7 +126,7 @@ export function ClinicForm({
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Nome da Clínica</FormLabel>
+                      <FormLabel>Nome da Estabelecimento</FormLabel>
                       <FormControl>
                         <Input placeholder="Digite o nome da clínica" {...field} />
                       </FormControl>

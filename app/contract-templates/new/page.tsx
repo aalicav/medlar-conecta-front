@@ -242,7 +242,7 @@ export default function CreateTemplateFormPage() {
     if (form.name === "") {
       const nameMap = {
         health_plan: "Contrato - Plano de Saúde",
-        clinic: "Contrato - Clínica",
+        clinic: "Contrato - Estabelecimento",
         professional: "Contrato - Profissional"
       };
       setForm(prev => ({
@@ -286,7 +286,7 @@ export default function CreateTemplateFormPage() {
       
       toast({
         title: "Modelo carregado",
-        description: `Um modelo de template para ${form.entity_type === 'health_plan' ? 'Plano de Saúde' : form.entity_type === 'clinic' ? 'Clínica' : 'Profissional'} foi carregado.`,
+        description: `Um modelo de template para ${form.entity_type === 'health_plan' ? 'Plano de Saúde' : form.entity_type === 'clinic' ? 'Estabelecimento' : 'Profissional'} foi carregado.`,
       })
     }
   }
@@ -396,7 +396,7 @@ export default function CreateTemplateFormPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="health_plan">Plano de Saúde</SelectItem>
-                    <SelectItem value="clinic">Clínica</SelectItem>
+                    <SelectItem value="clinic">Estabelecimento</SelectItem>
                     <SelectItem value="professional">Profissional</SelectItem>
                   </SelectContent>
                 </Select>
@@ -462,7 +462,7 @@ export default function CreateTemplateFormPage() {
                 </div>
                 
                 <div>
-                  <h3 className="text-sm font-medium mb-2">Placeholders de {form.entity_type === 'health_plan' ? 'Plano de Saúde' : form.entity_type === 'clinic' ? 'Clínica' : 'Profissional'}</h3>
+                  <h3 className="text-sm font-medium mb-2">Placeholders de {form.entity_type === 'health_plan' ? 'Plano de Saúde' : form.entity_type === 'clinic' ? 'Estabelecimento' : 'Profissional'}</h3>
                   <div className="space-y-2">
                     {Object.entries(placeholders.entity).map(([key, description]) => (
                       <div

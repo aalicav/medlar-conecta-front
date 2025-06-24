@@ -259,7 +259,7 @@ export default function ContractApprovalDetailPage() {
                         {contract.type === 'health_plan' 
                           ? 'Operadora' 
                           : contract.type === 'clinic' 
-                            ? 'Clínica' 
+                            ? 'Estabelecimento' 
                             : contract.type === 'professional' 
                               ? 'Profissional' 
                               : contract.type}

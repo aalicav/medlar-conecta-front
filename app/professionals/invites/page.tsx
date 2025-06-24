@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { DataTable } from '@/components/ui/data-table';
+import { DataTable } from '@/components/data-table/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -78,6 +78,9 @@ export default function InvitesPage() {
   const [availableDate, setAvailableDate] = useState<Date>();
   const [availableTime, setAvailableTime] = useState('');
   const [notes, setNotes] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [sorting, setSorting] = useState([]);
   const { toast } = useToast();
 
   const fetchInvites = async () => {
@@ -180,6 +183,15 @@ export default function InvitesPage() {
     }
   };
 
+  const handlePaginationChange = (page: number, newPageSize: number) => {
+    setCurrentPage(page);
+    setPageSize(newPageSize);
+  };
+
+  const handleSortingChange = (newSorting: any) => {
+    setSorting(newSorting);
+  };
+
   const columns = [
     {
       accessorKey: 'solicitation.patient.name',
@@ -245,6 +257,12 @@ export default function InvitesPage() {
         columns={columns}
         data={invites}
         isLoading={loading}
+        currentPage={currentPage}
+        pageSize={pageSize}
+        onPaginationChange={handlePaginationChange}
+        onSortingChange={handleSortingChange}
+        totalItems={invites.length}
+        pageCount={Math.ceil(invites.length / pageSize)}
       />
 
       {/* Modal de Aceite */}

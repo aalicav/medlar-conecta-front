@@ -78,7 +78,7 @@ export function Header({ className }: HeaderProps) {
   const router = useRouter()
   const { toast } = useToast()
   
-  const unreadCount = notifications.filter(n => !n.read_at).length
+  const unreadCount = (notifications || []).filter(n => !n.read_at).length
 
   // Fetch notifications on mount
   useEffect(() => {
@@ -90,10 +90,13 @@ export function Header({ className }: HeaderProps) {
           per_page: 10 // Limit to the 10 most recent notifications for the header
         })
         if (response?.data) {
-          setNotifications(response.data)
+          setNotifications(response.data?.data)
+        } else {
+          setNotifications([]) // Ensure it's always an array
         }
       } catch (error) {
         console.error('Failed to fetch notifications:', error)
+        setNotifications([]) // Reset to empty array on error
       } finally {
         setIsLoading(false)
       }
@@ -326,13 +329,13 @@ export function Header({ className }: HeaderProps) {
                   </div>
                 ) : (
                   <div>
-                    {notifications.some(n => !n.read_at) && (
+                    {(notifications || []).some(n => !n.read_at) && (
                       <p className="text-[11px] uppercase font-semibold text-primary tracking-wider px-4 pt-3 pb-1">
                         Não lidas
                       </p>
                     )}
                     
-                    {notifications.filter(n => !n.read_at).map((notification) => (
+                    {(notifications || []).filter(n => !n.read_at).map((notification) => (
                       <div 
                         key={notification.id}
                         className="p-3 hover:bg-muted/80 cursor-pointer border-b border-border/60 transition-colors duration-150 bg-primary/5"
@@ -369,13 +372,13 @@ export function Header({ className }: HeaderProps) {
                       </div>
                     ))}
 
-                    {notifications.some(n => n.read_at) && (
+                    {(notifications || []).some(n => n.read_at) && (
                       <p className="text-[11px] uppercase font-semibold text-muted-foreground tracking-wider px-4 pt-3 pb-1">
                         Anteriores
                       </p>
                     )}
                     
-                    {notifications.filter(n => n.read_at).map((notification) => (
+                    {(notifications || []).filter(n => n.read_at).map((notification) => (
                       <div 
                         key={notification.id}
                         className="p-3 hover:bg-muted/80 cursor-pointer border-b border-border/40 opacity-80 hover:opacity-100 transition-all duration-150"

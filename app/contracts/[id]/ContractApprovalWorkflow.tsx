@@ -152,7 +152,7 @@ export function ContractApprovalWorkflow({ contract, onContractUpdated }: Contra
   function mapEntityType(type: string): string {
     const typeMap: Record<string, string> = {
       'health_plan': 'Plano de Saúde',
-      'clinic': 'Clínica',
+      'clinic': 'Estabelecimento',
       'professional': 'Profissional'
     };
     

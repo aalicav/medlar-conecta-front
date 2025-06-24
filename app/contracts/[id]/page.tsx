@@ -157,7 +157,7 @@ export default function ContractDetailsPage({ params }: { params: { id: string }
   const getContractTypeName = (type) => {
     const typeMap = {
       health_plan: 'Plano de Saúde',
-      clinic: 'Clínica',
+      clinic: 'Estabelecimento',
       professional: 'Profissional'
     }
     
