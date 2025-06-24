@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CalendarIcon } from 'lucide-react';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -280,39 +280,66 @@ export default function InvitesPage() {
                 <label className="block text-sm font-medium mb-1">Data de Disponibilidade</label>
                 {selectedInvite?.solicitation.preferred_date_start && selectedInvite?.solicitation.preferred_date_end ? (
                   <p className="text-sm text-gray-500 mb-2">
-                    Período disponível: {format(new Date(selectedInvite.solicitation.preferred_date_start), 'dd/MM/yyyy')} até {format(new Date(selectedInvite.solicitation.preferred_date_end), 'dd/MM/yyyy')}
+                    Período disponível: {format(new Date(selectedInvite.solicitation.preferred_date_start), 'dd/MM/yyyy', { locale: ptBR })} até {format(new Date(selectedInvite.solicitation.preferred_date_end), 'dd/MM/yyyy', { locale: ptBR })}
                   </p>
                 ) : (
                   <p className="text-sm text-red-500 mb-2">
                     Não há período disponível para seleção
                   </p>
                 )}
-                <Input
-                  type="date"
-                  value={availableDate ? format(availableDate, 'yyyy-MM-dd') : ''}
-                  onChange={(e) => {
-                    const date = e.target.value ? new Date(e.target.value) : undefined;
-                    console.log('Selected date:', date);
-                    setAvailableDate(date);
-                  }}
-                  min={selectedInvite?.solicitation.preferred_date_start ? format(new Date(selectedInvite.solicitation.preferred_date_start), 'yyyy-MM-dd') : undefined}
-                  max={selectedInvite?.solicitation.preferred_date_end ? format(new Date(selectedInvite.solicitation.preferred_date_end), 'yyyy-MM-dd') : undefined}
-                  disabled={!selectedInvite?.solicitation.preferred_date_start || !selectedInvite?.solicitation.preferred_date_end}
-                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !availableDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {availableDate ? format(availableDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR }) : <span>Selecione uma data</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={availableDate}
+                      onSelect={setAvailableDate}
+                      disabled={(date) => {
+                        if (!selectedInvite?.solicitation.preferred_date_start || !selectedInvite?.solicitation.preferred_date_end) {
+                          return true;
+                        }
+                        const start = new Date(selectedInvite.solicitation.preferred_date_start);
+                        const end = new Date(selectedInvite.solicitation.preferred_date_end);
+                        return date < start || date > end;
+                      }}
+                      initialFocus
+                      locale={ptBR}
+                    />
+                  </PopoverContent>
+                </Popover>
                 {availableDate && (
                   <p className="text-sm text-gray-500 mt-2">
-                    Data selecionada: {format(availableDate, 'dd/MM/yyyy')}
+                    Data selecionada: {format(availableDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Horário</label>
+                <label className="block text-sm font-medium mb-1">Horário (formato 24h)</label>
                 <Input
                   type="time"
                   value={availableTime}
-                  onChange={(e) => setAvailableTime(e.target.value)}
+                  onChange={(e) => {
+                    const time = e.target.value;
+                    setAvailableTime(time);
+                  }}
                 />
+                {availableTime && (
+                  <p className="text-sm text-gray-500 mt-2">
+                    Horário selecionado: {availableTime.slice(0, 5)}h
+                  </p>
+                )}
               </div>
 
               <div>
