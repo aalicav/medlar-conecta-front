@@ -58,21 +58,24 @@ export interface ReportParameters {
   [key: string]: any;
 }
 
-export interface ReportGenerationRequest {
+export interface CreateReportRequest {
   type: string;
   format: 'pdf' | 'csv' | 'xlsx';
   filters?: ReportParameters;
-  name?: string;
+  name: string;
   description?: string;
-  save_as_report?: boolean;
+}
+
+export interface GenerateVersionRequest {
+  format?: 'pdf' | 'csv' | 'xlsx';
+  filters?: ReportParameters;
 }
 
 export interface ReportGenerationResponse {
   success: boolean;
   message: string;
   data?: {
+    report: Report;
     generation: ReportGeneration;
-    report?: Report;
-    download_url: string;
   };
 } 

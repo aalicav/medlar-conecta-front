@@ -433,30 +433,16 @@ const NewReportContent = () => {
 
   const handleCreateReport = async () => {
     try {
-      console.group('Creating Report');
-      console.log('Initial form data:', formData);
       setLoading(true);
-
-      // Validate form data
-      const validation = validateFormData(formData);
-      if (!validation.isValid) {
-        console.log('Validation failed:', validation.errors);
-        validation.errors.forEach(error => {
-          toast({
-            variant: "destructive",
-            title: "Erro de Validação",
-            description: error
-          });
-        });
-        return;
-      }
+      console.group('Creating New Report');
+      console.log('Form Data:', formData);
 
       // Prepare report data according to backend structure
       const reportData = {
-        report_type: formData.type,
+        type: formData.type,
         name: formData.name,
         description: formData.description || null,
-        parameters: {
+        filters: {
           start_date: formData.parameters.start_date,
           end_date: formData.parameters.end_date,
           health_plan_id: formData.parameters.health_plan_id ? Number(formData.parameters.health_plan_id) : undefined,
@@ -469,17 +455,16 @@ const NewReportContent = () => {
           payment_type: formData.parameters.payment_type,
           specialty: formData.parameters.specialty
         },
-        format: formData.file_format,
-        save_as_report: formData.save_as_report || false
+        format: formData.file_format
       };
 
       console.log('Prepared request data:', reportData);
-      console.log('Making API request to:', '/reports/export');
+      console.log('Making API request to:', '/reports/create');
       
-      const response = await api.post('/reports/export', reportData);
+      const response = await api.post('/reports/create', reportData);
       console.log('API Response:', response.data);
 
-      if (!response.data.status || response.data.status === 'error') {
+      if (!response.data.success) {
         console.error('API returned error status:', response.data);
         throw new Error(response.data.message || 'Falha ao criar relatório');
       }
@@ -491,18 +476,11 @@ const NewReportContent = () => {
 
       // Log redirect information
       console.log('Processing response for redirect:', {
-        hasGenerationId: !!response.data.data?.generation?.id,
-        hasReportId: !!response.data.data?.report?.id
+        reportId: response.data.data?.report?.id
       });
 
-      // If report was created successfully and we have a generation ID, redirect to download
-      if (response.data.data?.generation?.id) {
-        const downloadUrl = `/reports/generations/${response.data.data.generation.id}/download`;
-        console.log('Redirecting to download:', downloadUrl);
-        router.push(downloadUrl);
-      } 
-      // If report was saved, redirect to report page
-      else if (response.data.data?.report?.id) {
+      // Redirect to report page
+      if (response.data.data?.report?.id) {
         const reportUrl = `/reports/${response.data.data.report.id}`;
         console.log('Redirecting to report:', reportUrl);
         router.push(reportUrl);

@@ -52,10 +52,9 @@ export default function ReportDetailsPage({ params }: { params: { id: string } }
     try {
       const response = await api.get(`/reports/${params.id}`);
       const data = response.data;
-      
-      if (data.success) {
-        console.log(data.data);
-        setReport(data.data.report);
+      console.log(data);
+      if (data.status === 'success') {
+        setReport(data.data);
       } else {
         throw new Error(data.message || 'Failed to fetch report');
       }
@@ -74,28 +73,25 @@ export default function ReportDetailsPage({ params }: { params: { id: string } }
   const handleGenerateReport = async () => {
     setGeneratingReport(true);
     try {
-      const response = await api.post(`/reports/generate`, {
-          type: report?.type,
-          format: report?.file_format,
-          filters: report?.parameters,
-        });
+      const response = await api.post(`/reports/${report?.id}/generate`, {
+        format: report?.file_format,
+        filters: report?.parameters
+      });
 
-      const data = response.data;
-
-      if (data.success) {
+      if (response.data.success) {
         toast({
           title: 'Sucesso',
-          description: data.message,
+          description: response.data.message,
         });
         fetchReport(); // Refresh to show new generation
       } else {
-        throw new Error(data.message || 'Failed to generate report');
+        throw new Error(response.data.message || 'Failed to generate report version');
       }
     } catch (error) {
-      console.error('Error generating report:', error);
+      console.error('Error generating report version:', error);
       toast({
         title: 'Erro',
-        description: 'Não foi possível gerar o relatório',
+        description: 'Não foi possível gerar nova versão do relatório',
         variant: 'destructive',
       });
     } finally {

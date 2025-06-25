@@ -197,24 +197,20 @@ function ReportsContent() {
 
   const handleExport = async (report: Report) => {
     try {
-      console.group('Exporting Report');
+      console.group('Generating New Report Version');
       console.log('Report:', report);
 
-      const response = await api.post('/reports/export', {
-        report_type: report.type,
-        name: report.name,
-        description: report.description,
-        parameters: report.parameters,
+      const response = await api.post(`/reports/${report.id}/generate`, {
         format: report.file_format,
-        save_as_report: true
+        filters: report.parameters
       });
 
-      console.log('Export Response:', response.data);
+      console.log('Generation Response:', response.data);
 
-      if (response.data.status === 'success') {
+      if (response.data.success) {
         toast({
           title: "Sucesso",
-          description: "Relatório está sendo gerado. Aguarde alguns instantes."
+          description: "Nova versão do relatório está sendo gerada. Aguarde alguns instantes."
         });
 
         // Esperar um pouco para dar tempo do relatório ser gerado
@@ -223,40 +219,19 @@ function ReportsContent() {
         // Recarregar a lista de relatórios
         await fetchReports();
 
-        // Se temos uma URL de download direta ou ID de geração, fazer o download
-        if (response.data.data?.download_url) {
-          // Fazer o download direto usando a API
-          const downloadResponse = await api.get(response.data.data.download_url, {
-            responseType: 'blob',
-            headers: {
-              'Accept': 'application/json, application/pdf, text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            }
-          });
-          
-          // Criar blob e fazer download
-          const blob = new Blob([downloadResponse.data], { type: downloadResponse.headers['content-type'] });
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `${report.name}.${report.file_format}`;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
-        }
-        // Se temos um ID de geração, fazer o download usando a rota de gerações
-        else if (response.data.data?.generation?.id) {
+        // Se temos um ID de geração, fazer o download
+        if (response.data.data?.generation?.id) {
           await handleDownload(response.data.data.generation.id);
         }
       } else {
-        throw new Error(response.data.message || 'Failed to export report');
+        throw new Error(response.data.message || 'Failed to generate report version');
       }
     } catch (error: any) {
-      console.error('Error exporting report:', error);
+      console.error('Error generating report version:', error);
       toast({
         variant: "destructive",
-        title: "Erro ao exportar relatório",
-        description: error.message || "Não foi possível exportar o relatório"
+        title: "Erro ao gerar relatório",
+        description: error.message || "Não foi possível gerar nova versão do relatório"
       });
     } finally {
       console.groupEnd();

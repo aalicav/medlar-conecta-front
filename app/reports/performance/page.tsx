@@ -5,6 +5,7 @@ import { toast } from '@/components/ui/use-toast';
 import { Download, Filter, BarChart3 } from 'lucide-react';
 import api from '@/app/services/api-client';
 import { formatDate, formatPercentage } from '@/app/utils/formatters';
+import { useRouter } from 'next/navigation';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -56,6 +57,8 @@ export default function PerformanceReportsPage() {
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [professionalId, setProfessionalId] = useState('');
   const [reportName, setReportName] = useState('Relatório de Desempenho');
+
+  const router = useRouter();
 
   useEffect(() => {
     // Load professionals for filters
@@ -128,39 +131,38 @@ export default function PerformanceReportsPage() {
   const handleExportReport = async () => {
     try {
       const params = {
-        report_type: 'performance',
+        type: 'performance',
         format: 'pdf',
         name: reportName,
         description: `Relatório de desempenho de ${startDate ? formatDate(startDate) : 'sempre'} até ${endDate ? formatDate(endDate) : 'hoje'}`,
-        save_as_report: false,
-        parameters: {
+        filters: {
           start_date: startDate ? startDate.toISOString().split('T')[0] : null,
           end_date: endDate ? endDate.toISOString().split('T')[0] : null,
           professional_id: professionalId || null
         }
       };
       
-      const response = await api.post('/reports/export', params);
+      const response = await api.post('/reports/create', params);
       
-      if (response.data.status === 'success') {
+      if (response.data.success) {
         toast({
           title: "Sucesso",
-          description: "Relatório exportado com sucesso"
+          description: "Relatório está sendo gerado. Você receberá uma notificação quando estiver pronto."
         });
-        window.open(response.data.data.download_url, '_blank');
+
+        // Redirect to report page
+        if (response.data.data?.report?.id) {
+          router.push(`/reports/${response.data.data.report.id}`);
+        }
       } else {
-        toast({
-          variant: "destructive",
-          title: "Erro",
-          description: "Erro ao exportar relatório"
-        });
+        throw new Error(response.data.message || 'Failed to create report');
       }
     } catch (error) {
-      console.error('Erro ao exportar relatório:', error);
+      console.error('Error creating report:', error);
       toast({
         variant: "destructive",
         title: "Erro",
-        description: "Não foi possível exportar o relatório"
+        description: "Não foi possível criar o relatório"
       });
     }
   };
