@@ -101,6 +101,8 @@ export default function InvitesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [sorting, setSorting] = useState([]);
+  const [totalItems, setTotalItems] = useState(0);
+  const [pageCount, setPageCount] = useState(0);
   const { toast } = useToast();
   const { hasRole } = useAuth();
 
@@ -129,11 +131,30 @@ export default function InvitesPage() {
     )
   }
 
-  const fetchInvites = async () => {
+  const fetchInvites = async (page = 1, size = 10) => {
     try {
-      const response = await api.get('/invites');
+      setLoading(true);
+      console.log('Fetching invites with params:', { page, size });
+      const response = await api.get('/invites', {
+        params: {
+          page,
+          per_page: size
+        }
+      });
+      console.log('API Response:', response.data);
       setInvites(response.data.data.data);
+      setCurrentPage(response.data.data.current_page);
+      setPageSize(response.data.data.per_page);
+      setTotalItems(response.data.data.total);
+      setPageCount(response.data.data.last_page);
+      console.log('Updated state:', {
+        currentPage: response.data.data.current_page,
+        pageSize: response.data.data.per_page,
+        totalItems: response.data.data.total,
+        pageCount: response.data.data.last_page
+      });
     } catch (error) {
+      console.error('Error fetching invites:', error);
       toast({
         title: 'Erro',
         description: 'Não foi possível carregar os convites',
@@ -145,7 +166,7 @@ export default function InvitesPage() {
   };
 
   useEffect(() => {
-    fetchInvites();
+    fetchInvites(1, 10);
   }, []);
 
   const handleAccept = async () => {
@@ -194,7 +215,7 @@ export default function InvitesPage() {
         description: 'Convite aceito e disponibilidade criada com sucesso',
       });
 
-      fetchInvites();
+      fetchInvites(currentPage, pageSize);
     } catch (error: any) {
       console.error('Error accepting invite:', error);
       toast({
@@ -219,7 +240,7 @@ export default function InvitesPage() {
       });
 
       setShowRejectModal(false);
-      fetchInvites();
+      fetchInvites(currentPage, pageSize);
     } catch (error: any) {
       toast({
         title: 'Erro',
@@ -230,8 +251,8 @@ export default function InvitesPage() {
   };
 
   const handlePaginationChange = (page: number, newPageSize: number) => {
-    setCurrentPage(page);
-    setPageSize(newPageSize);
+    console.log('Pagination changed:', { page, newPageSize });
+    fetchInvites(page, newPageSize);
   };
 
   const handleSortingChange = (newSorting: any) => {
@@ -419,8 +440,8 @@ export default function InvitesPage() {
         pageSize={pageSize}
         onPaginationChange={handlePaginationChange}
         onSortingChange={handleSortingChange}
-        totalItems={invites.length}
-        pageCount={Math.ceil(invites.length / pageSize)}
+        totalItems={totalItems}
+        pageCount={pageCount}
       />
 
       {/* Modal de Aceite */}

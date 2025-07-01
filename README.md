@@ -1,4 +1,4 @@
-# Medical System - Frontend
+# Medlar Conecta - Frontend
 
 Este é o frontend do sistema médico, desenvolvido com Next.js, TypeScript e Tailwind CSS.
 

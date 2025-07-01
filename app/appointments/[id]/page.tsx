@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
@@ -67,8 +68,7 @@ import {
   Col,
   Statistic,
   Timeline,
-  Table,
-  Link
+  Table
 } from "antd"
 import { 
   ArrowLeftOutlined, 

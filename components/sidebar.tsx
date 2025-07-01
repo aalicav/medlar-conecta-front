@@ -31,59 +31,33 @@ import {
   GanttChart,
   LockKeyhole,
   AlertCircle,
-  Building
+  Building,
+  Receipt,
+  Cog
 } from "lucide-react"
 import { NavigationMenuItem, NavigationMenuLink, NavigationMenu, NavigationMenuList } from "@/components/ui/navigation-menu"
 import { LucideIcon } from 'lucide-react'
 
 interface SidebarProps {
   className?: string
-  items: {
+  items?: {
     title: string;
     href: string;
     icon: LucideIcon;
   }[];
+  isCollapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
 }
 
-export function Sidebar({ className, items }: SidebarProps) {
+export function Sidebar({ className, items, isCollapsed: externalIsCollapsed, onCollapsedChange }: SidebarProps) {
   const { user, hasRole, hasPermission, logout } = useAuth()
   const pathname = usePathname() || ""
-  const [isOpen, setIsOpen] = useState(false)
-  const [isMobile, setIsMobile] = useState(false)
+  const [internalIsCollapsed, setInternalIsCollapsed] = useState(false)
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
-  const [isCollapsed, setIsCollapsed] = useState(false)
 
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768)
-    }
-    
-    checkMobile()
-    window.addEventListener("resize", checkMobile)
-    
-    return () => {
-      window.removeEventListener("resize", checkMobile)
-    }
-  }, [])
-
-  useEffect(() => {
-    // Close sidebar on route change in mobile view
-    if (isMobile) {
-      setIsOpen(false)
-    }
-  }, [pathname, isMobile])
-
-  const toggleSidebar = () => {
-    setIsOpen(!isOpen)
-  }
-
-  const closeSidebar = () => {
-    setIsOpen(false)
-  }
-
-  const toggleCollapsed = () => {
-    setIsCollapsed(!isCollapsed)
-  }
+  // Use external state if provided, otherwise use internal state
+  const isCollapsed = externalIsCollapsed !== undefined ? externalIsCollapsed : internalIsCollapsed
+  const setIsCollapsed = onCollapsedChange || setInternalIsCollapsed
 
   const getInitials = (name: string) => {
     return name
@@ -174,6 +148,18 @@ export function Sidebar({ className, items }: SidebarProps) {
       roles: ["super_admin", "admin", "director", "commercial_manager", "legal", "plan_admin", "clinic_admin", "professional"],
     },
     {
+      title: "Notas Fiscais",
+      href: "/nfe",
+      icon: Receipt,
+      roles: ["super_admin", "admin", "director", "financial", "plan_admin"],
+    },
+    {
+      title: "Configurações NFe",
+      href: "/nfe-config",
+      icon: Cog,
+      roles: ["super_admin", "admin", "director", "financial"],
+    },
+    {
       title: "Assistente SURI",
       href: "/chatbot",
       icon: MessageSquare,
@@ -227,162 +213,127 @@ export function Sidebar({ className, items }: SidebarProps) {
     (item) => hasRole(item.roles))
 
   return (
-    <>
-      {/* Mobile menu button */}
-      <Button 
-        variant="ghost" 
-        size="icon" 
-        className="fixed top-4 left-4 z-50 md:hidden shadow-sm bg-background/90 backdrop-blur-md hover:bg-background/80 transition-all duration-200" 
-        onClick={toggleSidebar}
-      >
-        <Menu className="h-5 w-5" />
-      </Button>
+    <div className={cn(
+      "flex flex-col h-full bg-primary text-primary-foreground shadow-xl transition-all duration-300 ease-in-out",
+      className,
+    )}>
+      {/* Decorative elements */}
+      <div className="absolute top-0 right-0 w-1/2 h-1/3 bg-gradient-to-bl from-white/10 to-transparent rounded-bl-full pointer-events-none"></div>
+      <div className="absolute bottom-0 left-0 w-1/3 h-1/4 bg-gradient-to-tr from-secondary/30 to-transparent rounded-tr-full pointer-events-none"></div>
 
-      {/* Overlay */}
-      {isOpen && isMobile && (
-        <div 
-          className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm md:hidden opacity-100 transition-opacity duration-300" 
-          onClick={closeSidebar}
-        />
-      )}
-
-      {/* Sidebar */}
-      <div
-        className={cn(
-          "flex flex-col h-full bg-primary text-primary-foreground shadow-xl transition-all duration-300 ease-in-out",
-          isMobile ? "fixed top-0 left-0 z-50 w-[280px]" : isCollapsed ? "w-[80px]" : "w-[280px]",
-          isMobile ? (isOpen ? "translate-x-0" : "-translate-x-full") : "",
-          className,
-        )}
-      >
-        {/* Decorative elements */}
-        <div className="absolute top-0 right-0 w-1/2 h-1/3 bg-gradient-to-bl from-white/10 to-transparent rounded-bl-full pointer-events-none"></div>
-        <div className="absolute bottom-0 left-0 w-1/3 h-1/4 bg-gradient-to-tr from-secondary/30 to-transparent rounded-tr-full pointer-events-none"></div>
-
-        <div className="flex h-16 items-center justify-between px-6 border-b border-white/10 relative backdrop-blur-sm">
-          <div className="flex items-center">
-            {!isMobile && (
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="text-primary-foreground hover:bg-white/10 rounded-full transition-all duration-200 mr-2" 
-                onClick={toggleCollapsed}
-              >
-                {isCollapsed ? (
-                  <ChevronRight className="h-5 w-5" />
-                ) : (
-                  <ChevronLeft className="h-5 w-5" />
-                )}
-              </Button>
+      {/* Header with collapse button */}
+      <div className="flex h-16 items-center justify-between px-4 border-b border-white/10 relative backdrop-blur-sm">
+        <div className="flex items-center">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="text-primary-foreground hover:bg-white/10 rounded-full transition-all duration-200" 
+            onClick={() => setIsCollapsed(!isCollapsed)}
+          >
+            {isCollapsed ? (
+              <ChevronRight className="h-5 w-5" />
+            ) : (
+              <ChevronLeft className="h-5 w-5" />
             )}
-            {isMobile && (
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="text-primary-foreground hover:bg-white/10 rounded-full transition-all duration-200" 
-                onClick={closeSidebar}
-              >
-                <X className="h-5 w-5" />
-              </Button>
-            )}
-          </div>
-        </div>
-
-        <ScrollArea className="flex-grow">
-          <div className="px-4 py-6">
-            {!isCollapsed && (
-              <div className="mb-6 px-4">
-                <h2 className="text-xs font-semibold text-white/70 uppercase tracking-wider">Menu Principal</h2>
-              </div>
-            )}
-            
-            <nav className="space-y-1.5">
-              {filteredNavItems.map((item) => {
-                const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-                const isHovered = hoveredItem === item.href;
-                
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    title={item.title}
-                    onMouseEnter={() => setHoveredItem(item.href)}
-                    onMouseLeave={() => setHoveredItem(null)}
-                    className={cn(
-                      "flex items-center justify-between rounded-md px-4 py-2.5 text-sm font-medium transition-all duration-200 relative overflow-hidden group",
-                      isActive
-                        ? "text-white" 
-                        : "text-white/80 hover:text-white",
-                    )}
-                  >
-                    {/* Background effect for active and hovered items */}
-                    {(isActive || isHovered) && (
-                      <div className={cn(
-                        "absolute inset-0 bg-secondary/40 rounded-md -z-10 transition-opacity duration-200",
-                        isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-                      )}></div>
-                    )}
-                    
-                    {/* Left highlight bar for active items */}
-                    {isActive && (
-                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-2/3 bg-white rounded-r-full"></div>
-                    )}
-                    
-                    <div className={cn(
-                      "flex items-center gap-3",
-                      isCollapsed && "justify-center w-full"
-                    )}>
-                      <div className={cn(
-                        "h-8 w-8 flex items-center justify-center rounded-md transition-all duration-200",
-                        isActive 
-                          ? "bg-secondary text-secondary-foreground shadow-sm" 
-                          : "text-primary-foreground/80 group-hover:bg-secondary/50 group-hover:text-primary-foreground"
-                      )}>
-                        <item.icon className="h-5 w-5" />
-                      </div>
-                      {!isCollapsed && <span>{item.title}</span>}
-                    </div>
-                    
-                    {isActive && !isCollapsed && (
-                      <ChevronRight className="h-4 w-4 text-white/70" />
-                    )}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-        </ScrollArea>
-
-        <div className="border-t border-white/10 p-4">
-          <div className={cn(
-            "flex items-center rounded-md bg-secondary/30 p-3 transition-all duration-200 hover:bg-secondary/40",
-            isCollapsed ? "justify-center" : "space-x-3"
-          )}>
-            <Avatar className="h-10 w-10 border-2 border-white/20 ring-2 ring-secondary/50 shadow-lg">
-              <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-primary-foreground">
-                {user?.name ? getInitials(user.name) : ""}
-              </AvatarFallback>
-            </Avatar>
-            {!isCollapsed && (
-              <>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">{user?.name}</p>
-                  <p className="text-xs text-white/70 truncate">{user?.email}</p>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="text-white hover:bg-white/20 rounded-full transition-all duration-200" 
-                  onClick={logout}
-                  title="Sair"
-                >
-                  <LogOut className="h-5 w-5" />
-                </Button>
-              </>
-            )}
-          </div>
+          </Button>
         </div>
       </div>
-    </>
+
+      <ScrollArea className="flex-grow">
+        <div className="px-2 py-4">
+          {!isCollapsed && (
+            <div className="mb-4 px-2">
+              <h2 className="text-xs font-semibold text-white/70 uppercase tracking-wider">Menu Principal</h2>
+            </div>
+          )}
+          
+          <nav className="space-y-1">
+            {filteredNavItems.map((item) => {
+              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const isHovered = hoveredItem === item.href;
+              
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  title={isCollapsed ? item.title : undefined}
+                  onMouseEnter={() => setHoveredItem(item.href)}
+                  onMouseLeave={() => setHoveredItem(null)}
+                  className={cn(
+                    "flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-all duration-200 relative overflow-hidden group",
+                    isActive
+                      ? "text-white" 
+                      : "text-white/80 hover:text-white",
+                  )}
+                >
+                  {/* Background effect for active and hovered items */}
+                  {(isActive || isHovered) && (
+                    <div className={cn(
+                      "absolute inset-0 bg-secondary/40 rounded-md -z-10 transition-opacity duration-200",
+                      isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                    )}></div>
+                  )}
+                  
+                  {/* Left highlight bar for active items */}
+                  {isActive && (
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-2/3 bg-white rounded-r-full"></div>
+                  )}
+                  
+                  <div className={cn(
+                    "flex items-center gap-3",
+                    isCollapsed && "justify-center w-full"
+                  )}>
+                    <div className={cn(
+                      "h-8 w-8 flex items-center justify-center rounded-md transition-all duration-200",
+                      isActive 
+                        ? "bg-secondary text-secondary-foreground shadow-sm" 
+                        : "text-primary-foreground/80 group-hover:bg-secondary/50 group-hover:text-primary-foreground"
+                    )}>
+                      <item.icon className="h-5 w-5" />
+                    </div>
+                    {!isCollapsed && <span className="truncate">{item.title}</span>}
+                  </div>
+                  
+                  {isActive && !isCollapsed && (
+                    <ChevronRight className="h-4 w-4 text-white/70 flex-shrink-0" />
+                  )}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+      </ScrollArea>
+
+      {/* User profile section */}
+      <div className="border-t border-white/10 p-3">
+        <div className={cn(
+          "flex items-center rounded-md bg-secondary/30 p-2 transition-all duration-200 hover:bg-secondary/40",
+          isCollapsed ? "justify-center" : "space-x-3"
+        )}>
+          <Avatar className="h-8 w-8 border-2 border-white/20 ring-2 ring-secondary/50 shadow-lg">
+            <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-primary-foreground text-xs">
+              {user?.name ? getInitials(user.name) : ""}
+            </AvatarFallback>
+          </Avatar>
+          {!isCollapsed && (
+            <>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white truncate">{user?.name}</p>
+                <p className="text-xs text-white/70 truncate">{user?.email}</p>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="text-white hover:bg-white/20 rounded-full transition-all duration-200 h-8 w-8" 
+                onClick={logout}
+                title="Sair"
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }

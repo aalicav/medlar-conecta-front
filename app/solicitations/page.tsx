@@ -131,6 +131,7 @@ export default function SolicitationsPage() {
     created_to: "",
   })
   const [showCreateAppointmentModal, setShowCreateAppointmentModal] = useState(false)
+  const [selectedSolicitationForAppointment, setSelectedSolicitationForAppointment] = useState<any>(null)
 
   const fetchData = async () => {
     setIsLoading(true)
@@ -429,7 +430,10 @@ export default function SolicitationsPage() {
               )}
 
               {(hasRole('network_manager') || hasRole('super_admin')) && (
-                <DropdownMenuItem onClick={() => setShowCreateAppointmentModal(true)}>
+                <DropdownMenuItem onClick={() => {
+                  setSelectedSolicitationForAppointment(convertSolicitationForModal(solicitation))
+                  setShowCreateAppointmentModal(true)
+                }}>
                   <Calendar className="h-4 w-4 mr-2" />
                   Criar Agendamento
                 </DropdownMenuItem>
@@ -440,6 +444,84 @@ export default function SolicitationsPage() {
       },
     },
   ];
+
+  // Function to convert page Solicitation to modal Solicitation interface
+  const convertSolicitationForModal = (solicitation: Solicitation) => {
+    return {
+      id: solicitation.id,
+      health_plan_id: solicitation.health_plan_id,
+      patient_id: solicitation.patient_id,
+      tuss_id: solicitation.tuss_id,
+      status: solicitation.status,
+      priority: solicitation.priority,
+      description: solicitation.notes,
+      requested_by: null,
+      scheduled_automatically: false,
+      completed_at: null,
+      cancelled_at: null,
+      cancel_reason: null,
+      state: null,
+      city: null,
+      created_at: solicitation.created_at,
+      updated_at: solicitation.created_at,
+      health_plan: {
+        id: solicitation.health_plan.id,
+        name: solicitation.health_plan.name,
+        cnpj: solicitation.health_plan.cnpj,
+        ans_code: solicitation.health_plan.ans_code,
+        description: null,
+        municipal_registration: '',
+        legal_representative_name: '',
+        legal_representative_cpf: '',
+        legal_representative_position: '',
+        legal_representative_id: null,
+        operational_representative_name: '',
+        operational_representative_cpf: '',
+        operational_representative_position: '',
+        operational_representative_id: null,
+        address: '',
+        city: '',
+        state: '',
+        postal_code: '',
+        logo: '',
+        status: solicitation.health_plan.status,
+        approved_at: '',
+        has_signed_contract: false,
+        created_at: '',
+        updated_at: ''
+      },
+      patient: {
+        id: solicitation.patient.id,
+        name: solicitation.patient.name,
+        cpf: solicitation.patient.cpf,
+        birth_date: solicitation.patient.birth_date,
+        gender: solicitation.patient.gender,
+        health_plan_id: solicitation.health_plan_id,
+        health_card_number: solicitation.patient.health_card_number,
+        address: solicitation.patient.address,
+        city: solicitation.patient.city,
+        state: solicitation.patient.state,
+        postal_code: solicitation.patient.postal_code,
+        created_at: '',
+        updated_at: '',
+        age: solicitation.patient.age
+      },
+      tuss: {
+        id: solicitation.tuss.id,
+        code: solicitation.tuss.code,
+        description: solicitation.tuss.description,
+        category: solicitation.tuss.category,
+        subcategory: null,
+        type: null,
+        amb_code: null,
+        amb_description: null,
+        created_at: '',
+        updated_at: ''
+      },
+      requested_by_user: solicitation.requested_by_user || null,
+      is_active: solicitation.is_active || false
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -611,11 +693,19 @@ export default function SolicitationsPage() {
       {/* Use the CreateAppointmentModal */}
       <CreateAppointmentModal
         open={showCreateAppointmentModal}
-        onOpenChange={setShowCreateAppointmentModal}
+        onOpenChange={(open) => {
+          setShowCreateAppointmentModal(open)
+          if (!open) {
+            setSelectedSolicitationForAppointment(null)
+          }
+        }}
         onSuccess={() => {
           setShowCreateAppointmentModal(false)
+          setSelectedSolicitationForAppointment(null)
           fetchData()
         }}
+        preSelectedSolicitation={selectedSolicitationForAppointment}
+        showTriggerButton={false}
       />
     </div>
   )

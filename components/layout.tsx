@@ -1,28 +1,46 @@
+"use client"
+
 import type { ReactNode } from "react"
+import { useState } from "react"
 import { Sidebar } from "./sidebar"
 import { Header } from "./header"
 import Image from "next/image"
 import { Menu } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 interface MainLayoutProps {
   children: ReactNode
 }
 
 export function MainLayout({ children }: MainLayoutProps) {
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+
   return (
     <div className="min-h-screen h-screen bg-background flex flex-col md:flex-row overflow-hidden">
       {/* Sidebar - Hidden on mobile, visible on md and up */}
-      <div className="hidden md:block h-screen flex-shrink-0 border-r border-input shadow-sm">
-        <div className="h-16 flex items-center justify-center border-b border-input bg-primary">
-          <Image
-            src="/conecta/logo.png"
-            alt="Conecta Saúde"
-            width={140}
-            height={40}
-            className="object-contain"
-          />
+      <div className={cn(
+        "hidden md:block h-screen flex-shrink-0 border-r border-input shadow-sm transition-all duration-300",
+        isSidebarCollapsed ? "w-16" : "w-64"
+      )}>
+        <div className={cn(
+          "h-16 flex items-center justify-center border-b border-input bg-primary transition-all duration-300",
+          isSidebarCollapsed ? "px-2" : "px-4"
+        )}>
+          {!isSidebarCollapsed && (
+            <Image
+              src="/conecta/logo.png"
+              alt="Conecta Saúde"
+              width={140}
+              height={40}
+              className="object-contain transition-opacity duration-300"
+            />
+          )}
         </div>
-        <Sidebar className="h-[calc(100%-4rem)]" />
+        <Sidebar 
+          className="h-[calc(100%-4rem)]" 
+          isCollapsed={isSidebarCollapsed}
+          onCollapsedChange={setIsSidebarCollapsed}
+        />
       </div>
       
       {/* Mobile Sidebar Toggle - Visible only on mobile */}

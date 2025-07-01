@@ -165,7 +165,7 @@ export default function DashboardLayout({
               marginRight: collapsed ? '0' : '8px'
             }} 
           />
-          {!collapsed && <span style={{ fontSize: '18px', fontWeight: 'bold' }}>Medical System</span>}
+          {!collapsed && <span style={{ fontSize: '18px', fontWeight: 'bold' }}>Medlar Conecta</span>}
         </div>
         
         <Menu

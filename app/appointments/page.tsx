@@ -914,6 +914,7 @@ export default function AppointmentsPage() {
                 setShowCreateAppointmentModal(false)
                 fetchData()
               }}
+              showTriggerButton={true}
             />
           )}
         </div>

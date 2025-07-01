@@ -169,9 +169,11 @@ interface CreateAppointmentModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
+  preSelectedSolicitation?: Solicitation | null
+  showTriggerButton?: boolean
 }
 
-export function CreateAppointmentModal({ open, onOpenChange, onSuccess }: CreateAppointmentModalProps) {
+export function CreateAppointmentModal({ open, onOpenChange, onSuccess, preSelectedSolicitation, showTriggerButton }: CreateAppointmentModalProps) {
   const [solicitations, setSolicitations] = useState<Solicitation[]>([])
   const [selectedSolicitation, setSelectedSolicitation] = useState<Solicitation | null>(null)
   const [availabilities, setAvailabilities] = useState<ProfessionalAvailability[]>([])
@@ -196,10 +198,10 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess }: Create
   const [providerType, setProviderType] = useState<string>("")
 
   useEffect(() => {
-    if (open) {
+    if (open && !preSelectedSolicitation) {
       fetchSolicitations()
     }
-  }, [open])
+  }, [open, preSelectedSolicitation])
 
   useEffect(() => {
     if (selectedSolicitation && showDirectScheduling && providerType) {
@@ -213,8 +215,24 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess }: Create
     }
   }, [selectedProviderId, providerType])
 
+  // Effect to handle pre-selected solicitation
+  useEffect(() => {
+    if (preSelectedSolicitation) {
+      setSelectedSolicitation(preSelectedSolicitation)
+      setSolicitations([preSelectedSolicitation])
+      // Automatically fetch availabilities for the pre-selected solicitation
+      fetchAvailabilities(preSelectedSolicitation.id)
+    }
+  }, [preSelectedSolicitation])
+
   const fetchSolicitations = async (): Promise<void> => {
     try {
+      // If we have a pre-selected solicitation, don't fetch the list
+      if (preSelectedSolicitation) {
+        setSolicitations([preSelectedSolicitation])
+        return
+      }
+      
       const response = await api.get("/solicitations", {
         params: {
           status: ["pending", "processing"]
@@ -424,12 +442,14 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess }: Create
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Agendamento
-        </Button>
-      </DialogTrigger>
+      {showTriggerButton && (
+        <DialogTrigger asChild>
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo Agendamento
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Novo Agendamento</DialogTitle>
