@@ -23,6 +23,7 @@ interface Professional {
   id: number
   name: string
   cnpj: string
+  cpf?: string
   description: string
   cnes: string | null
   technical_director: string | null
@@ -157,9 +158,26 @@ export default function ProfessionalDetailsPage({ params }: { params: { id: stri
         const response = await fetchResourceById<Professional>(endpoint, params.id)
         
         if (response) {
+          // Determine document type based on actual data
+          let documentType: "cpf" | "cnpj" = "cpf";
+          if (currentEntityType === 'clinic' || (response.cnpj && response.cnpj.trim() !== "")) {
+            documentType = "cnpj";
+          } else if (response.cpf && response.cpf.trim() !== "") {
+            documentType = "cpf";
+          }
+          
+          console.log('Document type detection:', {
+            currentEntityType,
+            hasCnpj: response.cnpj && response.cnpj.trim() !== "",
+            hasCpf: response.cpf && response.cpf.trim() !== "",
+            cnpj: response.cnpj,
+            cpf: response.cpf,
+            finalDocumentType: documentType
+          });
+          
           const professionalData: Professional = {
             ...response,
-            documentType: currentEntityType === 'clinic' ? 'cnpj' : 'cpf',
+            documentType: documentType,
             // Ensure all required fields are present with their correct types
             id: response.id,
             name: response.name,
@@ -297,7 +315,8 @@ export default function ProfessionalDetailsPage({ params }: { params: { id: stri
   }
 
   // Add helper function to check if it's a clinic/establishment
-  const isClinic = professional?.documentType === "cnpj" || Boolean(professional?.cnpj)
+  const isClinic = professional?.documentType === "cnpj" || 
+                   (professional?.cnpj && professional.cnpj.trim() !== "" && !professional?.cpf)
 
   // Fix the formatDate error by providing a default value
   const formatDateWithDefault = (date?: string) => {
@@ -328,7 +347,7 @@ export default function ProfessionalDetailsPage({ params }: { params: { id: stri
         title: professional?.name || "Profissional",
         subtitle: (professional as any)?.specialty || "Profissional de Saúde",
         documentLabel: "CPF",
-        documentValue: (professional as any)?.cpf || "-",
+        documentValue: professional?.cpf || "-",
         icon: User,
         typeLabel: "Profissional",
         statusLabel: professional?.status === "approved" ? "Aprovado" : "Pendente",

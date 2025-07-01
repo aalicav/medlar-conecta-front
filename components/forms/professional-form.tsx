@@ -3697,7 +3697,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                             <Plus className="w-4 h-4 mr-2 text-blue-500" />
                             Adicionar Endereço
                           </Button>
-          </div>
+                        </div>
                         
                         {addressFields.map((field, index) => (
                           <div key={field.id} className="p-4 border rounded-md space-y-4">
@@ -3852,7 +3852,8 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                                       <Input
                                         {...field}
                                         onChange={(e) => handleCEPChange(e, index)}
-                                        placeholder="00000-000"
+                                        placeholder="Digite o CEP"
+                                        maxLength={9}
                                       />
                                     </FormControl>
                                     <FormMessage />
@@ -3864,7 +3865,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                                 control={form.control}
                                 name={`addresses.${index}.is_main` as const}
                                 render={({ field }) => (
-                                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 mt-4">
+                                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                                     <FormControl>
                                       <Checkbox
                                         checked={field.value}
@@ -3872,7 +3873,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                                           // Se estiver marcando como principal, desmarca os outros
                                           if (checked) {
                                             const formValues = form.getValues();
-                                            formValues.addresses.forEach((_, i) => {
+                                            formValues.addresses?.forEach((_, i) => {
                                               if (i !== index) {
                                                 form.setValue(`addresses.${i}.is_main`, false);
                                               }
@@ -3885,7 +3886,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                                     <div className="space-y-1 leading-none">
                                       <FormLabel>Endereço Principal</FormLabel>
                                       <FormDescription>
-                                        Marque esta opção se este for o endereço principal
+                                        Marque se este for o endereço principal
                                       </FormDescription>
                                     </div>
                                   </FormItem>
