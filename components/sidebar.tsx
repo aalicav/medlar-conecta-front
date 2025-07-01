@@ -132,6 +132,12 @@ export function Sidebar({ className, items }: SidebarProps) {
       roles: ["super_admin", "admin", "director", "commercial_manager", "operational", "clinic_admin", "clinic", "network_manager"],
     },
     {
+      title: "Convites para agendamento",
+      href: "/professionals/invites",
+      icon: Calendar,
+      roles: ["super_admin", "admin", "director", "clinic_admin", "operational", "professional", "clinic", "network_manager"],
+    },
+    {
       title: "Solicitações",
       href: "/solicitations",
       icon: ClipboardList,

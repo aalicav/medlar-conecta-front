@@ -111,24 +111,59 @@ export default function ProfessionalDetailsPage({ params }: { params: { id: stri
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loadingAppointments, setLoadingAppointments] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const type = searchParams?.get('type') || 'clinic';
+  
+  // Detect entity type from URL params or data
+  const [entityType, setEntityType] = useState<'professional' | 'clinic'>('professional')
 
   // Fetch professional data
   useEffect(() => {
     const fetchProfessional = async () => {
       try {
         setLoading(true)
-        const endpoint = type === 'clinic' ? 'clinics' : 'professionals'
+        
+        // Try to determine the entity type from URL params first
+        const urlType = searchParams?.get('type')
+        let endpoint = 'professionals'
+        let currentEntityType: 'professional' | 'clinic' = 'professional'
+        
+        if (urlType === 'clinic') {
+          endpoint = 'clinics'
+          currentEntityType = 'clinic'
+        } else {
+          // Try to fetch as professional first, if it fails, try as clinic
+          try {
+            const response = await fetchResourceById<Professional>('professionals', params.id)
+            if (response) {
+              endpoint = 'professionals'
+              currentEntityType = 'professional'
+            }
+          } catch (error) {
+            // If professional fails, try as clinic
+            try {
+              const clinicResponse = await fetchResourceById<Professional>('clinics', params.id)
+              if (clinicResponse) {
+                endpoint = 'clinics'
+                currentEntityType = 'clinic'
+              }
+            } catch (clinicError) {
+              // If both fail, default to professional
+              endpoint = 'professionals'
+              currentEntityType = 'professional'
+            }
+          }
+        }
+        
+        setEntityType(currentEntityType)
         const response = await fetchResourceById<Professional>(endpoint, params.id)
         
         if (response) {
           const professionalData: Professional = {
             ...response,
-            documentType: 'cnpj' as const,
+            documentType: currentEntityType === 'clinic' ? 'cnpj' : 'cpf',
             // Ensure all required fields are present with their correct types
             id: response.id,
             name: response.name,
-            cnpj: response.cnpj,
+            cnpj: response.cnpj || (response as any).document,
             description: response.description,
             phones: response.phones || [],
             addresses: response.addresses || [],
@@ -137,10 +172,10 @@ export default function ProfessionalDetailsPage({ params }: { params: { id: stri
             technical_director_document: response.technical_director_document,
             technical_director_professional_id: response.technical_director_professional_id,
             parent_clinic_id: response.parent_clinic_id,
-            address: response.addresses?.[0]?.street || null,
-            city: response.addresses?.[0]?.city || null,
-            state: response.addresses?.[0]?.state || null,
-            postal_code: response.addresses?.[0]?.postal_code || null,
+            address: response.addresses?.[0]?.street || response.address || null,
+            city: response.addresses?.[0]?.city || response.city || null,
+            state: response.addresses?.[0]?.state || response.state || null,
+            postal_code: response.addresses?.[0]?.postal_code || response.postal_code || null,
             latitude: response.latitude,
             longitude: response.longitude,
             logo: response.logo,
@@ -270,6 +305,45 @@ export default function ProfessionalDetailsPage({ params }: { params: { id: stri
     return formatDate(date)
   }
 
+  // Get entity-specific information
+  const getEntityInfo = () => {
+    if (isClinic) {
+      return {
+        title: professional?.name || "Estabelecimento",
+        subtitle: professional?.description || "Estabelecimento de Saúde",
+        documentLabel: "CNPJ",
+        documentValue: professional?.cnpj || "-",
+        icon: Building2,
+        typeLabel: "Estabelecimento",
+        statusLabel: professional?.status === "approved" ? "Aprovado" : "Pendente",
+        mainInfo: [
+          { label: "CNES", value: professional?.cnes || "-" },
+          { label: "Diretor Técnico", value: professional?.technical_director || "-" },
+          { label: "Registro Sanitário", value: (professional as any)?.health_reg_number || "-" },
+          { label: "Data de Fundação", value: (professional as any)?.foundation_date ? formatDateWithDefault((professional as any).foundation_date) : "-" }
+        ]
+      }
+    } else {
+      return {
+        title: professional?.name || "Profissional",
+        subtitle: (professional as any)?.specialty || "Profissional de Saúde",
+        documentLabel: "CPF",
+        documentValue: (professional as any)?.cpf || "-",
+        icon: User,
+        typeLabel: "Profissional",
+        statusLabel: professional?.status === "approved" ? "Aprovado" : "Pendente",
+        mainInfo: [
+          { label: "Especialidade", value: (professional as any)?.specialty || "-" },
+          { label: "Conselho", value: `${(professional as any)?.council_type || ""} ${(professional as any)?.council_number || ""}`.trim() || "-" },
+          { label: "Estado do Conselho", value: (professional as any)?.council_state || "-" },
+          { label: "Data de Nascimento", value: (professional as any)?.birth_date ? formatDateWithDefault((professional as any).birth_date) : "-" }
+        ]
+      }
+    }
+  }
+
+  const entityInfo = getEntityInfo()
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -380,18 +454,23 @@ export default function ProfessionalDetailsPage({ params }: { params: { id: stri
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">{professional.name}</h1>
-            <p className="text-muted-foreground">
-              {professional.description} • CNPJ: {professional.cnpj}
-            </p>
+          <div className="flex items-center gap-3">
+            <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+              <entityInfo.icon className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">{entityInfo.title}</h1>
+              <p className="text-muted-foreground">
+                {entityInfo.subtitle} • {entityInfo.documentLabel}: {entityInfo.documentValue}
+              </p>
+            </div>
           </div>
         </div>
         
         <div className="flex items-center gap-2">
           <Button onClick={handleEdit} disabled={updating}>
             <Edit className="mr-2 h-4 w-4" />
-            Editar
+            Editar {entityInfo.typeLabel}
           </Button>
           
           <Button
@@ -420,7 +499,7 @@ export default function ProfessionalDetailsPage({ params }: { params: { id: stri
               <AlertDialogHeader>
                 <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Tem certeza que deseja excluir {isClinic ? "esta clínica" : "este profissional"}? Esta ação não pode ser desfeita.
+                  Tem certeza que deseja excluir {isClinic ? "este estabelecimento" : "este profissional"}? Esta ação não pode ser desfeita.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -438,7 +517,7 @@ export default function ProfessionalDetailsPage({ params }: { params: { id: stri
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
           <Badge variant={professional.status === "approved" ? "default" : "secondary"}>
-            {professional.status === "approved" ? "Aprovado" : "Pendente"}
+            {entityInfo.statusLabel}
           </Badge>
           <Badge variant={professional.is_active ? "default" : "secondary"}>
             {professional.is_active ? "Ativo" : "Inativo"}
@@ -448,6 +527,9 @@ export default function ProfessionalDetailsPage({ params }: { params: { id: stri
               Contrato Assinado
             </Badge>
           )}
+          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+            {entityInfo.typeLabel}
+          </Badge>
         </div>
       </div>
 
@@ -455,17 +537,19 @@ export default function ProfessionalDetailsPage({ params }: { params: { id: stri
       <Tabs defaultValue="details" className="space-y-4">
         <TabsList>
           <TabsTrigger value="details">
-            <Building2 className="mr-2 h-4 w-4" />
+            <entityInfo.icon className="mr-2 h-4 w-4" />
             Detalhes
           </TabsTrigger>
           <TabsTrigger value="appointments">
             <CalendarIcon className="mr-2 h-4 w-4" />
             Agendamentos ({professional.appointments_count})
           </TabsTrigger>
-          <TabsTrigger value="professionals">
-            <User className="mr-2 h-4 w-4" />
-            Profissionais ({professional.professionals_count})
-          </TabsTrigger>
+          {isClinic && (
+            <TabsTrigger value="professionals">
+              <User className="mr-2 h-4 w-4" />
+              Profissionais ({professional.professionals_count})
+            </TabsTrigger>
+          )}
           <TabsTrigger value="documents">
             <FileText className="mr-2 h-4 w-4" />
             Documentos
@@ -477,81 +561,107 @@ export default function ProfessionalDetailsPage({ params }: { params: { id: stri
             {/* Basic Information */}
             <Card>
               <CardHeader>
-                <CardTitle>Informações Básicas</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <entityInfo.icon className="h-5 w-5" />
+                  Informações Básicas
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <dt className="font-medium text-muted-foreground">{entityInfo.documentLabel}</dt>
+                    <dd className="font-medium">{entityInfo.documentValue}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-muted-foreground">Nome</dt>
+                    <dd className="font-medium">{professional.name}</dd>
+                  </div>
+                  {entityInfo.mainInfo.map((info, index) => (
+                    <div key={index}>
+                      <dt className="font-medium text-muted-foreground">{info.label}</dt>
+                      <dd>{info.value}</dd>
+                    </div>
+                  ))}
+                  <div>
+                    <dt className="font-medium text-muted-foreground">Email</dt>
+                    <dd>{(professional as any)?.email || (professional as any)?.user?.email || "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-muted-foreground">Data de Cadastro</dt>
+                    <dd>{formatDateWithDefault(professional.created_at)}</dd>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Professional/Clinic Specific Information */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  {isClinic ? <Building2 className="h-5 w-5" /> : <User className="h-5 w-5" />}
+                  {isClinic ? "Informações do Estabelecimento" : "Informações Profissionais"}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   {isClinic ? (
                     <>
                       <div>
-                        <dt className="font-medium text-muted-foreground">CNPJ</dt>
-                        <dd>{professional.cnpj}</dd>
+                        <dt className="font-medium text-muted-foreground">CNES</dt>
+                        <dd>{professional.cnes || "-"}</dd>
                       </div>
                       <div>
-                        <dt className="font-medium text-muted-foreground">Nome Fantasia</dt>
-                        <dd>{professional.name}</dd>
+                        <dt className="font-medium text-muted-foreground">Diretor Técnico</dt>
+                        <dd>{professional.technical_director || "-"}</dd>
                       </div>
                       <div>
-                        <dt className="font-medium text-muted-foreground">Data de Fundação</dt>
-                        <dd>{formatDateWithDefault(professional.created_at)}</dd>
+                        <dt className="font-medium text-muted-foreground">Documento do Diretor</dt>
+                        <dd>{professional.technical_director_document || "-"}</dd>
                       </div>
                       <div>
-                        <dt className="font-medium text-muted-foreground">Registro Sanitário</dt>
-                        <dd>{professional.cnes}</dd>
+                        <dt className="font-medium text-muted-foreground">Horário de Funcionamento</dt>
+                        <dd>{(professional as any)?.business_hours || "-"}</dd>
+                      </div>
+                      <div className="col-span-2">
+                        <dt className="font-medium text-muted-foreground">Serviços Oferecidos</dt>
+                        <dd>{(professional as any)?.services || "-"}</dd>
                       </div>
                     </>
                   ) : (
                     <>
                       <div>
-                        <dt className="font-medium text-muted-foreground">CPF</dt>
-                        <dd>{professional.name}</dd>
+                        <dt className="font-medium text-muted-foreground">Especialidade</dt>
+                        <dd>{(professional as any)?.specialty || "-"}</dd>
+                      </div>
+                      <div>
+                        <dt className="font-medium text-muted-foreground">Conselho</dt>
+                        <dd>{(professional as any)?.council_type || "-"}</dd>
+                      </div>
+                      <div>
+                        <dt className="font-medium text-muted-foreground">Número do Conselho</dt>
+                        <dd>{(professional as any)?.council_number || "-"}</dd>
+                      </div>
+                      <div>
+                        <dt className="font-medium text-muted-foreground">Estado do Conselho</dt>
+                        <dd>{(professional as any)?.council_state || "-"}</dd>
                       </div>
                       <div>
                         <dt className="font-medium text-muted-foreground">Data de Nascimento</dt>
-                        <dd>{formatDateWithDefault(professional.created_at)}</dd>
+                        <dd>{(professional as any)?.birth_date ? formatDateWithDefault((professional as any).birth_date) : "-"}</dd>
                       </div>
                       <div>
                         <dt className="font-medium text-muted-foreground">Gênero</dt>
-                        <dd>{professional.technical_director || "-"}</dd>
+                        <dd>{(professional as any)?.gender || "-"}</dd>
                       </div>
-                      <div>
-                        <dt className="font-medium text-muted-foreground">Tipo</dt>
-                        <dd>{professional.description}</dd>
+                      <div className="col-span-2">
+                        <dt className="font-medium text-muted-foreground">Biografia</dt>
+                        <dd>{(professional as any)?.bio || "-"}</dd>
                       </div>
                     </>
                   )}
                 </div>
               </CardContent>
             </Card>
-
-            {/* Professional/Clinic Information */}
-            {!isClinic && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Informações Profissionais</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <dt className="font-medium text-muted-foreground">Conselho</dt>
-                      <dd>{professional.technical_director_professional_id || "-"}</dd>
-                    </div>
-                    <div>
-                      <dt className="font-medium text-muted-foreground">Número</dt>
-                      <dd>{professional.cnes || "-"}</dd>
-                    </div>
-                    <div>
-                      <dt className="font-medium text-muted-foreground">Estado</dt>
-                      <dd>{professional.state || "-"}</dd>
-                    </div>
-                    <div>
-                      <dt className="font-medium text-muted-foreground">Especialidade</dt>
-                      <dd>{professional.technical_director || "-"}</dd>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
 
             {/* Contact Information */}
             <Card>
@@ -780,7 +890,7 @@ export default function ProfessionalDetailsPage({ params }: { params: { id: stri
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         onSuccess={handleEditSuccess}
-        entityType={type as "clinic" | "professional"}
+        entityType={entityType as "clinic" | "professional"}
         entityId={params.id}
         title={isClinic ? "Editar Estabelecimento" : "Editar Profissional"}
       />

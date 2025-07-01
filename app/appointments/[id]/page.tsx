@@ -55,6 +55,35 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { 
+  Typography, 
+  Descriptions, 
+  Space, 
+  Tag, 
+  Divider, 
+  Spin, 
+  Alert,
+  Row,
+  Col,
+  Statistic,
+  Timeline,
+  Table,
+  Link
+} from "antd"
+import { 
+  ArrowLeftOutlined, 
+  CheckCircleOutlined, 
+  CloseCircleOutlined,
+  ClockCircleOutlined,
+  ExclamationCircleOutlined,
+  DollarOutlined,
+  FileTextOutlined,
+  CalendarOutlined,
+  UserOutlined,
+  CheckOutlined,
+  CloseOutlined,
+  EyeOutlined
+} from "@ant-design/icons"
 
 interface Appointment {
   id: number
@@ -215,6 +244,21 @@ interface Tuss {
   amb_description?: string | null
 }
 
+interface ValueVerification {
+  id: number;
+  value_type: string;
+  original_value: number;
+  verified_value?: number;
+  status: 'pending' | 'verified' | 'rejected' | 'auto_approved';
+  verification_reason?: string;
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  due_date?: string;
+  billing_batch_id?: number;
+  billing_item_id?: number;
+  appointment_id?: number;
+  created_at: string;
+}
+
 export default function AppointmentDetailsPage() {
   const router = useRouter()
   const params = useParams()
@@ -235,6 +279,9 @@ export default function AppointmentDetailsPage() {
   const [tussOptions, setTussOptions] = useState<Tuss[]>([])
   const [isLoadingTuss, setIsLoadingTuss] = useState(false)
   const [selectedTuss, setSelectedTuss] = useState<Tuss | null>(null)
+  
+  const [verifications, setVerifications] = useState<ValueVerification[]>([])
+  const [loadingVerifications, setLoadingVerifications] = useState(false)
   
   // Teste do toast para verificar se está funcionando
   useEffect(() => {
@@ -584,6 +631,183 @@ export default function AppointmentDetailsPage() {
         return <Badge>{status}</Badge>
     }
   }
+  
+  // Fetch value verifications for this appointment
+  useEffect(() => {
+    const fetchVerifications = async () => {
+      if (!appointment) return;
+      
+      try {
+        setLoadingVerifications(true);
+        const response = await api.get(`/billing/value-verifications?appointment_id=${appointment.id}`);
+        if (response.data.data) {
+          setVerifications(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching verifications:', error);
+      } finally {
+        setLoadingVerifications(false);
+      }
+    };
+
+    fetchVerifications();
+  }, [appointment]);
+
+  const getValueTypeDisplay = (valueType: string): string => {
+    switch (valueType) {
+      case 'appointment_price':
+        return 'Preço do Agendamento';
+      case 'procedure_price':
+        return 'Preço do Procedimento';
+      case 'specialty_price':
+        return 'Preço da Especialidade';
+      case 'contract_price':
+        return 'Preço do Contrato';
+      case 'billing_amount':
+        return 'Valor de Cobrança';
+      default:
+        return valueType;
+    }
+  };
+
+  const getPriorityColor = (priority: string): string => {
+    switch (priority) {
+      case 'low':
+        return 'blue';
+      case 'medium':
+        return 'orange';
+      case 'high':
+        return 'red';
+      case 'critical':
+        return 'purple';
+      default:
+        return 'default';
+    }
+  };
+
+  const getStatusColor = (status: string): string => {
+    switch (status) {
+      case 'pending':
+        return 'orange';
+      case 'verified':
+        return 'green';
+      case 'rejected':
+        return 'red';
+      case 'auto_approved':
+        return 'blue';
+      default:
+        return 'default';
+    }
+  };
+
+  const getStatusText = (status: string): string => {
+    switch (status) {
+      case 'pending':
+        return 'Pendente';
+      case 'verified':
+        return 'Verificado';
+      case 'rejected':
+        return 'Rejeitado';
+      case 'auto_approved':
+        return 'Auto-aprovado';
+      default:
+        return status;
+    }
+  };
+
+  const formatCurrency = (value: number): string => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
+  };
+
+  const verificationColumns = [
+    {
+      title: 'ID',
+      dataIndex: 'id',
+      key: 'id',
+      width: 80,
+      render: (id: number) => <Link href={`/value-verifications/${id}`}>{id}</Link>
+    },
+    {
+      title: 'Tipo',
+      dataIndex: 'value_type',
+      key: 'value_type',
+      width: 150,
+      render: (valueType: string) => (
+        <Tag color="blue">{getValueTypeDisplay(valueType)}</Tag>
+      )
+    },
+    {
+      title: 'Valor Original',
+      dataIndex: 'original_value',
+      key: 'original_value',
+      width: 120,
+      render: (value: number) => formatCurrency(value)
+    },
+    {
+      title: 'Valor Verificado',
+      dataIndex: 'verified_value',
+      key: 'verified_value',
+      width: 120,
+      render: (value: number) => value ? formatCurrency(value) : '-'
+    },
+    {
+      title: 'Prioridade',
+      dataIndex: 'priority',
+      key: 'priority',
+      width: 100,
+      render: (priority: string) => (
+        <Tag color={getPriorityColor(priority)}>
+          {priority.toUpperCase()}
+        </Tag>
+      )
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      width: 100,
+      render: (status: string) => (
+        <Tag color={getStatusColor(status)}>
+          {getStatusText(status)}
+        </Tag>
+      )
+    },
+    {
+      title: 'Motivo',
+      dataIndex: 'verification_reason',
+      key: 'verification_reason',
+      ellipsis: true,
+      render: (reason: string) => (
+        <Tooltip placement="top" title={reason}>
+          <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {reason}
+          </span>
+        </Tooltip>
+      )
+    },
+    {
+      title: 'Data Criação',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      width: 120,
+      render: (date: string) => new Date(date).toLocaleDateString('pt-BR')
+    },
+    {
+      title: 'Ações',
+      key: 'actions',
+      width: 100,
+      render: (_: any, record: ValueVerification) => (
+        <Link href={`/value-verifications/${record.id}`}>
+          <Button type="default" icon={<EyeOutlined />} size="small">
+            Ver
+          </Button>
+        </Link>
+      )
+    }
+  ];
   
   if (isLoading) {
     return (
@@ -955,6 +1179,36 @@ export default function AppointmentDetailsPage() {
             </Card>
           )}
         </div>
+
+        {/* Value Verifications Section */}
+        {verifications.length > 0 && (
+          <Card title="Verificações de Valores" className="mb-6">
+            <Alert
+              message="Verificações de Valores"
+              description={`Este agendamento possui ${verifications.length} verificação(ões) de valores associada(s).`}
+              type="info"
+              showIcon
+              className="mb-4"
+              action={
+                <Link href="/value-verifications">
+                  <Button size="small" type="default">
+                    Ver Todas
+                  </Button>
+                </Link>
+              }
+            />
+            
+            <Table
+              columns={verificationColumns}
+              dataSource={verifications}
+              rowKey="id"
+              loading={loadingVerifications}
+              pagination={false}
+              size="small"
+              scroll={{ x: 800 }}
+            />
+          </Card>
+        )}
 
         {/* Cancel Dialog */}
         <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>

@@ -27,6 +27,7 @@ export function EditModal({
 }: EditModalProps) {
   const [isFetching, setIsFetching] = useState(false)
   const [initialData, setInitialData] = useState<any>(null)
+  const [detectedEntityType, setDetectedEntityType] = useState<'professional' | 'clinic'>(entityType)
   const { toast } = useToast()
 
   // Fetch entity data when modal opens
@@ -39,7 +40,33 @@ export function EditModal({
   const fetchEntityData = async () => {
     setIsFetching(true)
     try {
-      const endpoint = entityType === "professional" ? `/professionals/${entityId}` : `/clinics/${entityId}`
+      // Try to determine the entity type if not explicitly provided
+      let endpoint = entityType === "professional" ? `/professionals/${entityId}` : `/clinics/${entityId}`
+      let currentEntityType = entityType
+      
+      if (entityType === "professional") {
+        try {
+          const response = await api.get(`/professionals/${entityId}`)
+          if (response.data) {
+            currentEntityType = "professional"
+            endpoint = `/professionals/${entityId}`
+          }
+        } catch (error) {
+          // If professional fails, try as clinic
+          try {
+            const clinicResponse = await api.get(`/clinics/${entityId}`)
+            if (clinicResponse.data) {
+              currentEntityType = "clinic"
+              endpoint = `/clinics/${entityId}`
+            }
+          } catch (clinicError) {
+            // If both fail, use the original entityType
+            currentEntityType = entityType
+          }
+        }
+      }
+      
+      setDetectedEntityType(currentEntityType)
       const response = await api.get(endpoint)
       
       if (response.data) {
@@ -47,7 +74,7 @@ export function EditModal({
         
         // Transform data to match form structure exactly as expected by ProfessionalForm
         const transformedData = {
-          documentType: entityType === "professional" ? "cpf" : "cnpj",
+          documentType: currentEntityType === "professional" ? "cpf" : "cnpj",
           name: data.name || "",
           // Tentar obter email de várias possíveis fontes
           email: data.email || data.user?.email || "",
@@ -85,8 +112,8 @@ export function EditModal({
               }],
           
           // Professional specific fields
-          ...(entityType === "professional" && {
-            cpf: data.cpf || "",
+          ...(currentEntityType === "professional" && {
+            cpf: data.cpf || data.document || "",
             birth_date: data.birth_date ? new Date(data.birth_date).toISOString().split('T')[0] : "",
             gender: data.gender || "",
             specialty: data.specialty || "",
@@ -95,28 +122,49 @@ export function EditModal({
             council_state: data.council_state || "",
             bio: data.bio || "",
             clinic_id: data.clinic_id ? String(data.clinic_id) : "",
+            // Adicionar campos que podem estar em diferentes locais
+            phone: data.phone || data.phones?.[0]?.formatted_number || data.phones?.[0]?.number || "",
+            address: data.address || data.addresses?.[0]?.street || "",
+            city: data.city || data.addresses?.[0]?.city || "",
+            state: data.state || data.addresses?.[0]?.state || "",
+            postal_code: data.postal_code || data.addresses?.[0]?.postal_code || "",
           }),
           
           // Clinic specific fields
-          ...(entityType === "clinic" && {
-            cnpj: data.cnpj || "",
+          ...(currentEntityType === "clinic" && {
+            cnpj: data.cnpj || data.document || "",
             description: data.description || "",
             cnes: data.cnes || "",
             technical_director: data.technical_director || "",
             technical_director_document: data.technical_director_document || "",
             technical_director_professional_id: data.technical_director_professional_id || "",
+            trading_name: data.trading_name || "",
+            foundation_date: data.foundation_date ? new Date(data.foundation_date).toISOString().split('T')[0] : "",
+            business_hours: data.business_hours || "",
+            services: data.services || "",
+            health_reg_number: data.health_reg_number || "",
+            // Adicionar campos que podem estar em diferentes locais
+            phone: data.phone || data.phones?.[0]?.formatted_number || data.phones?.[0]?.number || "",
+            address: data.address || data.addresses?.[0]?.street || "",
+            city: data.city || data.addresses?.[0]?.city || "",
+            state: data.state || data.addresses?.[0]?.state || "",
+            postal_code: data.postal_code || data.addresses?.[0]?.postal_code || "",
           }),
           
           // Documents (if any)
           documents: Array.isArray(data.documents) ? data.documents.map((doc: any) => ({
             id: doc.id,
             type: doc.type,
+            type_id: doc.type_id,
             file_path: doc.file_path,
+            file_url: doc.file_url || doc.file_path,
             description: doc.description,
-            uploaded_at: doc.uploaded_at
+            uploaded_at: doc.uploaded_at,
+            expiration_date: doc.expiration_date
           })) : []
         }
         
+        console.log('Transformed data for form:', transformedData) // Debug log
         setInitialData(transformedData)
       }
     } catch (error) {
@@ -146,7 +194,7 @@ export function EditModal({
 
       // Garantir que o entityId seja uma string
       const id = String(entityId)
-      const endpoint = entityType === "professional" ? `/professionals/${id}` : `/clinics/${id}`
+      const endpoint = detectedEntityType === "professional" ? `/professionals/${id}` : `/clinics/${id}`
       
       // Create FormData for file uploads
       const data = new FormData()
@@ -244,7 +292,9 @@ export function EditModal({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle>
+            {title || `Editar ${detectedEntityType === "professional" ? "Profissional" : "Estabelecimento"}`}
+          </DialogTitle>
         </DialogHeader>
         
         {isFetching ? (

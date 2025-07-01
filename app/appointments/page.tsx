@@ -493,6 +493,16 @@ export default function AppointmentsPage() {
   const handleMarkAttendance = async () => {
     if (!selectedAppointmentForAttendance) return
 
+    // Validate that attendance is selected
+    if (attendanceData.patient_attended === null || attendanceData.patient_attended === undefined) {
+      toast({
+        title: "Erro",
+        description: "Selecione se o paciente compareceu ou não",
+        variant: "destructive"
+      })
+      return
+    }
+
     setIsMarkingAttendance(true)
     try {
       await api.post(`/appointments/${selectedAppointmentForAttendance.id}/complete`, {
@@ -788,7 +798,7 @@ export default function AppointmentsPage() {
                 </>
               )}
 
-              {(appointment.status === "confirmed" || appointment.status === "scheduled") && appointment.patient_attended === null && (
+              {(appointment.status === "confirmed" || appointment.status === "scheduled") && appointment.patient_attended === undefined && (
                 <DropdownMenuItem
                   onClick={() => handleOpenAttendanceDialog(appointment)}
                   disabled={isActionLoading}
@@ -1250,38 +1260,44 @@ export default function AppointmentsPage() {
                 
                 <div className="space-y-2">
                   <div className="flex items-center space-x-2">
-                    <Checkbox
+                    <input
+                      type="radio"
                       id="attended"
-                      checked={attendanceData.patient_attended}
-                      onCheckedChange={(checked) => {
+                      name="attendance"
+                      checked={attendanceData.patient_attended === true}
+                      onChange={() => {
                         setAttendanceData(prev => ({
                           ...prev,
-                          patient_attended: checked as boolean
+                          patient_attended: true
                         }))
                       }}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
                     />
-                    <Label htmlFor="attended" className="text-sm">
+                    <Label htmlFor="attended" className="text-sm cursor-pointer">
                       <div className="flex items-center">
-                        <CheckCircle className="mr-2 h-4 w-4" />
+                        <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
                         Paciente compareceu
                       </div>
                     </Label>
                   </div>
 
                   <div className="flex items-center space-x-2">
-                    <Checkbox
+                    <input
+                      type="radio"
                       id="missed"
-                      checked={!attendanceData.patient_attended}
-                      onCheckedChange={(checked) => {
+                      name="attendance"
+                      checked={attendanceData.patient_attended === false}
+                      onChange={() => {
                         setAttendanceData(prev => ({
                           ...prev,
-                          patient_attended: !checked
+                          patient_attended: false
                         }))
                       }}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
                     />
-                    <Label htmlFor="missed" className="text-sm">
+                    <Label htmlFor="missed" className="text-sm cursor-pointer">
                       <div className="flex items-center">
-                        <XCircle className="mr-2 h-4 w-4" />
+                        <XCircle className="mr-2 h-4 w-4 text-red-600" />
                         Paciente não compareceu
                       </div>
                     </Label>
@@ -1314,7 +1330,7 @@ export default function AppointmentsPage() {
             </Button>
             <Button 
               onClick={handleMarkAttendance}
-              disabled={isMarkingAttendance}
+              disabled={isMarkingAttendance || attendanceData.patient_attended === null || attendanceData.patient_attended === undefined}
             >
               {isMarkingAttendance && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Confirmar

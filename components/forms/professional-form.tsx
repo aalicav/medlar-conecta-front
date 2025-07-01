@@ -209,6 +209,15 @@ const addressSchema = z.object({
   is_main: z.boolean()
 });
 
+// Add phone schema
+const phoneSchema = z.object({
+  id: z.number().optional(),
+  number: z.string().min(10, "Telefone deve ter pelo menos 10 dígitos"),
+  type: z.string().min(1, "Tipo de telefone é obrigatório"),
+  is_whatsapp: z.boolean().optional(),
+  is_primary: z.boolean().optional()
+});
+
 // Modificar o schema do formulário
 const formSchema = z.object({
   // Common fields
@@ -221,6 +230,9 @@ const formSchema = z.object({
   
   // Novo campo de endereços múltiplos
   addresses: z.array(addressSchema).min(1, "Pelo menos um endereço é necessário"),
+  
+  // Novo campo de telefones múltiplos
+  phones: z.array(phoneSchema).optional(),
   
   // Campos para profissionais (CPF)
   cpf: z.string().optional(),
@@ -606,19 +618,40 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
       addresses: initialData?.addresses?.length
         ? initialData.addresses.map(addr => ({
             ...addr,
-        postal_code: addr.postal_code ? applyCEPMask(addr.postal_code) : "",
-            is_main: addr.is_main === undefined ? false : addr.is_main
+            postal_code: addr.postal_code ? applyCEPMask(addr.postal_code) : "",
+            is_main: addr.is_main === undefined ? (addr as any).is_primary : addr.is_main
           }))
         : [
             {
-        street: "",
-        number: "",
-        complement: "",
-        district: "",
-        city: "",
-        state: "",
-        postal_code: "",
-        is_main: true
+              street: (initialData as any)?.address || "",
+              number: (initialData as any)?.address_number || "",
+              complement: (initialData as any)?.address_complement || "",
+              district: (initialData as any)?.neighborhood || (initialData as any)?.district || "",
+              city: (initialData as any)?.city || "",
+              state: (initialData as any)?.state || "",
+              postal_code: (initialData as any)?.postal_code ? applyCEPMask((initialData as any).postal_code) : "",
+              is_main: true
+            }
+          ],
+      
+      // Adicionar campo phones
+      phones: initialData?.phones?.length
+        ? initialData.phones.map(phone => {
+            // console.log('Mapeando telefone no defaultValues:', phone);
+            return {
+              id: phone.id,
+              number: (phone as any).formatted_number || phone.number || "",
+              type: phone.type || "mobile",
+              is_whatsapp: Boolean(phone.is_whatsapp),
+              is_primary: Boolean(phone.is_primary)
+            };
+          })
+        : [
+            {
+              number: initialData?.phone ? applyPhoneMask(initialData.phone) : "",
+              type: "mobile",
+              is_whatsapp: false,
+              is_primary: true
             }
           ],
       
@@ -646,6 +679,13 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     },
   })
   
+  // Log para debug dos defaultValues
+  // console.log('DefaultValues do formulário:', {
+  //   phones: initialData?.phones,
+  //   phone: initialData?.phone,
+  //   isEdit
+  // });
+
   // Sincronizar o estado local com o valor do formulário quando o componente é montado
   useEffect(() => {
     if (!formInitializedRef.current) {
@@ -656,6 +696,89 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
       formInitializedRef.current = true;
     }
   }, [form]);
+
+  // Reset form when initialData changes (important for edit mode)
+  useEffect(() => {
+    if (initialData && isEdit) {
+      // console.log('Reset do formulário - initialData:', initialData);
+      // console.log('Telefones no initialData:', (initialData as any).phones);
+      
+      const formData = {
+        documentType: initialData.documentType || documentType,
+        name: initialData.name || "",
+        phone: initialData.phone ? applyPhoneMask(initialData.phone) : "",
+        email: initialData.email || "",
+        addresses: initialData.addresses?.length
+          ? initialData.addresses.map(addr => ({
+              ...addr,
+              postal_code: addr.postal_code ? applyCEPMask(addr.postal_code) : "",
+              is_main: addr.is_main === undefined ? (addr as any).is_primary : addr.is_main
+            }))
+          : [
+              {
+                street: (initialData as any)?.address || "",
+                number: (initialData as any)?.address_number || "",
+                complement: (initialData as any)?.address_complement || "",
+                district: (initialData as any)?.neighborhood || (initialData as any)?.district || "",
+                city: (initialData as any)?.city || "",
+                state: (initialData as any)?.state || "",
+                postal_code: (initialData as any)?.postal_code ? applyCEPMask((initialData as any).postal_code) : "",
+                is_main: true
+              }
+            ],
+        
+        // Adicionar campo phones ao reset do formulário
+        phones: initialData.phones?.length
+          ? initialData.phones.map(phone => {
+              // console.log('Mapeando telefone:', phone);
+              return {
+                id: phone.id,
+                number: (phone as any).formatted_number || phone.number || "",
+                type: phone.type || "mobile",
+                is_whatsapp: Boolean(phone.is_whatsapp),
+                is_primary: Boolean(phone.is_primary)
+              };
+            })
+          : [
+              {
+                number: initialData.phone ? applyPhoneMask(initialData.phone) : "",
+                type: "mobile",
+                is_whatsapp: false,
+                is_primary: true
+              }
+            ],
+        
+        // Professional fields
+        cpf: initialData.cpf ? applyCPFMask(initialData.cpf) : "",
+        birth_date: initialData.birth_date || "",
+        gender: initialData.gender || undefined,
+        specialty: initialData.specialty || "",
+        council_type: initialData.council_type || "",
+        council_number: initialData.council_number || "",
+        council_state: initialData.council_state || "",
+        bio: initialData.bio || "",
+        clinic_id: isClinicAdmin ? clinicId : initialData.clinic_id || "",
+        
+        // Establishment fields
+        cnpj: initialData.cnpj ? applyCNPJMask(initialData.cnpj) : "",
+        trading_name: initialData.trading_name || "",
+        foundation_date: initialData.foundation_date || "",
+        business_hours: initialData.business_hours || "",
+        services: initialData.services || "",
+        health_reg_number: initialData.health_reg_number || "",
+        
+        // Documents
+        documents: initialData.documents || [],
+      };
+      
+      // console.log('FormData para reset:', formData);
+      // console.log('Telefones no formData:', formData.phones);
+      
+      form.reset(formData);
+      setDocumentType(initialData.documentType || documentType);
+      formInitializedRef.current = true;
+    }
+  }, [initialData, isEdit, form, isClinicAdmin, clinicId, documentType]);
 
   // Update documentType state when form value changes
   useEffect(() => {
@@ -700,6 +823,12 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
   const { fields: addressFields, append: appendAddress, remove: removeAddress } = useFieldArray({
     control: form.control,
     name: "addresses"
+  });
+
+  // Adicionar o FieldArray para telefones
+  const { fields: phoneFields, append: appendPhone, remove: removePhone } = useFieldArray({
+    control: form.control,
+    name: "phones"
   });
 
   // Update documentType state when form value changes
@@ -921,33 +1050,50 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
     }
   }, [documentFields.length, documentFiles, form]);
 
-  // Effect to initialize required documents
+  // Effect to properly initialize documents when initialData changes
   useEffect(() => {
-    if (documentTypes?.length && !documentFields.length) {
-      // Filter only required document types based on current document type
-      const entityType = documentType === "cpf" ? "professional" : "clinic";
-      const requiredDocsTypes = documentTypes
-        .filter(dt => dt.is_required && dt.entity_type === entityType);
+    if (initialData && initialData.documents && isEdit) {
+      // Map documents to the correct format expected by the form
+      const mappedDocuments = initialData.documents.map((doc: any) => ({
+        id: doc.id,
+        type: doc.type,
+        type_id: doc.type_id,
+        file_path: doc.file_path,
+        file_url: doc.file_url,
+        description: doc.description,
+        uploaded_at: doc.uploaded_at,
+        expiration_date: doc.expiration_date,
+        file: null // Set file to null since we have file_url
+      }));
       
-      console.log('Required docs for', entityType, ':', requiredDocsTypes);
-      
-      // Reset documents array
-      form.setValue("documents", []);
-      
-      // Add all required documents
-      requiredDocsTypes.forEach(docType => {
-        appendDocument({
-          type_id: docType.id,
-          file: undefined as unknown as File,
-          expiration_date: undefined,
-          observation: undefined
-        });
-      });
-      
-      // Mark that documents have been initialized
-      formInitializedRef.current = true;
+      form.setValue('documents', mappedDocuments);
     }
-  }, [documentTypes, appendDocument, form, documentType]);
+  }, [initialData, isEdit, form]);
+
+  // Effect to properly initialize phones when initialData changes
+  useEffect(() => {
+    if (initialData && (initialData as any).phones && isEdit) {
+      // console.log('Inicializando telefones:', (initialData as any).phones);
+      // Map phones to the correct format expected by the form
+      const mappedPhones = (initialData as any).phones.map((phone: any) => ({
+        id: phone.id,
+        number: phone.formatted_number || phone.number || "",
+        type: phone.type || "mobile",
+        is_whatsapp: Boolean(phone.is_whatsapp),
+        is_primary: Boolean(phone.is_primary)
+      }));
+      
+      // console.log('Telefones mapeados:', mappedPhones);
+      
+      // Definir o campo phones no formulário
+      form.setValue('phones', mappedPhones);
+      
+      // Set the first phone as the main phone field
+      if (mappedPhones.length > 0) {
+        form.setValue('phone', applyPhoneMask(mappedPhones[0].number));
+      }
+    }
+  }, [initialData, isEdit, form]);
 
   // Replace the handleFormSubmitError function with this enhanced version
   const handleFormSubmitError = (errors: FieldErrors<FormValues>) => {
@@ -1187,7 +1333,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
 
       // Adicionar campos básicos
       Object.entries(data).forEach(([key, value]) => {
-        if (key !== 'documents' && key !== 'addresses' && value !== null && value !== undefined) {
+        if (key !== 'documents' && key !== 'addresses' && key !== 'phones' && value !== null && value !== undefined) {
           if (key === 'cpf' && typeof value === 'string') {
             formData.append(key, unmask(value));
           } else if (key === 'cnpj' && typeof value === 'string') {
@@ -1212,6 +1358,24 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
       // Adicionar telefone
       if ('phone' in data && data.phone) {
         formData.append('phone', unmask(String(data.phone)));
+      }
+
+      // Adicionar telefones
+      if (data.phones) {
+        // console.log('Enviando telefones:', data.phones);
+        data.phones.forEach((phone: any, index: number) => {
+          Object.entries(phone).forEach(([key, value]) => {
+            if (value !== null && value !== undefined) {
+              if (key === 'number') {
+                formData.append(`phones[${index}][${key}]`, unmask(String(value)));
+              } else {
+                formData.append(`phones[${index}][${key}]`, String(value));
+              }
+            }
+          });
+        });
+      } else {
+        // console.log('Nenhum telefone encontrado em data.phones');
       }
 
       // Adicionar endereços
@@ -1265,20 +1429,22 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
       }
 
       // Log para debug
-      console.log('==== CONTEÚDO FINAL DO FORMDATA ====');
-      for (let pair of formData.entries()) {
-        if (typeof pair[1] === 'object') {
-          if ('name' in pair[1] && 'type' in pair[1] && 'size' in pair[1]) {
-            console.log(`${pair[0]}: File: ${(pair[1] as any).name} (${(pair[1] as any).size} bytes, tipo: ${(pair[1] as any).type})`);
-          } else if ('size' in pair[1] && 'type' in pair[1]) {
-            console.log(`${pair[0]}: Blob: blob (${(pair[1] as any).size} bytes, tipo: ${(pair[1] as any).type})`);
-          } else {
-            console.log(`${pair[0]}: ${String(pair[1])}`);
-          }
-        } else {
-          console.log(`${pair[0]}: ${String(pair[1])}`);
-        }
-      }
+      // console.log('==== CONTEÚDO FINAL DO FORMDATA ====');
+      // console.log('Dados do formulário:', data);
+      // console.log('Telefones no formulário:', data.phones);
+      // for (let pair of formData.entries()) {
+      //   if (typeof pair[1] === 'object') {
+      //     if ('name' in pair[1] && 'type' in pair[1] && 'size' in pair[1]) {
+      //       console.log(`${pair[0]}: File: ${(pair[1] as any).name} (${(pair[1] as any).size} bytes, tipo: ${(pair[1] as any).type})`);
+      //     } else if ('size' in pair[1] && 'type' in pair[1]) {
+      //       console.log(`${pair[0]}: Blob: blob (${(pair[1] as any).size} bytes, tipo: ${(pair[1] as any).type})`);
+      //     } else {
+      //       console.log(`${pair[0]}: ${String(pair[1])}`);
+      //     }
+      //   } else {
+      //     console.log(`${pair[0]}: ${String(pair[1])}`);
+      //   }
+      // }
 
       // Enviar requisição
       const response = await api.post(documentType === 'cpf' ? '/professionals' : '/clinics', formData, {
@@ -1349,7 +1515,7 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
         
         // Comparar campos básicos
         Object.keys(data).forEach(key => {
-          if (key !== 'documents' && key !== 'addresses') {
+          if (key !== 'documents' && key !== 'addresses' && key !== 'phones') {
             const initialValue = initialData?.[key as keyof FormValues];
             const newValue = data[key as keyof FormValues];
             
@@ -1367,11 +1533,70 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
             const initialAddr = initialAddresses[index];
             if (!initialAddr) return true; // Novo endereço
             
-            return Object.keys(addr).some(key => addr[key] !== initialAddr[key]);
+            return Object.keys(addr).some(key => (addr as any)[key] !== (initialAddr as any)[key]);
           });
           
           if (hasAddressChanges) {
             changedFields.add('addresses');
+          }
+        }
+
+        // Comparar telefones
+        if (data.phones) {
+          const initialPhones = initialData?.phones || [];
+          console.log('Comparing phones:', { current: data.phones, initial: initialPhones });
+          const hasPhoneChanges = data.phones.some((phone: any, index: number) => {
+            const initialPhone = initialPhones[index];
+            if (!initialPhone) {
+              console.log('New phone detected at index', index);
+              return true; // Novo telefone
+            }
+            
+            const hasChanges = Object.keys(phone).some(key => {
+              const currentValue = (phone as any)[key];
+              let initialValue = (initialPhone as any)[key];
+              
+              // Special handling for number field - compare unmasked values
+              if (key === 'number') {
+                const currentUnmasked = unmask(String(currentValue));
+                const initialUnmasked = unmask(String((initialPhone as any).formatted_number || initialPhone.number || ''));
+                const isDifferent = currentUnmasked !== initialUnmasked;
+                if (isDifferent) {
+                  console.log(`Phone number change detected at index ${index}:`, { 
+                    current: currentUnmasked, 
+                    initial: initialUnmasked 
+                  });
+                }
+                return isDifferent;
+              }
+              
+              // For boolean fields, ensure proper comparison
+              if (key === 'is_whatsapp' || key === 'is_primary') {
+                const currentBool = Boolean(currentValue);
+                const initialBool = Boolean(initialValue);
+                const isDifferent = currentBool !== initialBool;
+                if (isDifferent) {
+                  console.log(`Phone ${key} change detected at index ${index}:`, { 
+                    current: currentBool, 
+                    initial: initialBool 
+                  });
+                }
+                return isDifferent;
+              }
+              
+              const isDifferent = currentValue !== initialValue;
+              if (isDifferent) {
+                console.log(`Phone change detected at index ${index}, key ${key}:`, { current: currentValue, initial: initialValue });
+              }
+              return isDifferent;
+            });
+            
+            return hasChanges;
+          });
+          
+          console.log('Has phone changes:', hasPhoneChanges);
+          if (hasPhoneChanges) {
+            changedFields.add('phones');
           }
         }
 
@@ -1471,14 +1696,61 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
           }
         }
 
+        // Adicionar telefones apenas se foram alterados
+        if (changedFields.has('phones') && data.phones) {
+          console.log('Enviando telefones no update:', data.phones);
+          data.phones.forEach((phone: any, index: number) => {
+            Object.entries(phone).forEach(([key, value]) => {
+              if (value !== null && value !== undefined) {
+                if (key === 'number') {
+                  const unmaskedValue = unmask(String(value));
+                  console.log(`Adding phone[${index}][${key}]:`, unmaskedValue);
+                  formData.append(`phones[${index}][${key}]`, unmaskedValue);
+                } else {
+                  console.log(`Adding phone[${index}][${key}]:`, String(value));
+                  formData.append(`phones[${index}][${key}]`, String(value));
+                }
+              }
+            });
+          });
+        } else if (data.phones && data.phones.length > 0) {
+          // Fallback: Always send phones if they exist, even if not detected as changed
+          console.log('Fallback: Enviando telefones mesmo sem detecção de mudança:', data.phones);
+          data.phones.forEach((phone: any, index: number) => {
+            Object.entries(phone).forEach(([key, value]) => {
+              if (value !== null && value !== undefined) {
+                if (key === 'number') {
+                  const unmaskedValue = unmask(String(value));
+                  console.log(`Adding phone[${index}][${key}]:`, unmaskedValue);
+                  formData.append(`phones[${index}][${key}]`, unmaskedValue);
+                } else {
+                  console.log(`Adding phone[${index}][${key}]:`, String(value));
+                  formData.append(`phones[${index}][${key}]`, String(value));
+                }
+              }
+            });
+          });
+        } else {
+          console.log('Phones not in changedFields or no phones data:', { 
+            hasPhones: changedFields.has('phones'), 
+            phonesData: data.phones 
+          });
+        }
+
         // Adicionar método _method para simular PUT
         formData.append('_method', 'PUT');
+
+        // Debug: Log all FormData entries
+        console.log('FormData entries:');
+        for (let [key, value] of formData.entries()) {
+          console.log(`${key}:`, value);
+        }
 
         // Enviar apenas se houver alterações
         if (Array.from(formData.entries()).length > 1) { // > 1 porque _method é sempre adicionado
           const endpoint = documentType === "cpf" ? `/professionals/${entityId}` : `/clinics/${entityId}`;
           
-          await api.put(endpoint, formData, {
+          await api.post(endpoint, formData, {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'multipart/form-data'
@@ -1829,6 +2101,16 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
       state: "",
       postal_code: "",
       is_main: false
+    });
+  };
+
+  // Adicionar botão para novo telefone
+  const handleAddPhone = () => {
+    appendPhone({
+      number: "",
+      type: "mobile",
+      is_whatsapp: false,
+      is_primary: false
     });
   };
 
@@ -2859,6 +3141,156 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                           ))}
                         </div>
 
+                        {/* Telefones */}
+                        <div className="space-y-4 mt-6">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-medium">Telefones</h3>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={handleAddPhone}
+                              className="bg-green-50 hover:bg-green-100 border-green-200"
+                            >
+                              <Plus className="w-4 h-4 mr-2 text-green-500" />
+                              Adicionar Telefone
+                            </Button>
+                          </div>
+                          
+                          {phoneFields.map((field, index) => (
+                            <div key={field.id} className="p-4 border rounded-md space-y-4">
+                              <div className="flex justify-between">
+                                <h4 className="font-medium">Telefone {index + 1}</h4>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (phoneFields.length > 1) {
+                                      removePhone(index);
+                                    } else {
+                                      showToast(toast, {
+                                        title: "Erro",
+                                        description: "É necessário pelo menos um telefone",
+                                        variant: "destructive"
+                                      });
+                                    }
+                                  }}
+                                  disabled={phoneFields.length <= 1}
+                                >
+                                  <Trash2 className="w-4 h-4 text-red-500" />
+                                </Button>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <TypedFormField
+                                  control={form.control}
+                                  name={`phones.${index}.number` as const}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Número<span className="text-red-500">*</span></FormLabel>
+                                      <FormControl>
+                                        <Input 
+                                          placeholder="Digite o número" 
+                                          {...field} 
+                                          onChange={(e) => {
+                                            const value = e.target.value;
+                                            const maskedValue = applyPhoneMask(value);
+                                            e.target.value = maskedValue;
+                                            field.onChange(maskedValue);
+                                          }}
+                                          maxLength={15}
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                
+                                <TypedFormField
+                                  control={form.control}
+                                  name={`phones.${index}.type` as const}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Tipo<span className="text-red-500">*</span></FormLabel>
+                                      <Select
+                                        onValueChange={field.onChange}
+                                        defaultValue={field.value}
+                                        value={field.value}
+                                      >
+                                        <FormControl>
+                                          <SelectTrigger>
+                                            <SelectValue placeholder="Selecione o tipo" />
+                                          </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                          <SelectItem value="mobile">Celular</SelectItem>
+                                          <SelectItem value="landline">Fixo</SelectItem>
+                                          <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                
+                                <TypedFormField
+                                  control={form.control}
+                                  name={`phones.${index}.is_whatsapp` as const}
+                                  render={({ field }) => (
+                                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                      <FormControl>
+                                        <Checkbox
+                                          checked={field.value}
+                                          onCheckedChange={field.onChange}
+                                        />
+                                      </FormControl>
+                                      <div className="space-y-1 leading-none">
+                                        <FormLabel>É WhatsApp</FormLabel>
+                                        <FormDescription>
+                                          Marque se este número é do WhatsApp
+                                        </FormDescription>
+                                      </div>
+                                    </FormItem>
+                                  )}
+                                />
+                                
+                                <TypedFormField
+                                  control={form.control}
+                                  name={`phones.${index}.is_primary` as const}
+                                  render={({ field }) => (
+                                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                      <FormControl>
+                                        <Checkbox
+                                          checked={field.value}
+                                          onCheckedChange={(checked) => {
+                                            // Se estiver marcando como principal, desmarca os outros
+                                            if (checked) {
+                                              const formValues = form.getValues();
+                                              formValues.phones?.forEach((_, i) => {
+                                                if (i !== index) {
+                                                  form.setValue(`phones.${i}.is_primary`, false);
+                                                }
+                                              });
+                                            }
+                                            field.onChange(checked);
+                                          }}
+                                        />
+                                      </FormControl>
+                                      <div className="space-y-1 leading-none">
+                                        <FormLabel>Telefone Principal</FormLabel>
+                                        <FormDescription>
+                                          Marque se este for o telefone principal
+                                        </FormDescription>
+                                      </div>
+                                    </FormItem>
+                                  )}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
                         {/* Professional or establishment specific fields */}
                         {documentType === "cpf" ? (
                           <>
@@ -3454,6 +3886,156 @@ export const ProfessionalForm = forwardRef(function ProfessionalForm({
                                       <FormLabel>Endereço Principal</FormLabel>
                                       <FormDescription>
                                         Marque esta opção se este for o endereço principal
+                                      </FormDescription>
+                                    </div>
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Telefones */}
+                      <div className="space-y-4 mt-6">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-lg font-medium">Telefones</h3>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleAddPhone}
+                            className="bg-green-50 hover:bg-green-100 border-green-200"
+                          >
+                            <Plus className="w-4 h-4 mr-2 text-green-500" />
+                            Adicionar Telefone
+                          </Button>
+                        </div>
+                        
+                        {phoneFields.map((field, index) => (
+                          <div key={field.id} className="p-4 border rounded-md space-y-4">
+                            <div className="flex justify-between">
+                              <h4 className="font-medium">Telefone {index + 1}</h4>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  if (phoneFields.length > 1) {
+                                    removePhone(index);
+                                  } else {
+                                    showToast(toast, {
+                                      title: "Erro",
+                                      description: "É necessário pelo menos um telefone",
+                                      variant: "destructive"
+                                    });
+                                  }
+                                }}
+                                disabled={phoneFields.length <= 1}
+                              >
+                                <Trash2 className="w-4 h-4 text-red-500" />
+                              </Button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <TypedFormField
+                                control={form.control}
+                                name={`phones.${index}.number` as const}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Número<span className="text-red-500">*</span></FormLabel>
+                                    <FormControl>
+                                      <Input 
+                                        placeholder="Digite o número" 
+                                        {...field} 
+                                        onChange={(e) => {
+                                          const value = e.target.value;
+                                          const maskedValue = applyPhoneMask(value);
+                                          e.target.value = maskedValue;
+                                          field.onChange(maskedValue);
+                                        }}
+                                        maxLength={15}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              
+                              <TypedFormField
+                                control={form.control}
+                                name={`phones.${index}.type` as const}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Tipo<span className="text-red-500">*</span></FormLabel>
+                                    <Select
+                                      onValueChange={field.onChange}
+                                      defaultValue={field.value}
+                                      value={field.value}
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Selecione o tipo" />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        <SelectItem value="mobile">Celular</SelectItem>
+                                        <SelectItem value="landline">Fixo</SelectItem>
+                                        <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              
+                              <TypedFormField
+                                control={form.control}
+                                name={`phones.${index}.is_whatsapp` as const}
+                                render={({ field }) => (
+                                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                    <FormControl>
+                                      <Checkbox
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                      />
+                                    </FormControl>
+                                    <div className="space-y-1 leading-none">
+                                      <FormLabel>É WhatsApp</FormLabel>
+                                      <FormDescription>
+                                        Marque se este número é do WhatsApp
+                                      </FormDescription>
+                                    </div>
+                                  </FormItem>
+                                )}
+                              />
+                              
+                              <TypedFormField
+                                control={form.control}
+                                name={`phones.${index}.is_primary` as const}
+                                render={({ field }) => (
+                                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                    <FormControl>
+                                      <Checkbox
+                                        checked={field.value}
+                                        onCheckedChange={(checked) => {
+                                          // Se estiver marcando como principal, desmarca os outros
+                                          if (checked) {
+                                            const formValues = form.getValues();
+                                            formValues.phones?.forEach((_, i) => {
+                                              if (i !== index) {
+                                                form.setValue(`phones.${i}.is_primary`, false);
+                                              }
+                                            });
+                                          }
+                                          field.onChange(checked);
+                                        }}
+                                      />
+                                    </FormControl>
+                                    <div className="space-y-1 leading-none">
+                                      <FormLabel>Telefone Principal</FormLabel>
+                                      <FormDescription>
+                                        Marque se este for o telefone principal
                                       </FormDescription>
                                     </div>
                                   </FormItem>

@@ -10,15 +10,28 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarIcon, Download, FileText, Receipt } from 'lucide-react';
+import { 
+  CalendarIcon, 
+  Download, 
+  FileText, 
+  Receipt, 
+  AlertTriangle, 
+  Bell, 
+  Trash2,
+  CheckCircle,
+  Loader2
+} from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { api } from '@/lib/api';
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils';
+import { useAuth } from '@/contexts/auth-context';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import {
   Select,
@@ -27,6 +40,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 interface BillingBatch {
   id: number;
@@ -56,6 +82,7 @@ interface BillingItem {
     description: string;
   };
   appointment: {
+    id: number;
     scheduled_date: string;
     booking_date: string;
     confirmation_date: string;
@@ -67,7 +94,7 @@ interface BillingItem {
   gloss_reason?: string;
 }
 
-const statusMap = {
+const statusMap: Record<string, { label: string; color: string }> = {
   pending: { label: 'Pendente', color: 'yellow' },
   paid: { label: 'Pago', color: 'green' },
   overdue: { label: 'Em Atraso', color: 'red' },
@@ -89,6 +116,19 @@ export default function BillingPage() {
   });
   const [statusFilter, setStatusFilter] = useState<string>('');
   const { toast } = useToast();
+  const { hasRole } = useAuth();
+
+  // Estados para os novos modais
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [selectedBatchForAction, setSelectedBatchForAction] = useState<BillingBatch | null>(null);
+  const [verificationReason, setVerificationReason] = useState('');
+  const [notificationMessage, setNotificationMessage] = useState('');
+  const [isActionLoading, setIsActionLoading] = useState(false);
+
+  // Controle de acesso
+  const canManageBilling = hasRole(['network_manager', 'super_admin']);
 
   const fetchBatches = async () => {
     try {
@@ -120,7 +160,7 @@ export default function BillingPage() {
     fetchBatches();
   }, [dateRange, statusFilter]);
 
-  const handleDownloadReport = async (format: 'csv' | 'pdf') => {
+  const handleDownloadReport = async (reportFormat: 'csv' | 'pdf') => {
     try {
       const params = new URLSearchParams();
       if (dateRange.from) {
@@ -132,7 +172,7 @@ export default function BillingPage() {
       if (statusFilter) {
         params.append('status', statusFilter);
       }
-      params.append('format', format);
+      params.append('format', reportFormat);
 
       const response = await api.get(`/billing/report?${params.toString()}`, {
         responseType: 'blob',
@@ -141,7 +181,7 @@ export default function BillingPage() {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `relatorio_faturamento.${format}`);
+      link.setAttribute('download', `relatorio_faturamento.${reportFormat}`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -151,6 +191,130 @@ export default function BillingPage() {
         description: 'Não foi possível baixar o relatório',
         variant: 'destructive',
       });
+    }
+  };
+
+  // Função para criar verificação de valores
+  const handleCreateVerification = async () => {
+    if (!selectedBatchForAction || !verificationReason.trim()) {
+      toast({
+        title: 'Erro',
+        description: 'Por favor, informe o motivo da verificação',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsActionLoading(true);
+    try {
+      // Para lotes, vamos criar verificação para o primeiro item do lote
+      const firstItem = selectedBatchForAction.items?.[0];
+      if (!firstItem) {
+        throw new Error('Nenhum item encontrado no lote');
+      }
+
+      const response = await api.post(`/billing/billing-items/${firstItem.id}/value-verifications`, {
+        reason: verificationReason,
+        priority: 'medium'
+      });
+
+      toast({
+        title: 'Sucesso',
+        description: 'Verificação de valores criada com sucesso',
+      });
+
+      setShowVerificationModal(false);
+      setVerificationReason('');
+      setSelectedBatchForAction(null);
+      fetchBatches(); // Recarregar dados
+    } catch (error: any) {
+      console.error('Error creating verification:', error);
+      toast({
+        title: 'Erro',
+        description: error.response?.data?.message || 'Erro ao criar verificação de valores',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  // Função para enviar notificação
+  const handleSendNotification = async () => {
+    if (!selectedBatchForAction || !notificationMessage.trim()) {
+      toast({
+        title: 'Erro',
+        description: 'Por favor, informe a mensagem da notificação',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsActionLoading(true);
+    try {
+      // Para lotes, vamos enviar notificação para o primeiro item do lote
+      const firstItem = selectedBatchForAction.items?.[0];
+      if (!firstItem) {
+        throw new Error('Nenhum item encontrado no lote');
+      }
+
+      const response = await api.post('/billing/notifications', {
+        billing_item_id: firstItem.id,
+        message: notificationMessage,
+        type: 'billing_notification'
+      });
+
+      toast({
+        title: 'Sucesso',
+        description: 'Notificação enviada com sucesso',
+      });
+
+      setShowNotificationModal(false);
+      setNotificationMessage('');
+      setSelectedBatchForAction(null);
+    } catch (error: any) {
+      console.error('Error sending notification:', error);
+      toast({
+        title: 'Erro',
+        description: error.response?.data?.message || 'Erro ao enviar notificação',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  // Função para excluir cobrança
+  const handleDeleteBilling = async () => {
+    if (!selectedBatchForAction) return;
+
+    setIsActionLoading(true);
+    try {
+      // Para lotes, vamos excluir o primeiro item do lote
+      const firstItem = selectedBatchForAction.items?.[0];
+      if (!firstItem) {
+        throw new Error('Nenhum item encontrado no lote');
+      }
+
+      await api.delete(`/billing/items/${firstItem.id}`);
+
+      toast({
+        title: 'Sucesso',
+        description: 'Cobrança excluída com sucesso',
+      });
+
+      setShowDeleteModal(false);
+      setSelectedBatchForAction(null);
+      fetchBatches(); // Recarregar dados
+    } catch (error: any) {
+      console.error('Error deleting billing:', error);
+      toast({
+        title: 'Erro',
+        description: error.response?.data?.message || 'Erro ao excluir cobrança',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsActionLoading(false);
     }
   };
 
@@ -174,7 +338,7 @@ export default function BillingPage() {
       accessorKey: 'status',
       header: 'Status',
       cell: ({ row }: any) => {
-        const status = statusMap[row.original.status];
+        const status = statusMap[row.original.status] || statusMap.pending;
         return <Badge variant={status.color as any}>{status.label}</Badge>;
       },
     },
@@ -198,6 +362,77 @@ export default function BillingPage() {
           >
             Detalhes
           </Button>
+          
+          {/* Botões de Ação - Apenas para network_manager e super_admin */}
+          {canManageBilling && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedBatchForAction(row.original);
+                  setShowVerificationModal(true);
+                }}
+              >
+                <AlertTriangle className="h-4 w-4" />
+              </Button>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedBatchForAction(row.original);
+                  setShowNotificationModal(true);
+                }}
+              >
+                <Bell className="h-4 w-4" />
+              </Button>
+              
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {selectedBatchForAction && (
+                        <div className="space-y-2">
+                          <p>Tem certeza que deseja excluir este lote de cobrança?</p>
+                          <div className="p-4 bg-muted rounded-lg">
+                            <p><strong>ID do Lote:</strong> #{selectedBatchForAction.id}</p>
+                            <p><strong>Período:</strong> {selectedBatchForAction.reference_period_start} a {selectedBatchForAction.reference_period_end}</p>
+                            <p><strong>Valor Total:</strong> {formatCurrency(selectedBatchForAction.total_amount)}</p>
+                            <p><strong>Itens:</strong> {selectedBatchForAction.items?.length || 0} itens</p>
+                          </div>
+                          <p className="text-destructive font-medium">Esta ação não pode ser desfeita.</p>
+                        </div>
+                      )}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => {
+                        setSelectedBatchForAction(row.original);
+                        setShowDeleteModal(true);
+                      }}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Excluir
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
+          )}
+          
           {row.original.invoice && (
             <Button
               variant="outline"
@@ -297,7 +532,7 @@ export default function BillingPage() {
       <DataTable
         columns={columns}
         data={batches}
-        loading={loading}
+        isLoading={loading}
       />
 
       {/* Modal de Detalhes */}
@@ -391,6 +626,82 @@ export default function BillingPage() {
                             <p>Motivo: {item.gloss_reason}</p>
                           </div>
                         )}
+                        
+                        {/* Botões de Ação - Apenas para network_manager e super_admin */}
+                        {canManageBilling && (
+                          <div className="col-span-2 border-t pt-4">
+                            <h4 className="font-medium mb-2">Ações</h4>
+                            <div className="flex gap-2 flex-wrap">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedBatchForAction(selectedBatch);
+                                  setShowVerificationModal(true);
+                                }}
+                              >
+                                <AlertTriangle className="h-4 w-4 mr-2" />
+                                Criar Verificação
+                              </Button>
+                              
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedBatchForAction(selectedBatch);
+                                  setShowNotificationModal(true);
+                                }}
+                              >
+                                <Bell className="h-4 w-4 mr-2" />
+                                Enviar Notificação
+                              </Button>
+                              
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-destructive hover:text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Excluir
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      {selectedBatchForAction && (
+                                        <div className="space-y-2">
+                                          <p>Tem certeza que deseja excluir este lote de cobrança?</p>
+                                          <div className="p-4 bg-muted rounded-lg">
+                                            <p><strong>ID do Lote:</strong> #{selectedBatchForAction.id}</p>
+                                            <p><strong>Período:</strong> {selectedBatchForAction.reference_period_start} a {selectedBatchForAction.reference_period_end}</p>
+                                            <p><strong>Valor Total:</strong> {formatCurrency(selectedBatchForAction.total_amount)}</p>
+                                            <p><strong>Itens:</strong> {selectedBatchForAction.items?.length || 0} itens</p>
+                                          </div>
+                                          <p className="text-destructive font-medium">Esta ação não pode ser desfeita.</p>
+                                        </div>
+                                      )}
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => {
+                                        setSelectedBatchForAction(selectedBatch);
+                                        setShowDeleteModal(true);
+                                      }}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      Excluir
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </Card>
                   ))}
@@ -421,6 +732,136 @@ export default function BillingPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Modal de Verificação de Valores */}
+      <Dialog open={showVerificationModal} onOpenChange={setShowVerificationModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Criar Verificação de Valores</DialogTitle>
+            <DialogDescription>
+              Crie uma verificação de valores para este item de cobrança.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {selectedBatchForAction && (
+              <div className="p-4 bg-muted rounded-lg">
+                <h4 className="font-medium mb-2">Lote Selecionado</h4>
+                <p><strong>ID do Lote:</strong> #{selectedBatchForAction.id}</p>
+                <p><strong>Período:</strong> {selectedBatchForAction.reference_period_start} a {selectedBatchForAction.reference_period_end}</p>
+                <p><strong>Valor Total:</strong> {formatCurrency(selectedBatchForAction.total_amount)}</p>
+                <p><strong>Itens:</strong> {selectedBatchForAction.items?.length || 0} itens</p>
+              </div>
+            )}
+            
+            <div className="space-y-2">
+              <Label htmlFor="verification-reason">Motivo da Verificação</Label>
+              <Textarea
+                id="verification-reason"
+                value={verificationReason}
+                onChange={(e) => setVerificationReason(e.target.value)}
+                placeholder="Descreva o motivo da verificação de valores..."
+                rows={4}
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowVerificationModal(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleCreateVerification} 
+              disabled={isActionLoading || !verificationReason.trim()}
+            >
+              {isActionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Criar Verificação
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Notificação */}
+      <Dialog open={showNotificationModal} onOpenChange={setShowNotificationModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enviar Notificação</DialogTitle>
+            <DialogDescription>
+              Envie uma notificação relacionada a este item de cobrança.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {selectedBatchForAction && (
+              <div className="p-4 bg-muted rounded-lg">
+                <h4 className="font-medium mb-2">Lote Selecionado</h4>
+                <p><strong>ID do Lote:</strong> #{selectedBatchForAction.id}</p>
+                <p><strong>Período:</strong> {selectedBatchForAction.reference_period_start} a {selectedBatchForAction.reference_period_end}</p>
+                <p><strong>Valor Total:</strong> {formatCurrency(selectedBatchForAction.total_amount)}</p>
+                <p><strong>Itens:</strong> {selectedBatchForAction.items?.length || 0} itens</p>
+              </div>
+            )}
+            
+            <div className="space-y-2">
+              <Label htmlFor="notification-message">Mensagem da Notificação</Label>
+              <Textarea
+                id="notification-message"
+                value={notificationMessage}
+                onChange={(e) => setNotificationMessage(e.target.value)}
+                placeholder="Digite a mensagem da notificação..."
+                rows={4}
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNotificationModal(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleSendNotification} 
+              disabled={isActionLoading || !notificationMessage.trim()}
+            >
+              {isActionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Enviar Notificação
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Confirmação de Exclusão */}
+      <AlertDialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedBatchForAction && (
+                <div className="space-y-2">
+                  <p>Tem certeza que deseja excluir este lote de cobrança?</p>
+                  <div className="p-4 bg-muted rounded-lg">
+                    <p><strong>ID do Lote:</strong> #{selectedBatchForAction.id}</p>
+                    <p><strong>Período:</strong> {selectedBatchForAction.reference_period_start} a {selectedBatchForAction.reference_period_end}</p>
+                    <p><strong>Valor Total:</strong> {formatCurrency(selectedBatchForAction.total_amount)}</p>
+                    <p><strong>Itens:</strong> {selectedBatchForAction.items?.length || 0} itens</p>
+                  </div>
+                  <p className="text-destructive font-medium">Esta ação não pode ser desfeita.</p>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteBilling}
+              disabled={isActionLoading}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isActionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 } 

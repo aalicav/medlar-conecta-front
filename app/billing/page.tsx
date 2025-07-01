@@ -1,216 +1,629 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { Card, CardHeader, CardContent } from '@/components/ui/card';
-import { BillingOverview } from './components/BillingOverview';
-import { RecentBatches } from './components/RecentBatches';
-import { PaymentDistribution } from './components/PaymentDistribution';
-import { MonthlyTotals } from './components/MonthlyTotals';
-import { GlosaStatistics } from './components/GlosaStatistics';
-import { AttendanceStatistics } from './components/AttendanceStatistics';
-import { BillingFilters } from './components/BillingFilters';
-import { api } from '@/lib/api';
-import { LoadingSpinner } from '../components/ui/loading-spinner';
+import { useState, useEffect } from "react";
+import { 
+  Table, 
+  Button, 
+  Tag, 
+  Space, 
+  Card, 
+  Typography, 
+  Tabs, 
+  Badge, 
+  Tooltip,
+  Alert,
+  Input,
+  Select,
+  DatePicker,
+  notification,
+  Row,
+  Col,
+  Statistic
+} from "antd";
+import { 
+  PlusOutlined, 
+  EyeOutlined, 
+  SearchOutlined,
+  FilterOutlined,
+  SyncOutlined,
+  DollarOutlined,
+  FileTextOutlined,
+  ExclamationCircleOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined
+} from "@ant-design/icons";
+import Link from "next/link";
+import { useAuth } from "@/contexts/auth-context";
+import axios from "@/lib/axios";
+import { formatCurrency } from "@/lib/format";
+import type { Dayjs } from 'dayjs';
 
-interface BillingFiltersType {
-  operator_id: string | null;
-  status: string | null;
-  procedure_id: string | null;
-  start_date: string | null;
-  end_date: string | null;
-}
+const { Title, Text } = Typography;
+const { TabPane } = Tabs;
+const { Search } = Input;
+const { Option } = Select;
+const { RangePicker } = DatePicker;
 
-interface TotalStatistics {
-  pending_amount: number;
-  paid_amount: number;
-  total_batches: number;
-  pending_batches: number;
-  overdue_batches: number;
-}
-
-interface BatchItem {
+interface BillingBatch {
   id: number;
-  description: string;
+  reference_period_start: string;
+  reference_period_end: string;
   total_amount: number;
-  tuss_code: string;
-  tuss_description: string;
-  professional: {
-    name: string;
-    specialty: string;
-  };
+  status: string;
+  created_at: string;
+  items: BillingItem[];
+  payment_proof?: string;
+  invoice?: string;
+}
+
+interface BillingItem {
+  id: number;
   patient: {
     name: string;
-    document: string;
+    cpf: string;
   };
-  patient_journey: {
-    scheduled_at: string;
-    pre_confirmation: boolean;
-    patient_confirmed: boolean;
-    professional_confirmed: boolean;
+  provider: {
+    name: string;
+    type: string;
+    specialty: string;
+  };
+  procedure: {
+    code: string;
+    description: string;
+  };
+  appointment: {
+    scheduled_date: string;
+    booking_date: string;
+    confirmation_date: string;
+    attendance_confirmation: string;
     guide_status: string;
-    patient_attended: boolean;
   };
-}
-
-interface Batch {
-  id: number;
-  reference_period: {
-    start: string;
-    end: string;
-  };
-  billing_date: string;
-  due_date: string;
-  total_amount: number;
-  items_count: number;
+  amount: number;
   status: string;
-  payment_status: string;
-  operator: string;
-  items: BatchItem[];
+  gloss_reason?: string;
 }
 
-interface PaymentStatus {
-  payment_status: string;
-  total_batches: number;
-  total_amount: number;
-}
-
-interface MonthlyTotal {
-  month: string;
-  total_amount: number;
-  batch_count: number;
-  paid_amount: number;
-  pending_amount: number;
-  overdue_count: number;
-}
-
-interface GlosaStats {
-  total_glosa_amount: number;
-  total_glosas: number;
-  pending_glosas: number;
-  appealable_glosas: number;
-  average_glosa_amount: number;
-}
-
-interface AttendanceStats {
-  total_appointments: number;
-  attended_appointments: number;
-  missed_appointments: number;
-  billable_appointments: number;
-}
-
-interface BillingData {
-  total_statistics: TotalStatistics;
-  recent_batches: Batch[];
-  payment_status_distribution: PaymentStatus[];
-  monthly_totals: MonthlyTotal[];
-  glosa_statistics: GlosaStats;
-  attendance_statistics: AttendanceStats;
+interface ValueVerification {
+  id: number;
+  value_type: string;
+  original_value: number;
+  verified_value?: number;
+  status: 'pending' | 'verified' | 'rejected' | 'auto_approved';
+  verification_reason?: string;
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  due_date?: string;
+  billing_batch_id?: number;
+  billing_item_id?: number;
+  appointment_id?: number;
+  created_at: string;
 }
 
 export default function BillingPage() {
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<BillingData | null>(null);
-  const [filters, setFilters] = useState<BillingFiltersType>({
-    operator_id: null,
-    status: null,
-    procedure_id: null,
-    start_date: null,
-    end_date: null
+  const { hasRole, user } = useAuth();
+  const [activeTab, setActiveTab] = useState("batches");
+  const [searchText, setSearchText] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null]>([null, null]);
+  const [batches, setBatches] = useState<BillingBatch[]>([]);
+  const [verifications, setVerifications] = useState<ValueVerification[]>([]);
+  const [filteredBatches, setFilteredBatches] = useState<BillingBatch[]>([]);
+  const [filteredVerifications, setFilteredVerifications] = useState<ValueVerification[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingVerifications, setIsLoadingVerifications] = useState(true);
+  const [statistics, setStatistics] = useState({
+    total_batches: 0,
+    pending_batches: 0,
+    total_amount: 0,
+    pending_verifications: 0,
+    high_priority_verifications: 0,
+    overdue_verifications: 0
   });
 
-  useEffect(() => {
-    loadBillingData();
-  }, [filters]);
+  const isDirector = hasRole(["director", "super_admin"]);
+  const canVerify = hasRole(["director", "super_admin", "financial"]);
 
-  const loadBillingData = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get<BillingData>('/billing/overview', { params: filters });
-      setData(response.data);
-    } catch (error) {
-      console.error('Error loading billing data:', error);
-    } finally {
-      setLoading(false);
+  // Fetch billing batches
+  useEffect(() => {
+    const fetchBatches = async () => {
+      try {
+        setIsLoading(true);
+        const response = await axios.get('/billing');
+        if (response.data.data) {
+          setBatches(response.data.data);
+        } else {
+          notification.error({
+            message: 'Erro ao carregar lotes de cobrança',
+            description: response.data.message || 'Ocorreu um erro ao buscar os dados'
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching batches:', error);
+        notification.error({
+          message: 'Erro ao carregar lotes de cobrança',
+          description: 'Não foi possível conectar ao servidor'
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchBatches();
+  }, []);
+
+  // Fetch value verifications
+  useEffect(() => {
+    const fetchVerifications = async () => {
+      try {
+        setIsLoadingVerifications(true);
+        const response = await axios.get('/billing/value-verifications');
+        if (response.data.data) {
+          setVerifications(response.data.data);
+          setStatistics(prev => ({
+            ...prev,
+            pending_verifications: response.data.meta?.statistics?.pending || 0,
+            high_priority_verifications: response.data.meta?.statistics?.high_priority || 0,
+            overdue_verifications: response.data.meta?.statistics?.overdue || 0
+          }));
+        }
+      } catch (error) {
+        console.error('Error fetching verifications:', error);
+      } finally {
+        setIsLoadingVerifications(false);
+      }
+    };
+
+    fetchVerifications();
+  }, []);
+
+  // Filter batches
+  useEffect(() => {
+    let filtered = batches;
+    
+    if (searchText) {
+      const lowerSearchText = searchText.toLowerCase();
+      filtered = filtered.filter(batch => 
+        batch.items.some(item => 
+          item.patient.name.toLowerCase().includes(lowerSearchText) ||
+          item.provider.name.toLowerCase().includes(lowerSearchText) ||
+          item.procedure.description.toLowerCase().includes(lowerSearchText)
+        )
+      );
+    }
+    
+    if (statusFilter) {
+      filtered = filtered.filter(batch => batch.status === statusFilter);
+    }
+    
+    if (dateRange[0] && dateRange[1]) {
+      const startDate = dateRange[0].toDate();
+      const endDate = dateRange[1].toDate();
+      
+      filtered = filtered.filter(batch => {
+        const batchDate = new Date(batch.created_at);
+        return batchDate >= startDate && batchDate <= endDate;
+      });
+    }
+    
+    setFilteredBatches(filtered);
+  }, [searchText, statusFilter, dateRange, batches]);
+
+  // Filter verifications
+  useEffect(() => {
+    let filtered = verifications;
+    
+    if (searchText) {
+      const lowerSearchText = searchText.toLowerCase();
+      filtered = filtered.filter(verification => 
+        verification.verification_reason?.toLowerCase().includes(lowerSearchText)
+      );
+    }
+    
+    setFilteredVerifications(filtered);
+  }, [searchText, verifications]);
+
+  const getValueTypeDisplay = (valueType: string): string => {
+    switch (valueType) {
+      case 'appointment_price':
+        return 'Preço do Agendamento';
+      case 'procedure_price':
+        return 'Preço do Procedimento';
+      case 'specialty_price':
+        return 'Preço da Especialidade';
+      case 'contract_price':
+        return 'Preço do Contrato';
+      case 'billing_amount':
+        return 'Valor de Cobrança';
+      default:
+        return valueType;
     }
   };
 
-  if (loading) {
-    return <LoadingSpinner />;
-  }
+  const getPriorityColor = (priority: string): string => {
+    switch (priority) {
+      case 'low':
+        return 'blue';
+      case 'medium':
+        return 'orange';
+      case 'high':
+        return 'red';
+      case 'critical':
+        return 'purple';
+      default:
+        return 'default';
+    }
+  };
+
+  const getStatusColor = (status: string): string => {
+    switch (status) {
+      case 'pending':
+        return 'orange';
+      case 'verified':
+        return 'green';
+      case 'rejected':
+        return 'red';
+      case 'auto_approved':
+        return 'blue';
+      default:
+        return 'default';
+    }
+  };
+
+  const getStatusText = (status: string): string => {
+    switch (status) {
+      case 'pending':
+        return 'Pendente';
+      case 'verified':
+        return 'Verificado';
+      case 'rejected':
+        return 'Rejeitado';
+      case 'auto_approved':
+        return 'Auto-aprovado';
+      default:
+        return status;
+    }
+  };
+
+  const batchColumns = [
+    {
+      title: 'ID',
+      dataIndex: 'id',
+      key: 'id',
+      width: 80,
+      render: (id: number) => <Link href={`/billing/batches/${id}`}>{id}</Link>
+    },
+    {
+      title: 'Período',
+      key: 'period',
+      width: 150,
+      render: (_: any, record: BillingBatch) => (
+        <div>
+          <div>{record.reference_period_start}</div>
+          <div>{record.reference_period_end}</div>
+        </div>
+      )
+    },
+    {
+      title: 'Valor Total',
+      dataIndex: 'total_amount',
+      key: 'total_amount',
+      width: 120,
+      render: (amount: number) => formatCurrency(amount)
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      width: 100,
+      render: (status: string) => (
+        <Tag color={status === 'pending' ? 'orange' : status === 'completed' ? 'green' : 'default'}>
+          {status}
+        </Tag>
+      )
+    },
+    {
+      title: 'Itens',
+      key: 'items',
+      width: 100,
+      render: (_: any, record: BillingBatch) => record.items.length
+    },
+    {
+      title: 'Data Criação',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      width: 120,
+      render: (date: string) => new Date(date).toLocaleDateString('pt-BR')
+    },
+    {
+      title: 'Ações',
+      key: 'actions',
+      width: 150,
+      render: (_: any, record: BillingBatch) => (
+        <Space>
+          <Link href={`/billing/batches/${record.id}`}>
+            <Button type="link" icon={<EyeOutlined />} size="small">
+              Ver
+            </Button>
+          </Link>
+        </Space>
+      )
+    }
+  ];
+
+  const verificationColumns = [
+    {
+      title: 'ID',
+      dataIndex: 'id',
+      key: 'id',
+      width: 80,
+      render: (id: number) => <Link href={`/value-verifications/${id}`}>{id}</Link>
+    },
+    {
+      title: 'Tipo',
+      dataIndex: 'value_type',
+      key: 'value_type',
+      width: 150,
+      render: (valueType: string) => (
+        <Tag color="blue">{getValueTypeDisplay(valueType)}</Tag>
+      )
+    },
+    {
+      title: 'Valor Original',
+      dataIndex: 'original_value',
+      key: 'original_value',
+      width: 120,
+      render: (value: number) => formatCurrency(value)
+    },
+    {
+      title: 'Prioridade',
+      dataIndex: 'priority',
+      key: 'priority',
+      width: 100,
+      render: (priority: string) => (
+        <Tag color={getPriorityColor(priority)}>
+          {priority.toUpperCase()}
+        </Tag>
+      )
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      width: 100,
+      render: (status: string) => (
+        <Tag color={getStatusColor(status)}>
+          {getStatusText(status)}
+        </Tag>
+      )
+    },
+    {
+      title: 'Motivo',
+      dataIndex: 'verification_reason',
+      key: 'verification_reason',
+      ellipsis: true,
+      render: (reason: string) => (
+        <Tooltip title={reason}>
+          <Text ellipsis>{reason}</Text>
+        </Tooltip>
+      )
+    },
+    {
+      title: 'Lote',
+      key: 'billing_batch',
+      width: 100,
+      render: (_: any, record: ValueVerification) => (
+        record.billing_batch_id ? (
+          <Link href={`/billing/batches/${record.billing_batch_id}`}>
+            <Tag icon={<FileTextOutlined />} color="green">
+              #{record.billing_batch_id}
+            </Tag>
+          </Link>
+        ) : '-'
+      )
+    },
+    {
+      title: 'Data Criação',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      width: 120,
+      render: (date: string) => new Date(date).toLocaleDateString('pt-BR')
+    },
+    {
+      title: 'Ações',
+      key: 'actions',
+      width: 150,
+      render: (_: any, record: ValueVerification) => (
+        <Space>
+          <Link href={`/value-verifications/${record.id}`}>
+            <Button type="link" icon={<EyeOutlined />} size="small">
+              Ver
+            </Button>
+          </Link>
+          {canVerify && record.status === 'pending' && (
+            <Link href={`/value-verifications/${record.id}`}>
+              <Button type="link" icon={<CheckCircleOutlined />} size="small" style={{ color: 'green' }}>
+                Verificar
+              </Button>
+            </Link>
+          )}
+        </Space>
+      )
+    }
+  ];
+
+  const handleDateRangeChange = (dates: any, dateStrings: [string, string]) => {
+    setDateRange(dates);
+  };
 
   return (
-    <div className="container mx-auto py-6 max-w-7xl">
-      <h1 className="text-3xl font-bold mb-6">
-        Faturamento
-      </h1>
-
-      <BillingFilters 
-        filters={filters} 
-        onFilterChange={setFilters} 
-      />
-
-      <div className="grid gap-6">
-        <div className="w-full">
-          <BillingOverview data={data?.total_statistics || null} />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-          <div className="md:col-span-8">
-            <Card>
-              <CardHeader>
-                <h3 className="text-lg font-semibold">Totais Mensais</h3>
-              </CardHeader>
-              <CardContent>
-                <MonthlyTotals data={data?.monthly_totals || null} />
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="md:col-span-4">
-            <Card>
-              <CardHeader>
-                <h3 className="text-lg font-semibold">Distribuição de Pagamentos</h3>
-              </CardHeader>
-              <CardContent>
-                <PaymentDistribution data={data?.payment_status_distribution || null} />
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="md:col-span-8">
-            <Card>
-              <CardHeader>
-                <h3 className="text-lg font-semibold">Lotes Recentes</h3>
-              </CardHeader>
-              <CardContent>
-                <RecentBatches batches={data?.recent_batches || null} />
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="md:col-span-4">
-            <div className="grid gap-6">
-              <Card>
-                <CardHeader>
-                  <h3 className="text-lg font-semibold">Estatísticas de Glosas</h3>
-                </CardHeader>
-                <CardContent>
-                  <GlosaStatistics data={data?.glosa_statistics || null} />
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader>
-                  <h3 className="text-lg font-semibold">Estatísticas de Atendimento</h3>
-                </CardHeader>
-                <CardContent>
-                  <AttendanceStatistics data={data?.attendance_statistics || null} />
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </div>
+    <div className="p-6">
+      <div className="mb-6">
+        <Title level={2}>Cobranças</Title>
+        <Text type="secondary">
+          Gerencie lotes de cobrança e verificação de valores
+        </Text>
       </div>
+
+      {/* Statistics Cards */}
+      <Row gutter={16} className="mb-6">
+        <Col span={6}>
+          <Card>
+            <Statistic
+              title="Total de Lotes"
+              value={statistics.total_batches}
+              prefix={<FileTextOutlined />}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <Statistic
+              title="Valor Total"
+              value={statistics.total_amount}
+              precision={2}
+              prefix="R$"
+              valueStyle={{ color: '#52c41a' }}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <Statistic
+              title="Verificações Pendentes"
+              value={statistics.pending_verifications}
+              prefix={<ExclamationCircleOutlined />}
+              valueStyle={{ color: '#faad14' }}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <Statistic
+              title="Alta Prioridade"
+              value={statistics.high_priority_verifications}
+              prefix={<ClockCircleOutlined />}
+              valueStyle={{ color: '#ff4d4f' }}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Filters */}
+      <Card className="mb-6">
+        <div className="flex flex-wrap gap-4 items-center">
+          <Search
+            placeholder="Buscar por paciente, profissional, procedimento..."
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            style={{ width: 300 }}
+            allowClear
+          />
+          
+          <Select
+            placeholder="Status"
+            value={statusFilter}
+            onChange={setStatusFilter}
+            style={{ width: 150 }}
+            allowClear
+          >
+            <Option value="pending">Pendente</Option>
+            <Option value="completed">Concluído</Option>
+            <Option value="failed">Falhou</Option>
+          </Select>
+
+          <RangePicker
+            value={dateRange}
+            onChange={handleDateRangeChange}
+            placeholder={['Data início', 'Data fim']}
+          />
+
+          <Button 
+            icon={<SyncOutlined />} 
+            onClick={() => window.location.reload()}
+          >
+            Atualizar
+          </Button>
+        </div>
+      </Card>
+
+      {/* Tabs */}
+      <Card>
+        <Tabs activeKey={activeTab} onChange={setActiveTab}>
+          <TabPane 
+            tab={
+              <span>
+                Lotes de Cobrança
+                <Badge count={filteredBatches.length} style={{ marginLeft: 8 }} />
+              </span>
+            } 
+            key="batches" 
+          />
+          <TabPane 
+            tab={
+              <span>
+                Verificações de Valores
+                <Badge count={statistics.pending_verifications} style={{ marginLeft: 8 }} />
+              </span>
+            } 
+            key="verifications" 
+          />
+        </Tabs>
+
+        {activeTab === 'batches' && (
+          <Table
+            columns={batchColumns}
+            dataSource={filteredBatches}
+            rowKey="id"
+            loading={isLoading}
+            pagination={{
+              total: filteredBatches.length,
+              pageSize: 10,
+              showSizeChanger: true,
+              showQuickJumper: true,
+              showTotal: (total, range) => 
+                `${range[0]}-${range[1]} de ${total} itens`
+            }}
+            scroll={{ x: 800 }}
+          />
+        )}
+
+        {activeTab === 'verifications' && (
+          <>
+            {statistics.pending_verifications > 0 && (
+              <Alert
+                message="Verificações Pendentes"
+                description={`Existem ${statistics.pending_verifications} verificações de valores pendentes que requerem atenção.`}
+                type="warning"
+                showIcon
+                className="mb-4"
+                action={
+                  <Link href="/value-verifications">
+                    <Button size="small" type="primary">
+                      Ver Todas
+                    </Button>
+                  </Link>
+                }
+              />
+            )}
+            
+            <Table
+              columns={verificationColumns}
+              dataSource={filteredVerifications}
+              rowKey="id"
+              loading={isLoadingVerifications}
+              pagination={{
+                total: filteredVerifications.length,
+                pageSize: 10,
+                showSizeChanger: true,
+                showQuickJumper: true,
+                showTotal: (total, range) => 
+                  `${range[0]}-${range[1]} de ${total} itens`
+              }}
+              scroll={{ x: 1000 }}
+            />
+          </>
+        )}
+      </Card>
     </div>
   );
 } 

@@ -213,11 +213,11 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess }: Create
     }
   }, [selectedProviderId, providerType])
 
-  const fetchSolicitations = async () => {
+  const fetchSolicitations = async (): Promise<void> => {
     try {
       const response = await api.get("/solicitations", {
         params: {
-          status: "pending"
+          status: ["pending", "processing"]
         }
       })
       setSolicitations(response.data.data)
@@ -465,8 +465,8 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess }: Create
         {!showDirectScheduling ? (
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <h3 className="font-medium text-sm">Solicitações Pendentes</h3>
-              <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
+              <h3 className="font-medium text-sm">Solicitações Pendentes e em Processamento</h3>
+              <div className="space-y-2 max-h-[30vh] overflow-y-auto pr-2">
                 {solicitations.map((solicitation) => (
                   <Card
                     key={solicitation.id}
@@ -537,7 +537,7 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess }: Create
                 ))}
                 {solicitations.length === 0 && (
                   <div className="text-center text-muted-foreground py-4 text-sm">
-                    Nenhuma solicitação pendente
+                    Nenhuma solicitação pendente ou em processamento
                   </div>
                 )}
               </div>
