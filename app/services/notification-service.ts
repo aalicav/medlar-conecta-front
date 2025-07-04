@@ -52,7 +52,7 @@ class NotificationService {
   async getNotifications(page = 1, limit = 10): Promise<any> {
     try {
       const response = await apiClient.get('/notifications', {
-        params: { page, limit }
+        params: { page, per_page: limit }
       });
       return response.data;
     } catch (error) {

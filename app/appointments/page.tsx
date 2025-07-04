@@ -226,7 +226,7 @@ export default function AppointmentsPage() {
   const [showAttendanceDialog, setShowAttendanceDialog] = useState(false)
   const [selectedAppointmentForAttendance, setSelectedAppointmentForAttendance] = useState<Appointment | null>(null)
   const [attendanceData, setAttendanceData] = useState({
-    patient_attended: true,
+    patient_attended: null as boolean | null,
     notes: ''
   })
   const [isMarkingAttendance, setIsMarkingAttendance] = useState(false)
@@ -484,7 +484,7 @@ export default function AppointmentsPage() {
   const handleOpenAttendanceDialog = (appointment: Appointment) => {
     setSelectedAppointmentForAttendance(appointment)
     setAttendanceData({
-      patient_attended: true,
+      patient_attended: null,
       notes: ''
     })
     setShowAttendanceDialog(true)
@@ -496,8 +496,8 @@ export default function AppointmentsPage() {
     // Validate that attendance is selected
     if (attendanceData.patient_attended === null || attendanceData.patient_attended === undefined) {
       toast({
-        title: "Erro",
-        description: "Selecione se o paciente compareceu ou não",
+        title: "Erro de Validação",
+        description: "Por favor, selecione se o paciente compareceu ou não ao agendamento",
         variant: "destructive"
       })
       return
@@ -505,10 +505,14 @@ export default function AppointmentsPage() {
 
     setIsMarkingAttendance(true)
     try {
-      await api.post(`/appointments/${selectedAppointmentForAttendance.id}/complete`, {
+      const requestData = {
         patient_attended: attendanceData.patient_attended,
         notes: attendanceData.notes || undefined
-      })
+      }
+      
+      console.log('Sending attendance data:', requestData)
+      
+      await api.post(`/appointments/${selectedAppointmentForAttendance.id}/complete`, requestData)
       
       toast({
         title: "Sucesso",
@@ -522,11 +526,22 @@ export default function AppointmentsPage() {
       fetchData()
     } catch (error: any) {
       console.error("Error marking attendance:", error)
+      console.error("Error response:", error.response?.data)
+      
+      // Handle specific validation errors from backend
+      if (error.response?.status === 422 && error.response?.data?.errors?.patient_attended) {
+        toast({
+          title: "Erro de Validação",
+          description: "Por favor, selecione se o paciente compareceu ou não ao agendamento",
+          variant: "destructive"
+        })
+      } else {
       toast({
         title: "Erro",
         description: error.response?.data?.message || "Erro ao marcar comparecimento",
         variant: "destructive"
       })
+      }
     } finally {
       setIsMarkingAttendance(false)
     }
@@ -1304,6 +1319,13 @@ export default function AppointmentsPage() {
                     </Label>
                   </div>
                 </div>
+                
+                {/* Error message */}
+                {attendanceData.patient_attended === null && (
+                  <div className="text-sm text-red-600 mt-2">
+                    * Selecione se o paciente compareceu ou não
+                  </div>
+                )}
               </div>
 
               {/* Notes */}

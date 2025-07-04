@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "@/components/ui/use-toast"
 import { formatDate, getStorageUrl } from "@/lib/utils"
 import { useAuth } from "@/contexts/auth-context"
-import { ArrowLeft, Edit, CheckCircle, Upload, FileText, List, Mail, Phone, User, Building2, MapPin, Download, Trash2, AlertTriangle, Calendar, X } from "lucide-react"
+import { ArrowLeft, Edit, CheckCircle, Upload, FileText, List, Mail, Phone, User, Building2, MapPin, Download, Trash2, AlertTriangle, Calendar, X, DollarSign } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -121,9 +121,9 @@ export default function HealthPlanDetailsPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
-        return <Badge variant="success">Ativo</Badge>
+        return <Badge variant="default">Ativo</Badge>
       case "pending":
-        return <Badge variant="warning">Pendente</Badge>
+        return <Badge variant="secondary">Pendente</Badge>
       case "inactive":
         return <Badge variant="destructive">Inativo</Badge>
       default:
@@ -162,7 +162,7 @@ export default function HealthPlanDetailsPage() {
       toast({
         title: "Documento enviado",
         description: "O documento foi enviado com sucesso",
-        variant: "success",
+        variant: "default",
       })
       
       // Reset form
@@ -196,7 +196,7 @@ export default function HealthPlanDetailsPage() {
       toast({
         title: "Documento excluído",
         description: "O documento foi excluído com sucesso",
-        variant: "success",
+        variant: "default",
       })
       
       // Refresh data
@@ -253,7 +253,7 @@ export default function HealthPlanDetailsPage() {
     }
     if (isDocumentExpiringInDays(date, 30)) {
       return (
-        <Badge variant="warning" className="flex items-center gap-1">
+        <Badge variant="secondary" className="flex items-center gap-1">
           <Calendar className="h-3 w-3" />
           Expira em breve
         </Badge>
@@ -332,6 +332,7 @@ export default function HealthPlanDetailsPage() {
           <TabsTrigger value="representatives">Representantes</TabsTrigger>
           <TabsTrigger value="documents">Documentos</TabsTrigger>
           <TabsTrigger value="contracts">Contratos</TabsTrigger>
+          <TabsTrigger value="pricing">Tabela de Valores</TabsTrigger>
         </TabsList>
 
         <TabsContent value="details" className="space-y-6">
@@ -708,6 +709,43 @@ export default function HealthPlanDetailsPage() {
                 Gerar Contrato
               </Button>
             </CardFooter>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="pricing" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <DollarSign className="h-5 w-5" />
+                Tabela de Valores
+              </CardTitle>
+              <CardDescription>Gerencie os valores cobrados para cada procedimento TUSS</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Configure os valores que serão cobrados para cada procedimento TUSS neste plano de saúde.
+                  Você pode adicionar valores individualmente ou importar um arquivo CSV.
+                </p>
+                <div className="flex gap-2">
+                  <Button onClick={() => router.push(`/health-plans/${healthPlanId}/pricing`)}>
+                    <DollarSign className="h-4 w-4 mr-2" />
+                    Gerenciar Valores
+                  </Button>
+                  <Button variant="outline" onClick={() => {
+                    const link = document.createElement('a')
+                    link.href = '/templates/health-plan-pricing-template.csv'
+                    link.download = 'modelo-valores-plano-saude.csv'
+                    document.body.appendChild(link)
+                    link.click()
+                    document.body.removeChild(link)
+                  }}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Baixar Modelo CSV
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
           </Card>
         </TabsContent>
       </Tabs>

@@ -1,34 +1,21 @@
-import { 
-  Row, 
-  Col, 
-  Card, 
-  Statistic, 
-  Typography, 
-  List, 
-  Button, 
-  Tag, 
-  Space,
-  Empty,
-  Tabs,
-  Calendar,
-  Badge
-} from 'antd';
-import { 
-  CalendarOutlined,
-  TeamOutlined,
-  MedicineBoxOutlined,
-  ClockCircleOutlined,
-  CheckCircleOutlined,
-  PhoneOutlined,
-  UserOutlined
-} from '@ant-design/icons';
 import Link from 'next/link';
 import { DashboardStats, Appointment, PendingItem } from '../../services/dashboardService';
-import { useState } from 'react';
-import type { Dayjs } from 'dayjs';
-
-const { Title, Text, Paragraph } = Typography;
-const { TabPane } = Tabs;
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
+import { 
+  Calendar, 
+  Users, 
+  Building2, 
+  Clock, 
+  CheckCircle, 
+  AlertTriangle, 
+  ArrowRight, 
+  Plus
+} from 'lucide-react';
 
 interface OperationalDashboardProps {
   stats: DashboardStats;
@@ -43,264 +30,289 @@ const OperationalDashboard: React.FC<OperationalDashboardProps> = ({
   upcomingAppointments,
   loading 
 }) => {
-  // For calendar data (simplified example)
-  const getAppointmentCountByDate = (date: Dayjs) => {
-    // This would ideally pull from a more comprehensive dataset
-    // For demo purposes, we'll just count appointments on the same day
-    const dateString = date.format('YYYY-MM-DD');
-    return upcomingAppointments.filter(appointment => 
-      appointment.date === dateString
-    ).length;
-  };
-
-  const dateCellRender = (date: Dayjs) => {
-    const count = getAppointmentCountByDate(date);
-    return count ? (
-      <Badge 
-        count={count} 
-        style={{ 
-          backgroundColor: count > 5 ? '#f5222d' : '#1890ff',
-          fontSize: '10px',
-          boxShadow: 'none'
-        }}
-      />
-    ) : null;
-  };
-
   return (
     <>
-      <Row gutter={[24, 24]}>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {/* Main Statistics */}
-        <Col xs={24} sm={12} md={6}>
-          <Card loading={loading}>
-            <Statistic 
-              title="Consultas Hoje" 
-              value={stats.appointments?.today || 0} 
-              prefix={<CalendarOutlined />} 
-            />
-            <div style={{ marginTop: 12 }}>
-              <Link href="/appointments/today" passHref>
-                <Button type="link" size="small" style={{ paddingLeft: 0 }}>Ver detalhes</Button>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Consultas Hoje</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{loading ? <Skeleton className="h-8 w-16" /> : stats.appointments?.today || 0}</div>
+            <div className="mt-2">
+              <Link href="/appointments/today">
+                <Button variant="link" size="sm" className="p-0">Ver todas</Button>
               </Link>
             </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card loading={loading}>
-            <Statistic 
-              title="Consultas Pendentes" 
-              value={stats.appointments?.pending || 0}
-              prefix={<ClockCircleOutlined />} 
-            />
-            <div style={{ marginTop: 12 }}>
-              <Link href="/appointments?status=pending" passHref>
-                <Button type="link" size="small" style={{ paddingLeft: 0 }}>Ver todas</Button>
-              </Link>
-            </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card loading={loading}>
-            <Statistic 
-              title="Solicitações Pendentes" 
-              value={stats.solicitations?.pending || 0} 
-              prefix={<MedicineBoxOutlined />} 
-            />
-            <div style={{ marginTop: 12 }}>
-              <Link href="/solicitations?status=pending" passHref>
-                <Button type="link" size="small" style={{ paddingLeft: 0 }}>Ver todas</Button>
-              </Link>
-            </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card loading={loading}>
-            <Statistic 
-              title="Novos Pacientes (Mês)" 
-              value={stats.patients?.active || 0} 
-              prefix={<UserOutlined />} 
-            />
-            <div style={{ marginTop: 12 }}>
-              <Link href="/patients?new=true" passHref>
-                <Button type="link" size="small" style={{ paddingLeft: 0 }}>Ver pacientes</Button>
-              </Link>
-            </div>
-          </Card>
-        </Col>
+          </CardContent>
+        </Card>
         
-        {/* Upcoming Appointments Section */}
-        <Col xs={24} md={16}>
-          <Card
-            title={
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Próximas Consultas</span>
-                <Link href="/appointments" passHref>
-                  <Button type="link" size="small">Ver todas</Button>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pacientes Atendidos</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{loading ? <Skeleton className="h-8 w-16" /> : stats.patients?.attended_today || 0}</div>
+            <div className="mt-2">
+              <Link href="/patients">
+                <Button variant="link" size="sm" className="p-0">Ver todos</Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Estabelecimentos Ativos</CardTitle>
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{loading ? <Skeleton className="h-8 w-16" /> : stats.establishments?.active || 0}</div>
+            <div className="mt-2">
+              <Link href="/establishments">
+                <Button variant="link" size="sm" className="p-0">Ver todos</Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Consultas Pendentes</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{loading ? <Skeleton className="h-8 w-16" /> : stats.appointments?.pending || 0}</div>
+            <div className="mt-2">
+              <Link href="/appointments?status=pending">
+                <Button variant="link" size="sm" className="p-0">Ver todas</Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="mt-8">
+        <h2 className="text-2xl font-bold tracking-tight mb-4">Ações Rápidas</h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Link href="/appointments/new">
+            <Card className="hover:bg-accent transition-colors cursor-pointer h-full">
+              <CardHeader>
+                <div className="flex items-center space-x-2">
+                  <Calendar className="h-6 w-6 text-blue-500" />
+                  <CardTitle className="text-lg">Nova Consulta</CardTitle>
+                </div>
+                <CardDescription>Agendar nova consulta</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                  <span>Agendar</span>
+                  <Plus className="h-4 w-4" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+          
+          <Link href="/patients/new">
+            <Card className="hover:bg-accent transition-colors cursor-pointer h-full">
+              <CardHeader>
+                <div className="flex items-center space-x-2">
+                  <Users className="h-6 w-6 text-green-500" />
+                  <CardTitle className="text-lg">Novo Paciente</CardTitle>
+                </div>
+                <CardDescription>Cadastrar novo paciente</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                  <span>Cadastrar</span>
+                  <Plus className="h-4 w-4" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+          
+          <Link href="/establishments/new">
+            <Card className="hover:bg-accent transition-colors cursor-pointer h-full">
+              <CardHeader>
+                <div className="flex items-center space-x-2">
+                  <Building2 className="h-6 w-6 text-orange-500" />
+                  <CardTitle className="text-lg">Novo Estabelecimento</CardTitle>
+                </div>
+                <CardDescription>Cadastrar novo estabelecimento</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                  <span>Cadastrar</span>
+                  <Plus className="h-4 w-4" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+          
+          <Link href="/scheduling-exceptions">
+            <Card className="hover:bg-accent transition-colors cursor-pointer h-full">
+              <CardHeader>
+                <div className="flex items-center space-x-2">
+                  <AlertTriangle className="h-6 w-6 text-red-500" />
+                  <CardTitle className="text-lg">Exceções</CardTitle>
+                </div>
+                <CardDescription>Gerenciar exceções de agenda</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                  <span>Gerenciar</span>
+                  <ArrowRight className="h-4 w-4" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
+      </div>
+
+      {/* Appointments and Pending Items */}
+      <div className="grid gap-6 md:grid-cols-3 mt-8">
+        <div className="md:col-span-2">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle>Próximas Consultas</CardTitle>
+                <Link href="/appointments">
+                  <Button variant="link" size="sm">Ver todas</Button>
                 </Link>
               </div>
-            }
-            loading={loading}
-          >
-            {upcomingAppointments.length > 0 ? (
-              <List
-                dataSource={upcomingAppointments}
-                renderItem={appointment => (
-                  <List.Item
-                    actions={[
-                      <Space key="actions">
-                        <Link href={`/appointments/${appointment.id}/confirm`}>
-                          <Button size="small" type="primary" icon={<CheckCircleOutlined />}>Confirmar</Button>
-                        </Link>
-                        <Link href={`/appointments/${appointment.id}/reschedule`}>
-                          <Button size="small" icon={<CalendarOutlined />}>Reagendar</Button>
-                        </Link>
-                        <Link href={`tel:${appointment.patient_id}`}>
-                          <Button size="small" icon={<PhoneOutlined />}>Ligar</Button>
-                        </Link>
-                      </Space>
-                    ]}
-                  >
-                    <List.Item.Meta
-                      avatar={<CalendarOutlined style={{ fontSize: 24, color: '#1890ff' }} />}
-                      title={
-                        <div>
-                          <Text strong>{appointment.patient}</Text>
-                          <Tag color={appointment.status === 'confirmed' ? 'success' : 'warning'} style={{ marginLeft: 8 }}>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                </div>
+              ) : upcomingAppointments.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Paciente</TableHead>
+                      <TableHead>Data/Hora</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {upcomingAppointments.map((appointment, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="font-medium">{appointment.patient}</TableCell>
+                        <TableCell>
+                          {new Date(appointment.date).toLocaleDateString('pt-BR')} às {appointment.time}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={appointment.status === 'confirmed' ? 'default' : 'secondary'}>
                             {appointment.status === 'confirmed' ? 'Confirmado' : 'Pendente'}
-                          </Tag>
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex space-x-2">
+                            <Button size="sm">Confirmar</Button>
+                            <Button size="sm" variant="outline">Reagendar</Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  Não há consultas agendadas
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+        
+        <div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Itens Pendentes</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Tabs defaultValue="appointments">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="appointments">Consultas</TabsTrigger>
+                  <TabsTrigger value="patients">Pacientes</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="appointments">
+                  {loading ? (
+                    <div className="space-y-4">
+                      <Skeleton className="h-12 w-full" />
+                      <Skeleton className="h-12 w-full" />
+                    </div>
+                  ) : pendingItems.appointments && pendingItems.appointments.length > 0 ? (
+                    <div className="space-y-4">
+                      {pendingItems.appointments.map((item, index) => (
+                        <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex items-center space-x-3">
+                            <Calendar className="h-4 w-4 text-blue-500" />
+                            <div>
+                              <Link href={item.link} className="font-medium hover:underline">
+                                {item.title}
+                              </Link>
+                              <p className="text-sm text-muted-foreground">{item.description}</p>
+                            </div>
+                          </div>
+                          <Badge variant={item.priority === 'high' ? 'destructive' : 'secondary'}>
+                            {item.priority === 'high' ? 'Urgente' : 'Normal'}
+                          </Badge>
                         </div>
-                      }
-                      description={
-                        <>
-                          <Text>{new Date(appointment.date).toLocaleDateString('pt-BR')}</Text>
-                          <Text style={{ marginLeft: 8 }}>{appointment.time}</Text>
-                          <Text style={{ marginLeft: 8 }}>•</Text>
-                          <Text style={{ marginLeft: 8 }}>{appointment.type}</Text>
-                        </>
-                      }
-                    />
-                  </List.Item>
-                )}
-              />
-            ) : (
-              <Empty description="Não há consultas agendadas" />
-            )}
-          </Card>
-        </Col>
-
-        {/* Pending Items Section */}
-        <Col xs={24} md={8}>
-          <Card
-            title={
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Itens Pendentes</span>
-              </div>
-            }
-            loading={loading}
-          >
-            <Tabs defaultActiveKey="1">
-              <TabPane tab="Solicitações" key="1">
-                {pendingItems.solicitations && pendingItems.solicitations.length > 0 ? (
-                  <List
-                    size="small"
-                    dataSource={pendingItems.solicitations}
-                    renderItem={item => (
-                      <List.Item>
-                        <List.Item.Meta
-                          avatar={<MedicineBoxOutlined style={{ fontSize: 24, color: '#722ed1' }} />}
-                          title={
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Nenhuma consulta pendente
+                    </div>
+                  )}
+                </TabsContent>
+                
+                <TabsContent value="patients">
+                  {loading ? (
+                    <div className="space-y-4">
+                      <Skeleton className="h-12 w-full" />
+                      <Skeleton className="h-12 w-full" />
+                    </div>
+                  ) : pendingItems.patients && pendingItems.patients.length > 0 ? (
+                    <div className="space-y-4">
+                      {pendingItems.patients.map((item, index) => (
+                        <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex items-center space-x-3">
+                            <Users className="h-4 w-4 text-green-500" />
                             <div>
-                              <Link href={item.link}>{item.title}</Link>
-                              <Tag color={item.priority === 'high' ? 'red' : 'blue'} style={{ marginLeft: 8 }}>
-                                {item.priority === 'high' ? 'Urgente' : 'Normal'}
-                              </Tag>
+                              <Link href={item.link} className="font-medium hover:underline">
+                                {item.title}
+                              </Link>
+                              <p className="text-sm text-muted-foreground">{item.description}</p>
                             </div>
-                          }
-                          description={item.description}
-                        />
-                      </List.Item>
-                    )}
-                  />
-                ) : (
-                  <Empty description="Não há solicitações pendentes" />
-                )}
-              </TabPane>
-              <TabPane tab="Agendamentos" key="2">
-                {pendingItems.appointments && pendingItems.appointments.length > 0 ? (
-                  <List
-                    size="small"
-                    dataSource={pendingItems.appointments}
-                    renderItem={item => (
-                      <List.Item>
-                        <List.Item.Meta
-                          avatar={<CalendarOutlined style={{ fontSize: 24, color: '#1890ff' }} />}
-                          title={
-                            <div>
-                              <Link href={item.link}>{item.title}</Link>
-                              <Tag color={item.priority === 'high' ? 'red' : 'blue'} style={{ marginLeft: 8 }}>
-                                {item.priority === 'high' ? 'Urgente' : 'Normal'}
-                              </Tag>
-                            </div>
-                          }
-                          description={item.description}
-                        />
-                      </List.Item>
-                    )}
-                  />
-                ) : (
-                  <Empty description="Não há agendamentos pendentes" />
-                )}
-              </TabPane>
-            </Tabs>
+                          </div>
+                          <Badge variant={item.priority === 'high' ? 'destructive' : 'secondary'}>
+                            {item.priority === 'high' ? 'Urgente' : 'Normal'}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Nenhum paciente pendente
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </CardContent>
           </Card>
-        </Col>
-
-        {/* Calendar View */}
-        <Col xs={24}>
-          <Card title="Calendário de Agendamentos" loading={loading}>
-            <Calendar 
-              fullscreen={false} 
-              dateCellRender={dateCellRender}
-            />
-          </Card>
-        </Col>
-
-        {/* Overall Statistics */}
-        <Col xs={24}>
-          <Card title="Estatísticas Gerais" loading={loading}>
-            <Row gutter={[24, 24]}>
-              <Col xs={24} sm={12} md={6}>
-                <Statistic 
-                  title="Total de Pacientes" 
-                  value={stats.patients?.total || 0} 
-                  prefix={<TeamOutlined />} 
-                />
-              </Col>
-              <Col xs={24} sm={12} md={6}>
-                <Statistic 
-                  title="Total de Consultas" 
-                  value={stats.appointments?.total || 0} 
-                  prefix={<CalendarOutlined />} 
-                />
-              </Col>
-              <Col xs={24} sm={12} md={6}>
-                <Statistic 
-                  title="Consultas Concluídas" 
-                  value={stats.appointments?.completed || 0} 
-                  prefix={<CheckCircleOutlined />} 
-                />
-              </Col>
-              <Col xs={24} sm={12} md={6}>
-                <Statistic 
-                  title="Total de Solicitações" 
-                  value={stats.solicitations?.total || 0} 
-                  prefix={<MedicineBoxOutlined />} 
-                />
-              </Col>
-            </Row>
-          </Card>
-        </Col>
-      </Row>
+        </div>
+      </div>
     </>
   );
 };

@@ -2,30 +2,18 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { 
-  Card, 
-  Form, 
-  Input, 
-  Button, 
-  Typography, 
-  Select, 
-  Space, 
-  Divider, 
-  InputNumber,
-  notification,
-  Alert
-} from "antd";
-import { 
-  ArrowLeftOutlined,
-  InfoCircleOutlined
-} from "@ant-design/icons";
 import Link from "next/link";
 import axios from "@/lib/axios";
 import { formatCurrency } from "@/lib/format";
-
-const { Title, Text } = Typography;
-const { TextArea } = Input;
-const { Option } = Select;
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
+import { ArrowLeft, Info, Loader2 } from "lucide-react";
 
 // Define the form values interface
 interface VerificationFormValues {
@@ -58,9 +46,11 @@ interface Negotiation extends Entity {
 
 export default function NewValueVerificationPage() {
   const router = useRouter();
-  const [form] = Form.useForm<VerificationFormValues>();
   const [submitting, setSubmitting] = useState(false);
-  const [entityType, setEntityType] = useState<string | null>(null);
+  const [entityType, setEntityType] = useState<string>("");
+  const [entityId, setEntityId] = useState<string>("");
+  const [originalValue, setOriginalValue] = useState<string>("");
+  const [notes, setNotes] = useState<string>("");
   const [entities, setEntities] = useState<Entity[]>([]);
   const [loadingEntities, setLoadingEntities] = useState(false);
   
@@ -93,17 +83,10 @@ export default function NewValueVerificationPage() {
           const data = response.data.data?.data || response.data.data || [];
           setEntities(data);
         } else {
-          notification.error({
-            message: 'Erro ao carregar entidades',
-            description: 'Não foi possível carregar a lista de entidades'
-          });
+          console.error('Error loading entities:', response.data.message);
         }
       } catch (error) {
         console.error(`Error fetching ${entityType}:`, error);
-        notification.error({
-          message: 'Erro ao carregar entidades',
-          description: 'Ocorreu um erro ao buscar as entidades'
-        });
       } finally {
         setLoadingEntities(false);
       }
@@ -112,37 +95,31 @@ export default function NewValueVerificationPage() {
     fetchEntities();
   }, [entityType]);
   
-  const handleSubmit = async (values: VerificationFormValues) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!entityType || !entityId || !originalValue || !notes) {
+      return;
+    }
+    
     try {
       setSubmitting(true);
       
       const response = await axios.post('/value-verifications', {
-        entity_type: values.entity_type,
-        entity_id: values.entity_id,
-        original_value: values.original_value,
-        notes: values.notes
+        entity_type: entityType,
+        entity_id: parseInt(entityId),
+        original_value: parseFloat(originalValue),
+        notes: notes
       });
       
       if (response.data.status === 'success') {
-        notification.success({
-          message: 'Verificação criada com sucesso',
-          description: 'A verificação de valor foi enviada para aprovação'
-        });
-        
         // Redirect to verification details page
         router.push(`/value-verifications/${response.data.data.id}`);
       } else {
-        notification.error({
-          message: 'Erro ao criar verificação',
-          description: response.data.message || 'Ocorreu um erro ao criar a verificação'
-        });
+        console.error('Error creating verification:', response.data.message);
       }
     } catch (error: any) {
       console.error('Error creating verification:', error);
-      notification.error({
-        message: 'Erro ao criar verificação',
-        description: error.response?.data?.message || 'Ocorreu um erro ao processar a requisição'
-      });
     } finally {
       setSubmitting(false);
     }
@@ -154,7 +131,6 @@ export default function NewValueVerificationPage() {
     
     return entities.map(entity => {
       let label = '';
-      let value = entity.id;
       
       switch (entityType) {
         case 'contract':
@@ -172,118 +148,123 @@ export default function NewValueVerificationPage() {
       }
       
       return (
-        <Option key={entity.id} value={entity.id}>
+        <SelectItem key={entity.id} value={entity.id.toString()}>
           {label}
-        </Option>
+        </SelectItem>
       );
     });
   };
   
   return (
-    <div className="space-y-6">
-      <div className="flex items-center mb-6">
+    <div className="space-y-6 p-6">
+      <div className="flex items-center space-x-4">
         <Link href="/value-verifications">
-          <Button icon={<ArrowLeftOutlined />} style={{ marginRight: '16px' }}>
+          <Button variant="outline" className="flex items-center gap-2">
+            <ArrowLeft className="h-4 w-4" />
             Voltar
           </Button>
         </Link>
-        <Title level={3} style={{ margin: 0 }}>
-          Nova Verificação de Valor
-        </Title>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Nova Verificação de Valor</h1>
+          <p className="text-muted-foreground">
+            Crie uma nova verificação de valor para validação
+          </p>
+        </div>
       </div>
       
-      <Alert
-        message="Segurança de Dados Financeiros"
-        description="Esta verificação será enviada para validação por um diretor, de acordo com o princípio de dupla checagem de valores financeiros."
-        type="info"
-        showIcon
-        style={{ marginBottom: 24 }}
-      />
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertDescription>
+          Esta verificação será enviada para validação por um diretor, de acordo com o princípio de dupla checagem de valores financeiros.
+        </AlertDescription>
+      </Alert>
       
       <Card>
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleSubmit}
-          requiredMark="optional"
-        >
-          <Form.Item
-            name="entity_type"
-            label="Tipo de Entidade"
-            rules={[{ required: true, message: 'Selecione o tipo de entidade' }]}
-          >
-            <Select 
-              placeholder="Selecione o tipo de entidade" 
-              onChange={(value: string) => setEntityType(value)}
-            >
-              <Option value="contract">Contrato</Option>
-              <Option value="extemporaneous_negotiation">Negociação Extemporânea</Option>
-              <Option value="negotiation">Negociação de Especialidades</Option>
-            </Select>
-          </Form.Item>
-          
-          <Form.Item
-            name="entity_id"
-            label="Entidade"
-            rules={[{ required: true, message: 'Selecione a entidade' }]}
-          >
-            <Select
-              placeholder="Selecione a entidade"
-              loading={loadingEntities}
-              disabled={!entityType || loadingEntities}
-              showSearch
-              filterOption={(input, option) =>
-                (option?.children as unknown as string)
-                  .toLowerCase()
-                  .indexOf(input.toLowerCase()) >= 0
-              }
-            >
-              {renderEntityOptions()}
-            </Select>
-          </Form.Item>
-          
-          <Form.Item
-            name="original_value"
-            label="Valor a Verificar"
-            rules={[
-              { required: true, message: 'Informe o valor' },
-              { type: 'number', min: 0, message: 'O valor deve ser maior ou igual a zero' }
-            ]}
-          >
-            <InputNumber
-              placeholder="0.00"
-              style={{ width: '100%' }}
-              prefix="R$"
-              precision={2}
-              step={0.01}
-              min={0}
-            />
-          </Form.Item>
-          
-          <Form.Item
-            name="notes"
-            label="Observações"
-            rules={[{ required: true, message: 'Informe as observações sobre este valor' }]}
-          >
-            <TextArea
-              rows={4}
-              placeholder="Descreva o contexto deste valor, justificativa e quaisquer outras informações relevantes para a verificação"
-            />
-          </Form.Item>
-          
-          <Divider />
-          
-          <div className="flex justify-end">
-            <Space>
+        <CardHeader>
+          <CardTitle>Dados da Verificação</CardTitle>
+          <CardDescription>
+            Preencha os dados necessários para criar a verificação de valor
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="entity_type">Tipo de Entidade</Label>
+              <Select value={entityType} onValueChange={setEntityType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o tipo de entidade" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="contract">Contrato</SelectItem>
+                  <SelectItem value="extemporaneous_negotiation">Negociação Extemporânea</SelectItem>
+                  <SelectItem value="negotiation">Negociação de Especialidades</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="entity_id">Entidade</Label>
+              <Select 
+                value={entityId} 
+                onValueChange={setEntityId}
+                disabled={!entityType || loadingEntities}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a entidade" />
+                </SelectTrigger>
+                <SelectContent>
+                  {loadingEntities ? (
+                    <div className="flex items-center justify-center p-4">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="ml-2">Carregando...</span>
+                    </div>
+                  ) : (
+                    renderEntityOptions()
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="original_value">Valor a Verificar</Label>
+              <Input
+                id="original_value"
+                type="number"
+                step="0.01"
+                min="0"
+                value={originalValue}
+                onChange={(e) => setOriginalValue(e.target.value)}
+                placeholder="0.00"
+                className="font-mono"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="notes">Observações</Label>
+              <Textarea
+                id="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Descreva o contexto deste valor, justificativa e quaisquer outras informações relevantes para a verificação"
+                rows={4}
+              />
+            </div>
+            
+            <Separator />
+            
+            <div className="flex justify-end space-x-4">
               <Link href="/value-verifications">
-                <Button>Cancelar</Button>
+                <Button variant="outline" type="button">
+                  Cancelar
+                </Button>
               </Link>
-              <Button type="primary" htmlType="submit" loading={submitting}>
+              <Button type="submit" disabled={submitting || !entityType || !entityId || !originalValue || !notes}>
+                {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Enviar para Verificação
               </Button>
-            </Space>
-          </div>
-        </Form>
+            </div>
+          </form>
+        </CardContent>
       </Card>
     </div>
   );

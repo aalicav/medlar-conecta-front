@@ -1,51 +1,40 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  Table, 
-  Button, 
-  Tag, 
-  Space, 
-  Card, 
-  Typography, 
-  Tabs, 
-  Badge, 
-  Tooltip,
-  Alert,
-  Input,
-  Select,
-  DatePicker,
-  notification,
-  Modal,
-  Form,
-  InputNumber,
-  message
-} from "antd";
-import { 
-  PlusOutlined, 
-  CheckCircleOutlined, 
-  CloseCircleOutlined, 
-  EyeOutlined, 
-  ClockCircleOutlined,
-  SearchOutlined,
-  FilterOutlined,
-  SyncOutlined,
-  DollarOutlined,
-  FileTextOutlined,
-  CalendarOutlined
-} from "@ant-design/icons";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
 import axios from "@/lib/axios";
 import { formatCurrency } from "@/lib/format";
-import type { Dayjs } from 'dayjs';
-
-const { Title, Text } = Typography;
-const { TabPane } = Tabs;
-const { Search } = Input;
-const { Option } = Select;
-const { RangePicker } = DatePicker;
-const { TextArea } = Input;
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import { 
+  Plus, 
+  CheckCircle, 
+  XCircle, 
+  Eye, 
+  Clock, 
+  Search, 
+  Filter, 
+  RefreshCw, 
+  DollarSign, 
+  FileText, 
+  Calendar,
+  AlertTriangle,
+  TrendingUp,
+  TrendingDown,
+  User,
+  CalendarDays
+} from "lucide-react";
 
 // Define types for our verification objects
 interface Verification {
@@ -106,7 +95,6 @@ export default function ValueVerificationsPage() {
   const [searchText, setSearchText] = useState("");
   const [valueTypeFilter, setValueTypeFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
-  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null]>([null, null]);
   const [verifications, setVerifications] = useState<Verification[]>([]);
   const [filteredData, setFilteredData] = useState<Verification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -121,11 +109,12 @@ export default function ValueVerificationsPage() {
   });
 
   // Modal states
-  const [verifyModalVisible, setVerifyModalVisible] = useState(false);
-  const [rejectModalVisible, setRejectModalVisible] = useState(false);
+  const [verifyModalOpen, setVerifyModalOpen] = useState(false);
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedVerification, setSelectedVerification] = useState<Verification | null>(null);
-  const [verifyForm] = Form.useForm();
-  const [rejectForm] = Form.useForm();
+  const [verifyValue, setVerifyValue] = useState("");
+  const [verifyNotes, setVerifyNotes] = useState("");
+  const [rejectNotes, setRejectNotes] = useState("");
 
   const isDirector = hasRole(["director", "super_admin"]);
   const canVerify = hasRole(["director", "super_admin", "financial"]);
@@ -148,17 +137,10 @@ export default function ValueVerificationsPage() {
             high_priority: 0
           });
         } else {
-          notification.error({
-            message: 'Erro ao carregar verificações',
-            description: response.data.message || 'Ocorreu um erro ao buscar os dados'
-          });
+          console.error('Error loading verifications:', response.data.message);
         }
       } catch (error) {
         console.error('Error fetching verifications:', error);
-        notification.error({
-          message: 'Erro ao carregar verificações',
-          description: 'Não foi possível conectar ao servidor'
-        });
       } finally {
         setIsLoading(false);
       }
@@ -167,7 +149,7 @@ export default function ValueVerificationsPage() {
     fetchVerifications();
   }, []);
 
-  // Filter data based on active tab, search text, value type, priority, and date range
+  // Filter data based on active tab, search text, value type, and priority
   useEffect(() => {
     setIsLoading(true);
     
@@ -200,21 +182,10 @@ export default function ValueVerificationsPage() {
       filtered = filtered.filter(item => item.priority === priorityFilter);
     }
     
-    // Filter by date range
-    if (dateRange[0] && dateRange[1]) {
-      const startDate = dateRange[0].toDate();
-      const endDate = dateRange[1].toDate();
-      
-      filtered = filtered.filter(item => {
-        const itemDate = new Date(item.created_at);
-        return itemDate >= startDate && itemDate <= endDate;
-      });
-    }
-    
     setFilteredData(filtered);
     setIsLoading(false);
     
-  }, [activeTab, searchText, valueTypeFilter, priorityFilter, dateRange, verifications]);
+  }, [activeTab, searchText, valueTypeFilter, priorityFilter, verifications]);
 
   const getValueTypeDisplay = (valueType: string): string => {
     switch (valueType) {
@@ -233,31 +204,31 @@ export default function ValueVerificationsPage() {
     }
   };
 
-  const getPriorityColor = (priority: string): string => {
+  const getPriorityVariant = (priority: string): "default" | "secondary" | "destructive" | "outline" => {
     switch (priority) {
       case 'low':
-        return 'blue';
+        return 'secondary';
       case 'medium':
-        return 'orange';
+        return 'default';
       case 'high':
-        return 'red';
+        return 'destructive';
       case 'critical':
-        return 'purple';
+        return 'destructive';
       default:
         return 'default';
     }
   };
 
-  const getStatusColor = (status: string): string => {
+  const getStatusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
     switch (status) {
       case 'pending':
-        return 'orange';
+        return 'secondary';
       case 'verified':
-        return 'green';
+        return 'default';
       case 'rejected':
-        return 'red';
+        return 'destructive';
       case 'auto_approved':
-        return 'blue';
+        return 'outline';
       default:
         return 'default';
     }
@@ -280,460 +251,401 @@ export default function ValueVerificationsPage() {
 
   const handleVerify = (verification: Verification) => {
     setSelectedVerification(verification);
-    verifyForm.setFieldsValue({
-      verified_value: verification.original_value,
-      notes: ''
-    });
-    setVerifyModalVisible(true);
+    setVerifyValue(verification.original_value.toString());
+    setVerifyNotes('');
+    setVerifyModalOpen(true);
   };
 
   const handleReject = (verification: Verification) => {
     setSelectedVerification(verification);
-    rejectForm.setFieldsValue({
-      notes: ''
-    });
-    setRejectModalVisible(true);
+    setRejectNotes('');
+    setRejectModalOpen(true);
   };
 
-  const onVerifySubmit = async (values: any) => {
+  const onVerifySubmit = async () => {
     if (!selectedVerification) return;
 
     try {
       const response = await axios.post(`/billing/value-verifications/${selectedVerification.id}/verify`, {
-        verified_value: values.verified_value,
-        notes: values.notes
+        verified_value: parseFloat(verifyValue),
+        notes: verifyNotes
       });
 
       if (response.data.message) {
-        message.success('Valor verificado com sucesso');
-        setVerifyModalVisible(false);
+        setVerifyModalOpen(false);
         // Refresh data
         window.location.reload();
       }
     } catch (error) {
       console.error('Error verifying value:', error);
-      message.error('Erro ao verificar valor');
     }
   };
 
-  const onRejectSubmit = async (values: any) => {
+  const onRejectSubmit = async () => {
     if (!selectedVerification) return;
 
     try {
       const response = await axios.post(`/billing/value-verifications/${selectedVerification.id}/reject`, {
-        notes: values.notes
+        notes: rejectNotes
       });
 
       if (response.data.message) {
-        message.success('Valor rejeitado com sucesso');
-        setRejectModalVisible(false);
+        setRejectModalOpen(false);
         // Refresh data
         window.location.reload();
       }
     } catch (error) {
       console.error('Error rejecting value:', error);
-      message.error('Erro ao rejeitar valor');
     }
   };
 
-  const columns = [
-    {
-      title: 'ID',
-      dataIndex: 'id',
-      key: 'id',
-      width: 80,
-      render: (id: number) => <Link href={`/value-verifications/${id}`}>{id}</Link>
-    },
-    {
-      title: 'Tipo',
-      dataIndex: 'value_type',
-      key: 'value_type',
-      width: 150,
-      render: (valueType: string) => (
-        <Tag color="blue">{getValueTypeDisplay(valueType)}</Tag>
-      )
-    },
-    {
-      title: 'Valor Original',
-      dataIndex: 'original_value',
-      key: 'original_value',
-      width: 120,
-      render: (value: number) => formatCurrency(value)
-    },
-    {
-      title: 'Valor Verificado',
-      dataIndex: 'verified_value',
-      key: 'verified_value',
-      width: 120,
-      render: (value: number) => value ? formatCurrency(value) : '-'
-    },
-    {
-      title: 'Prioridade',
-      dataIndex: 'priority',
-      key: 'priority',
-      width: 100,
-      render: (priority: string) => (
-        <Tag color={getPriorityColor(priority)}>
-          {priority.toUpperCase()}
-        </Tag>
-      )
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      width: 100,
-      render: (status: string) => (
-        <Tag color={getStatusColor(status)}>
-          {getStatusText(status)}
-        </Tag>
-      )
-    },
-    {
-      title: 'Motivo',
-      dataIndex: 'verification_reason',
-      key: 'verification_reason',
-      ellipsis: true,
-      render: (reason: string) => (
-        <Tooltip title={reason}>
-          <Text ellipsis>{reason}</Text>
-        </Tooltip>
-      )
-    },
-    {
-      title: 'Cobrança',
-      key: 'billing',
-      width: 120,
-      render: (_: any, record: Verification) => (
-        <Space direction="vertical" size={0}>
-          {record.billingBatch && (
-            <Link href={`/billing/batches/${record.billingBatch.id}`}>
-              <Tag icon={<FileTextOutlined />} color="green">
-                Lote #{record.billingBatch.id}
-              </Tag>
-            </Link>
-          )}
-          {record.billingItem && (
-            <Link href={`/billing/items/${record.billingItem.id}`}>
-              <Tag icon={<DollarOutlined />} color="blue">
-                Item #{record.billingItem.id}
-              </Tag>
-            </Link>
-          )}
-        </Space>
-      )
-    },
-    {
-      title: 'Agendamento',
-      key: 'appointment',
-      width: 120,
-      render: (_: any, record: Verification) => (
-        record.appointment ? (
-          <Link href={`/appointments/${record.appointment.id}`}>
-            <Tag icon={<CalendarOutlined />} color="purple">
-              #{record.appointment.id}
-            </Tag>
-          </Link>
-        ) : '-'
-      )
-    },
-    {
-      title: 'Solicitante',
-      key: 'requester',
-      width: 120,
-      render: (_: any, record: Verification) => (
-        record.requester ? record.requester.name : '-'
-      )
-    },
-    {
-      title: 'Data Criação',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      width: 120,
-      render: (date: string) => new Date(date).toLocaleDateString('pt-BR')
-    },
-    {
-      title: 'Ações',
-      key: 'actions',
-      width: 150,
-      render: (_: any, record: Verification) => (
-        <Space>
-          <Link href={`/value-verifications/${record.id}`}>
-            <Button type="link" icon={<EyeOutlined />} size="small">
-              Ver
-            </Button>
-          </Link>
-          {canVerify && record.status === 'pending' && (
-            <>
-              <Button 
-                type="link" 
-                icon={<CheckCircleOutlined />} 
-                size="small"
-                onClick={() => handleVerify(record)}
-                style={{ color: 'green' }}
-              >
-                Verificar
-              </Button>
-              <Button 
-                type="link" 
-                icon={<CloseCircleOutlined />} 
-                size="small"
-                onClick={() => handleReject(record)}
-                style={{ color: 'red' }}
-              >
-                Rejeitar
-              </Button>
-            </>
-          )}
-        </Space>
-      )
-    }
-  ];
-
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <Title level={2}>Verificação de Valores</Title>
-        <Text type="secondary">
+    <div className="p-6 space-y-6">
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold tracking-tight">Verificação de Valores</h1>
+        <p className="text-muted-foreground">
           Gerencie a verificação de valores para cobranças e agendamentos
-        </Text>
+        </p>
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
-          <div className="text-center">
-            <Title level={3} style={{ margin: 0, color: '#1890ff' }}>
-              {statistics.total}
-            </Title>
-            <Text type="secondary">Total</Text>
-          </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{statistics.total}</div>
+          </CardContent>
         </Card>
+        
         <Card>
-          <div className="text-center">
-            <Title level={3} style={{ margin: 0, color: '#faad14' }}>
-              {statistics.pending}
-            </Title>
-            <Text type="secondary">Pendentes</Text>
-          </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pendentes</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">{statistics.pending}</div>
+          </CardContent>
         </Card>
+        
         <Card>
-          <div className="text-center">
-            <Title level={3} style={{ margin: 0, color: '#52c41a' }}>
-              {statistics.verified + statistics.auto_approved}
-            </Title>
-            <Text type="secondary">Verificados</Text>
-          </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Verificados</CardTitle>
+            <CheckCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{statistics.verified + statistics.auto_approved}</div>
+          </CardContent>
         </Card>
+        
         <Card>
-          <div className="text-center">
-            <Title level={3} style={{ margin: 0, color: '#ff4d4f' }}>
-              {statistics.overdue}
-            </Title>
-            <Text type="secondary">Vencidos</Text>
-          </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Vencidos</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{statistics.overdue}</div>
+          </CardContent>
         </Card>
       </div>
 
       {/* Filters */}
-      <Card className="mb-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            Filtros
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
         <div className="flex flex-wrap gap-4 items-center">
-          <Search
+            <div className="relative">
+              <Search className="h-4 w-4 absolute left-3 top-3 text-muted-foreground" />
+              <Input
             placeholder="Buscar por motivo, notas, solicitante..."
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            style={{ width: 300 }}
-            allowClear
-          />
-          
-          <Select
-            placeholder="Tipo de valor"
-            value={valueTypeFilter}
-            onChange={setValueTypeFilter}
-            style={{ width: 200 }}
-            allowClear
-          >
-            <Option value="appointment_price">Preço do Agendamento</Option>
-            <Option value="procedure_price">Preço do Procedimento</Option>
-            <Option value="specialty_price">Preço da Especialidade</Option>
-            <Option value="contract_price">Preço do Contrato</Option>
-            <Option value="billing_amount">Valor de Cobrança</Option>
+                className="pl-10 w-80"
+              />
+            </div>
+            
+            <Select value={valueTypeFilter} onValueChange={setValueTypeFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Tipo de valor" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="appointment_price">Preço do Agendamento</SelectItem>
+                <SelectItem value="procedure_price">Preço do Procedimento</SelectItem>
+                <SelectItem value="specialty_price">Preço da Especialidade</SelectItem>
+                <SelectItem value="contract_price">Preço do Contrato</SelectItem>
+                <SelectItem value="billing_amount">Valor de Cobrança</SelectItem>
+              </SelectContent>
           </Select>
 
-          <Select
-            placeholder="Prioridade"
-            value={priorityFilter}
-            onChange={setPriorityFilter}
-            style={{ width: 150 }}
-            allowClear
-          >
-            <Option value="low">Baixa</Option>
-            <Option value="medium">Média</Option>
-            <Option value="high">Alta</Option>
-            <Option value="critical">Crítica</Option>
+            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+              <SelectTrigger className="w-32">
+                <SelectValue placeholder="Prioridade" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="low">Baixa</SelectItem>
+                <SelectItem value="medium">Média</SelectItem>
+                <SelectItem value="high">Alta</SelectItem>
+                <SelectItem value="critical">Crítica</SelectItem>
+              </SelectContent>
           </Select>
-
-          <RangePicker
-            value={dateRange}
-            onChange={setDateRange}
-            placeholder={['Data início', 'Data fim']}
-          />
 
           <Button 
-            icon={<SyncOutlined />} 
+              variant="outline"
             onClick={() => window.location.reload()}
+              className="flex items-center gap-2"
           >
+              <RefreshCw className="h-4 w-4" />
             Atualizar
           </Button>
         </div>
+        </CardContent>
       </Card>
 
       {/* Tabs */}
       <Card>
-        <Tabs activeKey={activeTab} onChange={setActiveTab}>
-          <TabPane 
-            tab={
-              <span>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-6">
+            <TabsTrigger value="pending" className="flex items-center gap-2">
                 Pendentes
-                <Badge count={statistics.pending} style={{ marginLeft: 8 }} />
-              </span>
-            } 
-            key="pending" 
-          />
-          <TabPane 
-            tab={
-              <span>
+              <Badge variant="secondary" className="ml-1">{statistics.pending}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="verified" className="flex items-center gap-2">
                 Verificados
-                <Badge count={statistics.verified + statistics.auto_approved} style={{ marginLeft: 8 }} />
-              </span>
-            } 
-            key="verified" 
-          />
-          <TabPane 
-            tab={
-              <span>
+              <Badge variant="secondary" className="ml-1">{statistics.verified + statistics.auto_approved}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="rejected" className="flex items-center gap-2">
                 Rejeitados
-                <Badge count={statistics.rejected} style={{ marginLeft: 8 }} />
-              </span>
-            } 
-            key="rejected" 
-          />
-          <TabPane 
-            tab={
-              <span>
+              <Badge variant="secondary" className="ml-1">{statistics.rejected}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="auto_approved" className="flex items-center gap-2">
                 Auto-aprovados
-                <Badge count={statistics.auto_approved} style={{ marginLeft: 8 }} />
-              </span>
-            } 
-            key="auto_approved" 
-          />
-          <TabPane 
-            tab={
-              <span>
+              <Badge variant="secondary" className="ml-1">{statistics.auto_approved}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="overdue" className="flex items-center gap-2">
                 Vencidos
-                <Badge count={statistics.overdue} style={{ marginLeft: 8 }} />
-              </span>
-            } 
-            key="overdue" 
-          />
-          <TabPane tab="Todos" key="all" />
-        </Tabs>
+              <Badge variant="secondary" className="ml-1">{statistics.overdue}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="all">Todos</TabsTrigger>
+          </TabsList>
 
-        <Table
-          columns={columns}
-          dataSource={filteredData}
-          rowKey="id"
-          loading={isLoading}
-          pagination={{
-            total: filteredData.length,
-            pageSize: 10,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            showTotal: (total, range) => 
-              `${range[0]}-${range[1]} de ${total} itens`
-          }}
-          scroll={{ x: 1200 }}
-        />
+          <TabsContent value={activeTab} className="mt-6">
+            {isLoading ? (
+              <div className="space-y-4">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+              </div>
+            ) : filteredData.length > 0 ? (
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Valor Original</TableHead>
+                      <TableHead>Valor Verificado</TableHead>
+                      <TableHead>Prioridade</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Motivo</TableHead>
+                      <TableHead>Cobrança</TableHead>
+                      <TableHead>Agendamento</TableHead>
+                      <TableHead>Solicitante</TableHead>
+                      <TableHead>Data Criação</TableHead>
+                      <TableHead>Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredData.map((verification) => (
+                      <TableRow key={verification.id}>
+                        <TableCell>
+                          <Link href={`/value-verifications/${verification.id}`} className="font-medium hover:underline">
+                            {verification.id}
+                          </Link>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{getValueTypeDisplay(verification.value_type)}</Badge>
+                        </TableCell>
+                        <TableCell className="font-medium">{formatCurrency(verification.original_value)}</TableCell>
+                        <TableCell>
+                          {verification.verified_value ? formatCurrency(verification.verified_value) : '-'}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getPriorityVariant(verification.priority)}>
+                            {verification.priority.toUpperCase()}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getStatusVariant(verification.status)}>
+                            {getStatusText(verification.status)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="max-w-xs truncate" title={verification.verification_reason}>
+                          {verification.verification_reason}
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            {verification.billingBatch && (
+                              <Link href={`/billing/batches/${verification.billingBatch.id}`}>
+                                <Badge variant="outline" className="flex items-center gap-1 w-fit">
+                                  <FileText className="h-3 w-3" />
+                                  Lote #{verification.billingBatch.id}
+                                </Badge>
+                              </Link>
+                            )}
+                            {verification.billingItem && (
+                              <Link href={`/billing/items/${verification.billingItem.id}`}>
+                                <Badge variant="outline" className="flex items-center gap-1 w-fit">
+                                  <DollarSign className="h-3 w-3" />
+                                  Item #{verification.billingItem.id}
+                                </Badge>
+                              </Link>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {verification.appointment ? (
+                            <Link href={`/appointments/${verification.appointment.id}`}>
+                              <Badge variant="outline" className="flex items-center gap-1 w-fit">
+                                <Calendar className="h-3 w-3" />
+                                #{verification.appointment.id}
+                              </Badge>
+                            </Link>
+                          ) : '-'}
+                        </TableCell>
+                        <TableCell>
+                          {verification.requester ? verification.requester.name : '-'}
+                        </TableCell>
+                        <TableCell>
+                          {new Date(verification.created_at).toLocaleDateString('pt-BR')}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Link href={`/value-verifications/${verification.id}`}>
+                              <Button variant="ghost" size="sm">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </Link>
+                            {canVerify && verification.status === 'pending' && (
+                              <>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => handleVerify(verification)}
+                                  className="text-green-600 hover:text-green-700"
+                                >
+                                  <CheckCircle className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => handleReject(verification)}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <XCircle className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-muted-foreground mb-2">Nenhuma verificação encontrada</h3>
+                <p className="text-muted-foreground">Não há verificações de valores que correspondam aos filtros aplicados.</p>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </Card>
 
       {/* Verify Modal */}
-      <Modal
-        title="Verificar Valor"
-        open={verifyModalVisible}
-        onCancel={() => setVerifyModalVisible(false)}
-        footer={null}
-      >
-        <Form
-          form={verifyForm}
-          layout="vertical"
-          onFinish={onVerifySubmit}
-        >
-          <Form.Item
-            label="Valor Verificado"
-            name="verified_value"
-            rules={[{ required: true, message: 'Por favor, informe o valor verificado' }]}
-          >
-            <InputNumber
-              style={{ width: '100%' }}
-              formatter={value => `R$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}
-              parser={value => value!.replace(/R\$\s?|(\.*)/g, '').replace(',', '.')}
-              min={0}
-              step={0.01}
-            />
-          </Form.Item>
-
-          <Form.Item
-            label="Observações"
-            name="notes"
-          >
-            <TextArea rows={4} placeholder="Observações sobre a verificação..." />
-          </Form.Item>
-
-          <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit">
+      <Dialog open={verifyModalOpen} onOpenChange={setVerifyModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Verificar Valor</DialogTitle>
+            <DialogDescription>
+              Confirme o valor verificado e adicione observações se necessário.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="verified_value">Valor Verificado</Label>
+              <Input
+                id="verified_value"
+                type="number"
+                step="0.01"
+                min="0"
+                value={verifyValue}
+                onChange={(e) => setVerifyValue(e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="verify_notes">Observações</Label>
+              <Textarea
+                id="verify_notes"
+                value={verifyNotes}
+                onChange={(e) => setVerifyNotes(e.target.value)}
+                placeholder="Observações sobre a verificação..."
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVerifyModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={onVerifySubmit}>
                 Verificar
               </Button>
-              <Button onClick={() => setVerifyModalVisible(false)}>
-                Cancelar
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Reject Modal */}
-      <Modal
-        title="Rejeitar Valor"
-        open={rejectModalVisible}
-        onCancel={() => setRejectModalVisible(false)}
-        footer={null}
-      >
-        <Form
-          form={rejectForm}
-          layout="vertical"
-          onFinish={onRejectSubmit}
-        >
-          <Form.Item
-            label="Motivo da Rejeição"
-            name="notes"
-            rules={[{ required: true, message: 'Por favor, informe o motivo da rejeição' }]}
-          >
-            <TextArea rows={4} placeholder="Motivo da rejeição..." />
-          </Form.Item>
-
-          <Form.Item>
-            <Space>
-              <Button type="primary" danger htmlType="submit">
+      <Dialog open={rejectModalOpen} onOpenChange={setRejectModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rejeitar Valor</DialogTitle>
+            <DialogDescription>
+              Informe o motivo da rejeição do valor.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="reject_notes">Motivo da Rejeição</Label>
+              <Textarea
+                id="reject_notes"
+                value={rejectNotes}
+                onChange={(e) => setRejectNotes(e.target.value)}
+                placeholder="Motivo da rejeição..."
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={onRejectSubmit}>
                 Rejeitar
               </Button>
-              <Button onClick={() => setRejectModalVisible(false)}>
-                Cancelar
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

@@ -1,32 +1,21 @@
-import { 
-  Row, 
-  Col, 
-  Card, 
-  Statistic, 
-  Typography, 
-  List, 
-  Button, 
-  Tag, 
-  Space,
-  Empty,
-  Tabs,
-  Progress
-} from 'antd';
-import { 
-  DollarOutlined,
-  ArrowUpOutlined,
-  ArrowDownOutlined,
-  CheckCircleOutlined,
-  ClockCircleOutlined,
-  TeamOutlined,
-  FileTextOutlined,
-  BankOutlined
-} from '@ant-design/icons';
 import Link from 'next/link';
 import { DashboardStats, PendingItem } from '../../services/dashboardService';
-
-const { Title, Text, Paragraph } = Typography;
-const { TabPane } = Tabs;
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
+import { 
+  DollarSign, 
+  TrendingUp, 
+  TrendingDown, 
+  Clock, 
+  CheckCircle, 
+  AlertTriangle, 
+  ArrowRight, 
+  Eye
+} from 'lucide-react';
 
 interface FinancialDashboardProps {
   stats: DashboardStats;
@@ -39,384 +28,213 @@ const FinancialDashboard: React.FC<FinancialDashboardProps> = ({
   pendingItems,
   loading 
 }) => {
-  // Calculate percentage for revenue progress
-  const calculatePercentage = (current: number, target: number) => {
-    if (!target) return 0;
-    const percentage = (current / target) * 100;
-    return percentage > 100 ? 100 : percentage;
-  };
-
-  // Example monthly target (this would typically come from the backend)
-  const monthlyRevenueTarget = 100000;
-  const revenueProgress = calculatePercentage(
-    stats.revenue?.month_to_date || 0,
-    monthlyRevenueTarget
-  );
-
   return (
     <>
-      <Row gutter={[24, 24]}>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {/* Main Statistics */}
-        <Col xs={24} sm={12} md={6}>
-          <Card loading={loading}>
-            <Statistic 
-              title="Receita Total" 
-              value={stats.revenue?.total || 0} 
-              precision={2}
-              suffix="R$"
-              prefix={<DollarOutlined />} 
-            />
-            <div style={{ marginTop: 12 }}>
-              <Link href="/reports/financial" passHref>
-                <Button type="link" size="small" style={{ paddingLeft: 0 }}>Ver relatório</Button>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Receita Mensal</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {loading ? <Skeleton className="h-8 w-16" /> : `R$ ${(stats.revenue?.month_to_date || 0).toFixed(2)}`}
+            </div>
+            <div className="mt-2">
+              <Link href="/reports/financial">
+                <Button variant="link" size="sm" className="p-0">Ver relatório</Button>
               </Link>
             </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card loading={loading}>
-            <Statistic 
-              title="Receita (Mês Atual)" 
-              value={stats.revenue?.month_to_date || 0}
-              precision={2}
-              suffix="R$"
-              prefix={<DollarOutlined />} 
-            />
-            <div style={{ marginTop: 12 }}>
-              <Progress percent={Math.round(revenueProgress)} status="active" />
-            </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card loading={loading}>
-            <Statistic 
-              title="Pagamentos Pendentes" 
-              value={stats.revenue?.pending || 0} 
-              precision={2}
-              suffix="R$"
-              prefix={<ClockCircleOutlined />} 
-            />
-            <div style={{ marginTop: 12 }}>
-              <Link href="/payments?status=pending" passHref>
-                <Button type="link" size="small" style={{ paddingLeft: 0 }}>Ver todos</Button>
-              </Link>
-            </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card loading={loading}>
-            <Statistic 
-              title="Profissionais p/ Pagar" 
-              value={stats.professionals?.pending_payment || 0} 
-              prefix={<TeamOutlined />} 
-            />
-            <div style={{ marginTop: 12 }}>
-              <Link href="/professionals?payment_status=pending" passHref>
-                <Button type="link" size="small" style={{ paddingLeft: 0 }}>Ver todos</Button>
-              </Link>
-            </div>
-          </Card>
-        </Col>
+          </CardContent>
+        </Card>
         
-        {/* Revenue Growth Card */}
-        <Col xs={24} md={12}>
-          <Card 
-            title="Crescimento de Receita" 
-            loading={loading}
-          >
-            <Row gutter={[16, 16]}>
-              <Col span={12}>
-                <Card>
-                  <Statistic
-                    title="Últimos 30 dias"
-                    value={stats.revenue?.last_30_days || 0}
-                    precision={2}
-                    valueStyle={{ color: '#3f8600' }}
-                    prefix={<ArrowUpOutlined />}
-                    suffix="R$"
-                  />
-                </Card>
-              </Col>
-              <Col span={12}>
-                <Card>
-                  <Statistic
-                    title="Crescimento (vs mês anterior)"
-                    value={15.3} // Example value
-                    precision={1}
-                    valueStyle={{ color: '#3f8600' }}
-                    prefix={<ArrowUpOutlined />}
-                    suffix="%"
-                  />
-                </Card>
-              </Col>
-              <Col span={24}>
-                <div style={{ marginTop: 16 }}>
-                  <Link href="/reports/financial-growth">
-                    <Button type="primary" block>
-                      Ver relatório completo de crescimento
-                    </Button>
-                  </Link>
-                </div>
-              </Col>
-            </Row>
-          </Card>
-        </Col>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Receita Pendente</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {loading ? <Skeleton className="h-8 w-16" /> : `R$ ${(stats.revenue?.pending || 0).toFixed(2)}`}
+            </div>
+            <div className="mt-2">
+              <Link href="/billing/pending">
+                <Button variant="link" size="sm" className="p-0">Ver pendências</Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Verificações Pendentes</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{loading ? <Skeleton className="h-8 w-16" /> : stats.value_verifications?.pending || 0}</div>
+            <div className="mt-2">
+              <Link href="/value-verifications">
+                <Button variant="link" size="sm" className="p-0">Ver todas</Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Faturamento Aprovado</CardTitle>
+            <CheckCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {loading ? <Skeleton className="h-8 w-16" /> : `R$ ${(stats.revenue?.approved || 0).toFixed(2)}`}
+            </div>
+            <div className="mt-2">
+              <Link href="/billing/approved">
+                <Button variant="link" size="sm" className="p-0">Ver aprovados</Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-        {/* Pending Items Section */}
-        <Col xs={24} md={12}>
-          <Card
-            title={
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Itens Pendentes</span>
+      {/* Financial Overview */}
+      <div className="grid gap-6 md:grid-cols-2 mt-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Verificações de Valores Pendentes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="space-y-4">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
               </div>
-            }
-            loading={loading}
-          >
-            <Tabs defaultActiveKey="1">
-              <TabPane tab="Pagamentos" key="1">
-                {pendingItems.payments && pendingItems.payments.length > 0 ? (
-                  <List
-                    size="small"
-                    dataSource={pendingItems.payments}
-                    renderItem={item => (
-                      <List.Item
-                        actions={[
-                          <Link key="approve" href={`${item.link}/process`}>
-                            <Button size="small" type="primary" icon={<CheckCircleOutlined />}>Processar</Button>
-                          </Link>
-                        ]}
-                      >
-                        <List.Item.Meta
-                          avatar={<DollarOutlined style={{ fontSize: 24, color: '#52c41a' }} />}
-                          title={
-                            <div>
-                              <Link href={item.link}>{item.title}</Link>
-                              <Tag color={item.priority === 'high' ? 'red' : 'blue'} style={{ marginLeft: 8 }}>
-                                {item.priority === 'high' ? 'Urgente' : 'Normal'}
-                              </Tag>
-                            </div>
-                          }
-                          description={item.description}
-                        />
-                      </List.Item>
-                    )}
-                  />
-                ) : (
-                  <Empty description="Não há pagamentos pendentes" />
-                )}
-              </TabPane>
-              <TabPane tab="Verificações de Valores" key="2">
-                {pendingItems.value_verifications && pendingItems.value_verifications.length > 0 ? (
-                  <List
-                    size="small"
-                    dataSource={pendingItems.value_verifications}
-                    renderItem={item => (
-                      <List.Item>
-                        <List.Item.Meta
-                          avatar={<FileTextOutlined style={{ fontSize: 24, color: '#1890ff' }} />}
-                          title={
-                            <div>
-                              <Link href={item.link}>{item.title}</Link>
-                              <Tag color={item.priority === 'high' ? 'red' : 'blue'} style={{ marginLeft: 8 }}>
-                                {item.priority === 'high' ? 'Urgente' : 'Normal'}
-                              </Tag>
-                            </div>
-                          }
-                          description={item.description}
-                        />
-                      </List.Item>
-                    )}
-                  />
-                ) : (
-                  <Empty description="Não há verificações de valores pendentes" />
-                )}
-              </TabPane>
-            </Tabs>
-          </Card>
-        </Col>
+            ) : pendingItems.value_verifications && pendingItems.value_verifications.length > 0 ? (
+              <div className="space-y-4">
+                {pendingItems.value_verifications.map((item, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <DollarSign className="h-4 w-4 text-green-500" />
+                      <div>
+                        <Link href={item.link} className="font-medium hover:underline">
+                          {item.title}
+                        </Link>
+                        <p className="text-sm text-muted-foreground">{item.description}</p>
+                      </div>
+                    </div>
+                    <div className="flex space-x-2">
+                      <Badge variant={item.priority === 'high' ? 'destructive' : 'secondary'}>
+                        {item.priority === 'high' ? 'Urgente' : 'Normal'}
+                      </Badge>
+                      <Link href={`${item.link}/review`}>
+                        <Button size="sm" variant="outline" className="flex items-center space-x-1">
+                          <Eye className="h-4 w-4" />
+                          <span>Revisar</span>
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                Não há verificações de valores pendentes
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Estatísticas Financeiras</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium">Receita Total (Mês)</span>
+                <span className="text-sm text-muted-foreground">R$ {(stats.revenue?.total || 0).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium">Receita Realizada</span>
+                <span className="text-sm text-muted-foreground">R$ {(stats.revenue?.realized || 0).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium">Verificações Aprovadas</span>
+                <span className="text-sm text-muted-foreground">{stats.value_verifications?.approved || 0}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium">Verificações Rejeitadas</span>
+                <span className="text-sm text-muted-foreground">{stats.value_verifications?.rejected || 0}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-        {/* Financial Health */}
-        <Col xs={24}>
-          <Card 
-            title="Saúde Financeira" 
-            loading={loading}
-          >
-            <Row gutter={[24, 24]}>
-              <Col xs={24} md={6}>
-                <Card>
-                  <Statistic
-                    title="Taxa de Conversão"
-                    value={86.7} // Example value
-                    precision={1}
-                    suffix="%"
-                    valueStyle={{ color: '#3f8600' }}
-                  />
-                  <div style={{ marginTop: 8 }}>
-                    <Text type="secondary">
-                      Consultas confirmadas vs agendadas
-                    </Text>
-                  </div>
-                </Card>
-              </Col>
-              <Col xs={24} md={6}>
-                <Card>
-                  <Statistic
-                    title="Valor Médio"
-                    value={250.0} // Example value
-                    precision={2}
-                    suffix="R$"
-                  />
-                  <div style={{ marginTop: 8 }}>
-                    <Text type="secondary">
-                      Valor médio por consulta
-                    </Text>
-                  </div>
-                </Card>
-              </Col>
-              <Col xs={24} md={6}>
-                <Card>
-                  <Statistic
-                    title="Inadimplência"
-                    value={2.3} // Example value
-                    precision={1}
-                    suffix="%"
-                    valueStyle={{ color: '#cf1322' }}
-                  />
-                  <div style={{ marginTop: 8 }}>
-                    <Text type="secondary">
-                      Taxa de pagamentos em atraso
-                    </Text>
-                  </div>
-                </Card>
-              </Col>
-              <Col xs={24} md={6}>
-                <Card>
-                  <Statistic
-                    title="ROI Marketing"
-                    value={421} // Example value
-                    precision={0}
-                    suffix="%"
-                    valueStyle={{ color: '#3f8600' }}
-                  />
-                  <div style={{ marginTop: 8 }}>
-                    <Text type="secondary">
-                      Retorno sobre investimento em marketing
-                    </Text>
-                  </div>
-                </Card>
-              </Col>
-            </Row>
+      {/* Financial Workflow */}
+      <div className="mt-8">
+        <h2 className="text-2xl font-bold tracking-tight mb-4">Fluxo de Verificação Financeira</h2>
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">1</div>
+                <CardTitle className="text-lg">Entrada</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <CardDescription>
+                Dados financeiros inseridos no sistema
+              </CardDescription>
+            </CardContent>
           </Card>
-        </Col>
-
-        {/* Recent Transactions */}
-        <Col xs={24}>
-          <Card 
-            title="Transações Recentes" 
-            extra={<Link href="/transactions">Ver todas</Link>}
-            loading={loading}
-          >
-            <Row gutter={[24, 24]}>
-              <Col xs={24} md={8}>
-                <Card
-                  className="inner-card"
-                  title="Últimos Recebimentos"
-                  size="small"
-                >
-                  <List
-                    size="small"
-                    dataSource={[
-                      { title: 'Plano de Saúde XYZ', amount: 12500.00, date: '2023-03-10' },
-                      { title: 'Convênio ABC', amount: 8720.50, date: '2023-03-08' },
-                      { title: 'Pagamentos Particulares', amount: 3450.00, date: '2023-03-07' }
-                    ]}
-                    renderItem={item => (
-                      <List.Item>
-                        <div>
-                          <div>{item.title}</div>
-                          <Text type="secondary">{new Date(item.date).toLocaleDateString('pt-BR')}</Text>
-                        </div>
-                        <div>
-                          <Text strong style={{ color: '#52c41a' }}>
-                            + R$ {item.amount.toFixed(2)}
-                          </Text>
-                        </div>
-                      </List.Item>
-                    )}
-                  />
-                </Card>
-              </Col>
-              
-              <Col xs={24} md={8}>
-                <Card
-                  className="inner-card"
-                  title="Últimos Pagamentos"
-                  size="small"
-                >
-                  <List
-                    size="small"
-                    dataSource={[
-                      { title: 'Folha de Profissionais', amount: 28700.00, date: '2023-03-05' },
-                      { title: 'Fornecedores', amount: 5430.20, date: '2023-03-04' },
-                      { title: 'Infraestrutura', amount: 2300.00, date: '2023-03-03' }
-                    ]}
-                    renderItem={item => (
-                      <List.Item>
-                        <div>
-                          <div>{item.title}</div>
-                          <Text type="secondary">{new Date(item.date).toLocaleDateString('pt-BR')}</Text>
-                        </div>
-                        <div>
-                          <Text strong style={{ color: '#f5222d' }}>
-                            - R$ {item.amount.toFixed(2)}
-                          </Text>
-                        </div>
-                      </List.Item>
-                    )}
-                  />
-                </Card>
-              </Col>
-              
-              <Col xs={24} md={8}>
-                <Card
-                  className="inner-card"
-                  title="Aprovações Pendentes"
-                  size="small"
-                  extra={<Link href="/approvals">Ver todas</Link>}
-                >
-                  <List
-                    size="small"
-                    dataSource={[
-                      { title: 'Reembolso #1234', amount: 850.00, date: '2023-03-11' },
-                      { title: 'Adiantamento #567', amount: 2000.00, date: '2023-03-10' },
-                      { title: 'Despesa #890', amount: 320.75, date: '2023-03-09' }
-                    ]}
-                    renderItem={item => (
-                      <List.Item
-                        actions={[
-                          <Button key="approve" size="small" type="link">
-                            Aprovar
-                          </Button>
-                        ]}
-                      >
-                        <div>
-                          <div>{item.title}</div>
-                          <Text type="secondary">{new Date(item.date).toLocaleDateString('pt-BR')}</Text>
-                        </div>
-                        <div>
-                          <Text strong>
-                            R$ {item.amount.toFixed(2)}
-                          </Text>
-                        </div>
-                      </List.Item>
-                    )}
-                  />
-                </Card>
-              </Col>
-            </Row>
+          
+          <Card>
+            <CardHeader>
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 bg-orange-500 text-white rounded-full flex items-center justify-center text-sm font-bold">2</div>
+                <CardTitle className="text-lg">Verificação</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <CardDescription>
+                Segunda pessoa verifica os dados inseridos
+              </CardDescription>
+            </CardContent>
           </Card>
-        </Col>
-      </Row>
+          
+          <Card>
+            <CardHeader>
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold">3</div>
+                <CardTitle className="text-lg">Aprovação</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <CardDescription>
+                Dados aprovados e liberados para processamento
+              </CardDescription>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 bg-purple-500 text-white rounded-full flex items-center justify-center text-sm font-bold">4</div>
+                <CardTitle className="text-lg">Faturamento</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <CardDescription>
+                Geração de fatura e envio para operadora
+              </CardDescription>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </>
   );
 };

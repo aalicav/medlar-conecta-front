@@ -1,38 +1,28 @@
-import { 
-  Row, 
-  Col, 
-  Card, 
-  Statistic, 
-  Typography, 
-  List, 
-  Button, 
-  Tag, 
-  Space,
-  Empty,
-  Tabs,
-  Alert
-} from 'antd';
-import { 
-  UserOutlined, 
-  DollarOutlined, 
-  CalendarOutlined,
-  FileTextOutlined,
-  BankOutlined,
-  TeamOutlined,
-  ArrowRightOutlined,
-  CheckCircleOutlined,
-  ClockCircleOutlined,
-  AlertOutlined,
-  MessageOutlined,
-  FileSearchOutlined,
-  SolutionOutlined,
-  FormOutlined
-} from '@ant-design/icons';
 import Link from 'next/link';
 import { DashboardStats, Appointment, PendingItem } from '../../services/dashboardService';
-
-const { Title, Text, Paragraph } = Typography;
-const { TabPane } = Tabs;
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
+import { 
+  FileText, 
+  DollarSign, 
+  Calendar, 
+  Users, 
+  MessageSquare, 
+  Building2, 
+  ArrowRight, 
+  CheckCircle, 
+  Clock, 
+  AlertTriangle, 
+  Search, 
+  UserCheck, 
+  FileSignature,
+  TrendingUp
+} from 'lucide-react';
 
 interface AdminDashboardProps {
   stats: DashboardStats | null;
@@ -55,42 +45,42 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const requiredFeatures = [
     {
       title: 'Gestão de Contratos',
-      icon: <FileTextOutlined style={{ fontSize: 24, color: '#1890ff' }} />,
+      icon: <FileText className="h-6 w-6 text-blue-500" />,
       description: 'Fluxo de aprovação: Comercial → Jurídico → Comitê → Direção',
       link: '/contracts',
       isNew: true
     },
     {
       title: 'Verificação Dupla de Valores',
-      icon: <DollarOutlined style={{ fontSize: 24, color: '#52c41a' }} />,
+      icon: <DollarSign className="h-6 w-6 text-green-500" />,
       description: 'Validação de dados financeiros por dois colaboradores',
       link: '/value-verifications',
       isNew: true
     },
     {
       title: 'Assinaturas Eletrônicas',
-      icon: <FormOutlined style={{ fontSize: 24, color: '#722ed1' }} />,
+      icon: <FileSignature className="h-6 w-6 text-purple-500" />,
       description: 'Integração com plataformas de assinatura digital',
       link: '/settings/integrations',
       isNew: true
     },
     {
       title: 'Faturamento Flexível',
-      icon: <DollarOutlined style={{ fontSize: 24, color: '#fa8c16' }} />,
+      icon: <DollarSign className="h-6 w-6 text-orange-500" />,
       description: 'Ciclos de faturamento adaptáveis por contrato',
       link: '/billing/rules',
       isNew: true
     },
     {
       title: 'Relatórios Financeiros',
-      icon: <FileSearchOutlined style={{ fontSize: 24, color: '#eb2f96' }} />,
+      icon: <Search className="h-6 w-6 text-pink-500" />,
       description: 'Relatórios detalhados com assinatura e timbre',
       link: '/reports/financial',
       isNew: true
     },
     {
       title: 'Cadastro Unificado',
-      icon: <SolutionOutlined style={{ fontSize: 24, color: '#13c2c2' }} />,
+      icon: <UserCheck className="h-6 w-6 text-cyan-500" />,
       description: 'Cadastro único para profissionais e estabelecimentos',
       link: '/professionals',
       isNew: true
@@ -99,309 +89,243 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   return (
     <>
-      <Alert
-        message="Bem-vindo à nova versão do Sistema Médico"
-        description="Implementamos recursos de verificação dupla de valores, gestão de contratos com fluxo de aprovação, e cadastro unificado de prestadores conforme requisitos do Dr. Italo."
-        type="info"
-        showIcon
-        closable
-        style={{ marginBottom: 24 }}
-      />
+      <Alert className="mb-6">
+        <AlertDescription>
+          Bem-vindo à nova versão do Sistema Médico. Implementamos recursos de verificação dupla de valores, gestão de contratos com fluxo de aprovação, e cadastro unificado de prestadores conforme requisitos do Dr. Italo.
+        </AlertDescription>
+      </Alert>
       
-      <Row gutter={[24, 24]}>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {/* Main Statistics */}
-        <Col xs={24} sm={12} md={6}>
-          <Card loading={loading}>
-            <Statistic 
-              title="Consultas Hoje" 
-              value={todayAppointmentCount} 
-              prefix={<CalendarOutlined />} 
-            />
-            <div style={{ marginTop: 12 }}>
-              <Link href="/appointments/today" passHref>
-                <Button type="link" size="small" style={{ paddingLeft: 0 }}>Ver detalhes</Button>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Consultas Hoje</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{loading ? <Skeleton className="h-8 w-16" /> : todayAppointmentCount}</div>
+            <div className="mt-2">
+              <Link href="/appointments/today">
+                <Button variant="link" size="sm" className="p-0">Ver detalhes</Button>
               </Link>
             </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card loading={loading}>
-            <Statistic 
-              title="Novos Pacientes (Mês)" 
-              value={stats?.patients?.active || 0} 
-              prefix={<TeamOutlined />} 
-            />
-            <div style={{ marginTop: 12 }}>
-              <Link href="/patients?new=true" passHref>
-                <Button type="link" size="small" style={{ paddingLeft: 0 }}>Ver pacientes</Button>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Novos Pacientes (Mês)</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{loading ? <Skeleton className="h-8 w-16" /> : stats?.patients?.active || 0}</div>
+            <div className="mt-2">
+              <Link href="/patients?new=true">
+                <Button variant="link" size="sm" className="p-0">Ver pacientes</Button>
               </Link>
             </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card loading={loading}>
-            <Statistic 
-              title="Mensagens SURI" 
-              value={suriMessageCount} 
-              prefix={<MessageOutlined />} 
-            />
-            <div style={{ marginTop: 12 }}>
-              <Link href="/chatbot/dashboard" passHref>
-                <Button type="link" size="small" style={{ paddingLeft: 0 }}>Ver análise</Button>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Mensagens SURI</CardTitle>
+            <MessageSquare className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{loading ? <Skeleton className="h-8 w-16" /> : suriMessageCount}</div>
+            <div className="mt-2">
+              <Link href="/chatbot/dashboard">
+                <Button variant="link" size="sm" className="p-0">Ver análise</Button>
               </Link>
             </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card loading={loading}>
-            <Statistic 
-              title="Faturamento (Mês)" 
-              value={stats?.revenue?.month_to_date || 0} 
-              precision={2}
-              suffix="R$" 
-              prefix={<DollarOutlined />} 
-            />
-            <div style={{ marginTop: 12 }}>
-              <Link href="/reports/financial" passHref>
-                <Button type="link" size="small" style={{ paddingLeft: 0 }}>Ver relatório</Button>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Faturamento (Mês)</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {loading ? <Skeleton className="h-8 w-16" /> : `R$ ${(stats?.revenue?.month_to_date || 0).toFixed(2)}`}
+            </div>
+            <div className="mt-2">
+              <Link href="/reports/financial">
+                <Button variant="link" size="sm" className="p-0">Ver relatório</Button>
               </Link>
             </div>
-          </Card>
-        </Col>
-      </Row>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Required Features Section */}
-      <div style={{ marginTop: 24 }}>
-        <Title level={4}>Novas Funcionalidades</Title>
-        <Row gutter={[16, 16]}>
+      <div className="mt-8">
+        <h2 className="text-2xl font-bold tracking-tight mb-4">Novas Funcionalidades</h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {requiredFeatures.map((feature, index) => (
-            <Col xs={24} sm={12} md={8} key={index}>
-              <Card 
-                hoverable 
-                style={{ height: '100%' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    {feature.icon}
-                    <Text strong style={{ marginLeft: 12 }}>{feature.title}</Text>
+            <Link href={feature.link} key={index}>
+              <Card className="hover:bg-accent transition-colors cursor-pointer h-full">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      {feature.icon}
+                      <CardTitle className="text-lg">{feature.title}</CardTitle>
+                    </div>
+                    {feature.isNew && <Badge variant="destructive">Novo</Badge>}
                   </div>
-                  {feature.isNew && <Tag color="red">Novo</Tag>}
-                </div>
-                <Paragraph style={{ flex: 1, marginBottom: 12 }}>
-                  {feature.description}
-                </Paragraph>
-                <Link href={feature.link} passHref>
-                  <Button type="link" style={{ padding: 0 }}>
-                    Acessar <ArrowRightOutlined />
-                  </Button>
-                </Link>
+                  <CardDescription>{feature.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                    <span>Acessar</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </div>
+                </CardContent>
               </Card>
-            </Col>
-          ))}
-        </Row>
-      </div>
-
-      {/* Workflows Section */}
-      <div style={{ marginTop: 24 }}>
-        <Title level={4}>Fluxos de Trabalho</Title>
-        <Row gutter={[16, 16]}>
-          <Col xs={24} md={12}>
-            <Card 
-              title="Contratos e Negociações" 
-              extra={<Link href="/contracts">Gerenciar</Link>}
-              loading={loading}
-            >
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <Alert
-                  message="Fluxo de Aprovação de Contratos"
-                  description={
-                    <ol style={{ marginBottom: 0, paddingLeft: 16 }}>
-                      <li>Início pela equipe comercial</li>
-                      <li>Análise e parecer do departamento jurídico</li>
-                      <li>Revisão por comitê</li>
-                      <li>Aprovação final da direção</li>
-                      <li>Assinatura eletrônica pelos envolvidos</li>
-                    </ol>
-                  }
-                  type="info"
-                  showIcon
-                />
-                
-                <Alert
-                  message="Negociações Extemporâneas"
-                  description="Procedimentos não contratados urgentes geram alerta para área comercial/jurídica para preparação de aditivo contratual."
-                  type="warning"
-                  showIcon
-                />
-              </Space>
-              
-              <div style={{ marginTop: 16 }}>
-                <Title level={5}>Contratos Pendentes</Title>
-                {pendingItems.contracts && pendingItems.contracts.length > 0 ? (
-                  <List
-                    size="small"
-                    dataSource={pendingItems.contracts.slice(0, 3)}
-                    renderItem={item => (
-                      <List.Item>
-                        <List.Item.Meta
-                          avatar={<FileTextOutlined style={{ fontSize: 16, color: '#1890ff' }} />}
-                          title={<Link href={item.link}>{item.title}</Link>}
-                          description={item.description}
-                        />
-                        <Tag color={item.priority === 'high' ? 'red' : 'blue'}>
-                          {item.priority === 'high' ? 'Urgente' : 'Normal'}
-                        </Tag>
-                      </List.Item>
-                    )}
-                  />
-                ) : (
-                  <Empty description="Não há contratos pendentes" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-                )}
-              </div>
-            </Card>
-          </Col>
-          
-          <Col xs={24} md={12}>
-            <Card 
-              title="Faturamento e Verificações" 
-              extra={<Link href="/financials">Gerenciar</Link>}
-              loading={loading}
-            >
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <Alert
-                  message="Verificação Dupla de Valores"
-                  description="Toda entrada de dados financeiros sensíveis requer uma dupla checagem: uma pessoa insere a informação e outra aprova."
-                  type="info"
-                  showIcon
-                />
-                
-                <Alert
-                  message="Ciclos de Faturamento"
-                  description="O sistema suporta diferentes periodicidades de faturamento conforme negociado em contrato com cada operadora."
-                  type="success"
-                  showIcon
-                />
-              </Space>
-              
-              <div style={{ marginTop: 16 }}>
-                <Title level={5}>Verificações Pendentes</Title>
-                {pendingItems.value_verifications && pendingItems.value_verifications.length > 0 ? (
-                  <List
-                    size="small"
-                    dataSource={pendingItems.value_verifications.slice(0, 3)}
-                    renderItem={item => (
-                      <List.Item>
-                        <List.Item.Meta
-                          avatar={<DollarOutlined style={{ fontSize: 16, color: '#52c41a' }} />}
-                          title={<Link href={item.link}>{item.title}</Link>}
-                          description={item.description}
-                        />
-                        <Tag color={item.priority === 'high' ? 'red' : 'blue'}>
-                          {item.priority === 'high' ? 'Urgente' : 'Normal'}
-                        </Tag>
-                      </List.Item>
-                    )}
-                  />
-                ) : (
-                  <Empty description="Não há verificações pendentes" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-                )}
-              </div>
-            </Card>
-          </Col>
-        </Row>
-      </div>
-
-      {/* Specialty Registration Flow */}
-      <div style={{ marginTop: 24 }}>
-        <Card 
-          title="Fluxo de Cadastro de Especialidades" 
-          loading={loading}
-        >
-          <Row gutter={[24, 24]}>
-            <Col xs={24} md={8}>
-              <Card
-                className="inner-card"
-                title="1. Cadastro Unificado"
-                size="small"
-                bordered={false}
-                style={{ background: '#f9f9f9' }}
-              >
-                <Space direction="vertical" style={{ width: '100%' }}>
-                  <Paragraph>
-                    <strong>Cadastro único</strong> para profissional ou estabelecimento de saúde.
-                  </Paragraph>
-                  <Paragraph>
-                    Campo único que aceita tanto CPF quanto CNPJ.
-                  </Paragraph>
-                  <Paragraph>
-                    Inclui dados básicos como nome, documento, endereço, contatos e documentos comprobatórios.
-                  </Paragraph>
-                </Space>
-                <Link href="/professionals/new">
-                  <Button type="primary" size="small">Iniciar Cadastro</Button>
-                </Link>
-              </Card>
-            </Col>
-            
-            <Col xs={24} md={8}>
-              <Card
-                className="inner-card"
-                title="2. Vincular ao Plano"
-                size="small"
-                bordered={false}
-                style={{ background: '#f9f9f9' }}
-              >
-                <Space direction="vertical" style={{ width: '100%' }}>
-                  <Paragraph>
-                    Após o cadastro básico, vincular o prestador a um ou mais planos de saúde.
-                  </Paragraph>
-                  <Paragraph>
-                    Seleção das especialidades oferecidas pelo prestador.
-                  </Paragraph>
-                  <Paragraph>
-                    Esta etapa é realizada pela equipe comercial.
-                  </Paragraph>
-                </Space>
-                <Link href="/professionals/specialties">
-                  <Button type="primary" size="small">Gerenciar Especialidades</Button>
-                </Link>
-              </Card>
-            </Col>
-            
-            <Col xs={24} md={8}>
-              <Card
-                className="inner-card"
-                title="3. Negociação e Contrato"
-                size="small"
-                bordered={false}
-                style={{ background: '#f9f9f9' }}
-              >
-                <Space direction="vertical" style={{ width: '100%' }}>
-                  <Paragraph>
-                    Negociação de valores para especialidades e procedimentos.
-                  </Paragraph>
-                  <Paragraph>
-                    Geração do contrato com base no modelo adequado.
-                  </Paragraph>
-                  <Paragraph>
-                    Fluxo de aprovações e assinatura eletrônica.
-                  </Paragraph>
-                </Space>
-                <Link href="/contracts/new">
-                  <Button type="primary" size="small">Criar Contrato</Button>
-                </Link>
-              </Card>
-            </Col>
-          </Row>
-          
-          <div style={{ marginTop: 16, textAlign: 'center' }}>
-            <Link href="/settings/workflows">
-              <Button type="default">
-                Configurar Fluxos de Trabalho <ArrowRightOutlined />
-              </Button>
             </Link>
-          </div>
-        </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* Appointments and Pending Items */}
+      <div className="grid gap-6 md:grid-cols-3 mt-8">
+        <div className="md:col-span-2">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle>Próximas Consultas</CardTitle>
+                <Link href="/appointments">
+                  <Button variant="link" size="sm">Ver todas</Button>
+                </Link>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                </div>
+              ) : upcomingAppointments.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Paciente</TableHead>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {upcomingAppointments.map((appointment, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="font-medium">{appointment.patient}</TableCell>
+                        <TableCell>
+                          {new Date(appointment.date).toLocaleDateString('pt-BR')} às {appointment.time}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={appointment.status === 'confirmed' ? 'default' : 'secondary'}>
+                            {appointment.status === 'confirmed' ? 'Confirmado' : 'Pendente'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex space-x-2">
+                            <Button size="sm">Confirmar</Button>
+                            <Button size="sm" variant="outline">Reagendar</Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  Não há consultas agendadas
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+        
+        <div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Itens Pendentes</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Tabs defaultValue="contracts">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="contracts">Contratos</TabsTrigger>
+                  <TabsTrigger value="financial">Financeiro</TabsTrigger>
+                </TabsList>
+                <TabsContent value="contracts">
+                  {loading ? (
+                    <div className="space-y-4">
+                      <Skeleton className="h-12 w-full" />
+                      <Skeleton className="h-12 w-full" />
+                    </div>
+                  ) : pendingItems.contracts && pendingItems.contracts.length > 0 ? (
+                    <div className="space-y-4">
+                      {pendingItems.contracts.map((item, index) => (
+                        <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex items-center space-x-3">
+                            <FileText className="h-4 w-4 text-primary" />
+                            <div>
+                              <Link href={item.link} className="font-medium hover:underline">
+                                {item.title}
+                              </Link>
+                              <p className="text-sm text-muted-foreground">{item.description}</p>
+                            </div>
+                          </div>
+                          <Badge variant={item.priority === 'high' ? 'destructive' : 'secondary'}>
+                            {item.priority === 'high' ? 'Urgente' : 'Normal'}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Nenhum contrato pendente
+                    </div>
+                  )}
+                </TabsContent>
+                <TabsContent value="financial">
+                  {loading ? (
+                    <div className="space-y-4">
+                      <Skeleton className="h-12 w-full" />
+                      <Skeleton className="h-12 w-full" />
+                    </div>
+                  ) : pendingItems.financial && pendingItems.financial.length > 0 ? (
+                    <div className="space-y-4">
+                      {pendingItems.financial.map((item, index) => (
+                        <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex items-center space-x-3">
+                            <DollarSign className="h-4 w-4 text-green-500" />
+                            <div>
+                              <Link href={item.link} className="font-medium hover:underline">
+                                {item.title}
+                              </Link>
+                              <p className="text-sm text-muted-foreground">{item.description}</p>
+                            </div>
+                          </div>
+                          <Badge variant={item.priority === 'high' ? 'destructive' : 'secondary'}>
+                            {item.priority === 'high' ? 'Urgente' : 'Normal'}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Nenhum item financeiro pendente
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </>
   );

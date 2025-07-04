@@ -1,37 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { 
-  Row, 
-  Col, 
-  Card as AntCard, 
-  Statistic, 
-  Typography, 
-  List, 
-  Button, 
-  Badge, 
-  Tag, 
-  Space,
-  Alert,
-  message,
-  Empty,
-  Tabs
-} from 'antd';
-import { 
-  UserOutlined, 
-  DollarOutlined, 
-  CalendarOutlined,
-  MessageOutlined,
-  MedicineBoxOutlined,
-  BankOutlined,
-  TeamOutlined,
-  ArrowRightOutlined,
-  DashboardOutlined,
-  FileTextOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  AlertOutlined
-} from '@ant-design/icons';
 import Link from 'next/link';
 import { dashboardService, DashboardStats, Appointment, PendingItem } from '../services/dashboardService';
 import { redirect } from "next/navigation";
@@ -42,12 +11,31 @@ import OperationalDashboard from '@/app/components/dashboards/OperationalDashboa
 import FinancialDashboard from '@/app/components/dashboards/FinancialDashboard';
 import ProfessionalDashboard from '@/app/components/dashboards/ProfessionalDashboard';
 import ClinicDashboard from '@/app/components/dashboards/ClinicDashboard';
-import { CardContent, CardDescription, CardHeader, CardTitle, Card as UICard } from '@/components/ui/card'
-import { TrendingUp, Clock } from 'lucide-react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Skeleton } from '@/components/ui/skeleton'
 import { ConditionalRender } from "@/components/conditional-render";
-
-const { Title, Text, Paragraph } = Typography;
-const { TabPane } = Tabs;
+import { 
+  TrendingUp, 
+  Clock, 
+  Calendar, 
+  Users, 
+  MessageSquare, 
+  DollarSign, 
+  Stethoscope, 
+  Building2, 
+  User,
+  FileText,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  ArrowRight,
+  Plus
+} from 'lucide-react'
 
 export default function DashboardHomepage() {
   const [loading, setLoading] = useState(true)
@@ -86,7 +74,6 @@ export default function DashboardHomepage() {
       } catch (err) {
         console.error("Error fetching dashboard data:", err)
         setError("Não foi possível carregar os dados do dashboard. Tente novamente mais tarde.")
-        message.error("Erro ao carregar os dados do dashboard")
       } finally {
         setLoading(false)
       }
@@ -139,25 +126,49 @@ export default function DashboardHomepage() {
   const featureCards = [
     { 
       title: 'Assistente SURI', 
-      icon: <MessageOutlined style={{ fontSize: 24, color: 'hsl(var(--primary))' }} />,
+      icon: <MessageSquare className="h-6 w-6 text-primary" />,
       description: 'Interaja com nosso assistente virtual para agendamentos e atendimento ao paciente',
       link: '/chatbot',
-      color: 'hsl(var(--primary) / 0.1)',
+      color: 'bg-primary/10',
       isNew: true
     },
     { 
       title: 'Privacidade (LGPD)', 
-      icon: <UserOutlined style={{ fontSize: 24, color: 'hsl(var(--accent))' }} />,
+      icon: <User className="h-6 w-6 text-accent-foreground" />,
       description: 'Gerencie consentimentos e solicitações de dados conforme a Lei Geral de Proteção de Dados',
       link: '/settings/privacy',
-      color: 'hsl(var(--accent) / 0.1)',
+      color: 'bg-accent/10',
       isNew: true
+    },
+    { 
+      title: 'Profissionais', 
+      icon: <Stethoscope className="h-6 w-6 text-orange-500" />,
+      description: 'Gerencie médicos, especialidades e contratos',
+      link: '/professionals',
+      color: 'bg-orange-500/10',
+      isNew: false
+    },
+    { 
+      title: 'Estabelecimentos', 
+      icon: <Building2 className="h-6 w-6 text-cyan-500" />,
+      description: 'Administre unidades, horários e serviços',
+      link: '/clinics',
+      color: 'bg-cyan-500/10',
+      isNew: false
+    },
+    { 
+      title: 'Pacientes', 
+      icon: <Users className="h-6 w-6 text-pink-500" />,
+      description: 'Cadastro e histórico de pacientes',
+      link: '/patients',
+      color: 'bg-pink-500/10',
+      isNew: false
     }
   ];
 
   // Renderizar dashboard específico baseado no papel do usuário
   const renderRoleDashboard = () => {
-    if (!stats) return <Alert type="info" message="Carregando estatísticas..." />;
+    if (!stats) return <Alert><AlertDescription>Carregando estatísticas...</AlertDescription></Alert>;
     
     switch (userRole) {
       case "director":
@@ -209,274 +220,188 @@ export default function DashboardHomepage() {
         // Dashboard Admin (versão completa)
         return (
           <>
-            <Row gutter={[24, 24]}>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
               {/* Statistics */}
-              <Col xs={24} sm={12} md={6}>
-                <AntCard loading={loading} className="dark-card">
-                  <Statistic 
-                    title="Consultas Hoje" 
-                    value={todayAppointmentCount} 
-                    prefix={<CalendarOutlined />} 
-                  />
-                </AntCard>
-              </Col>
-              <Col xs={24} sm={12} md={6}>
-                <AntCard loading={loading} className="dark-card">
-                  <Statistic 
-                    title="Novos Pacientes (Mês)" 
-                    value={stats.patients?.active} 
-                    prefix={<TeamOutlined />} 
-                  />
-                </AntCard>
-              </Col>
-              <Col xs={24} sm={12} md={6}>
-                <AntCard loading={loading} className="dark-card">
-                  <Statistic 
-                    title="Mensagens SURI" 
-                    value={suriMessageCount} 
-                    prefix={<MessageOutlined />} 
-                  />
-                </AntCard>
-              </Col>
-              <Col xs={24} sm={12} md={6}>
-                <AntCard loading={loading} className="dark-card">
-                  <Statistic 
-                    title="Faturamento (Mês)" 
-                    value={stats.revenue?.total} 
-                    prefix={<DollarOutlined />} 
-                    precision={2} 
-                    suffix="R$"
-                  />
-                </AntCard>
-              </Col>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Consultas Hoje</CardTitle>
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{loading ? <Skeleton className="h-8 w-16" /> : todayAppointmentCount}</div>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Novos Pacientes (Mês)</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{loading ? <Skeleton className="h-8 w-16" /> : stats.patients?.active || 0}</div>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Mensagens SURI</CardTitle>
+                  <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{loading ? <Skeleton className="h-8 w-16" /> : suriMessageCount}</div>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Faturamento (Mês)</CardTitle>
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {loading ? <Skeleton className="h-8 w-16" /> : `R$ ${(stats.revenue?.total || 0).toFixed(2)}`}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
               
               {/* Feature Cards */}
-              <Col xs={24}>
-                <Title level={4} style={{ color: 'rgba(255, 255, 255, 0.95)' }}>Recursos do Sistema</Title>
-                <Row gutter={[16, 16]}>
+            <div className="mt-8">
+              <h2 className="text-2xl font-bold tracking-tight mb-4">Recursos do Sistema</h2>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {featureCards.map((feature, index) => (
-                    <Col xs={24} sm={12} md={8} key={index}>
-                      <AntCard 
-                        hoverable 
-                        style={{ backgroundColor: feature.color }}
-                        styles={{
-                          body: { 
-                            padding: '16px', 
-                            height: '100%', 
-                            display: 'flex', 
-                            flexDirection: 'column' 
-                          }
-                        }}
-                        className="dark-card"
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                          <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <Link href={feature.link} key={index}>
+                    <Card className={`hover:bg-accent transition-colors cursor-pointer h-full ${feature.color}`}>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
                             {feature.icon}
-                            <Text strong style={{ marginLeft: 12, color: 'rgba(255, 255, 255, 0.95)' }}>{feature.title}</Text>
+                            <CardTitle className="text-lg">{feature.title}</CardTitle>
                           </div>
-                          {feature.isNew && <Tag color="red">Novo</Tag>}
+                          {feature.isNew && <Badge variant="destructive">Novo</Badge>}
                         </div>
-                        <Paragraph style={{ flex: 1, marginBottom: 12, color: 'rgba(255, 255, 255, 0.8)' }}>
-                          {feature.description}
-                        </Paragraph>
-                        <Link href={feature.link} passHref>
-                          <Button type="link" style={{ padding: 0, color: '#1890ff' }}>
-                            Acessar <ArrowRightOutlined />
-                          </Button>
-                        </Link>
-                      </AntCard>
-                    </Col>
-                  ))}
-                  
-                  <Col xs={24} sm={12} md={8}>
-                    <AntCard 
-                      hoverable 
-                      style={{ backgroundColor: 'hsl(var(--warning) / 0.1)' }}
-                      styles={{
-                        body: { 
-                          padding: '16px', 
-                          height: '100%', 
-                          display: 'flex', 
-                          flexDirection: 'column' 
-                        }
-                      }}
-                      className="dark-card"
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                          <MedicineBoxOutlined style={{ fontSize: 24, color: '#fa8c16' }} />
-                          <Text strong style={{ marginLeft: 12, color: 'rgba(255, 255, 255, 0.95)' }}>Profissionais</Text>
+                        <CardDescription>{feature.description}</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                          <span>Acessar</span>
+                          <ArrowRight className="h-4 w-4" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                      </Link>
+                ))}
                         </div>
                       </div>
-                      <Paragraph style={{ flex: 1, marginBottom: 12, color: 'rgba(255, 255, 255, 0.8)' }}>
-                        Gerencie médicos, especialidades e contratos
-                      </Paragraph>
-                      <Link href="/professionals" passHref>
-                        <Button type="link" style={{ padding: 0, color: '#1890ff' }}>
-                          Acessar <ArrowRightOutlined />
-                        </Button>
-                      </Link>
-                    </AntCard>
-                  </Col>
-                  
-                  <Col xs={24} sm={12} md={8}>
-                    <AntCard 
-                      hoverable 
-                      style={{ backgroundColor: 'hsl(var(--info) / 0.1)' }}
-                      styles={{
-                        body: { 
-                          padding: '16px', 
-                          height: '100%', 
-                          display: 'flex', 
-                          flexDirection: 'column' 
-                        }
-                      }}
-                      className="dark-card"
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                          <BankOutlined style={{ fontSize: 24, color: '#13c2c2' }} />
-                          <Text strong style={{ marginLeft: 12, color: 'rgba(255, 255, 255, 0.95)' }}>Estabelecimentos</Text>
-                        </div>
-                      </div>
-                      <Paragraph style={{ flex: 1, marginBottom: 12, color: 'rgba(255, 255, 255, 0.8)' }}>
-                        Administre unidades, horários e serviços
-                      </Paragraph>
-                      <Link href="/clinics" passHref>
-                        <Button type="link" style={{ padding: 0, color: '#1890ff' }}>
-                          Acessar <ArrowRightOutlined />
-                        </Button>
-                      </Link>
-                    </AntCard>
-                  </Col>
-                  
-                  <Col xs={24} sm={12} md={8}>
-                    <AntCard 
-                      hoverable 
-                      style={{ backgroundColor: 'hsl(var(--accent) / 0.1)' }}
-                      styles={{
-                        body: { 
-                          padding: '16px', 
-                          height: '100%', 
-                          display: 'flex', 
-                          flexDirection: 'column' 
-                        }
-                      }}
-                      className="dark-card"
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                          <TeamOutlined style={{ fontSize: 24, color: '#eb2f96' }} />
-                          <Text strong style={{ marginLeft: 12, color: 'rgba(255, 255, 255, 0.95)' }}>Pacientes</Text>
-                        </div>
-                      </div>
-                      <Paragraph style={{ flex: 1, marginBottom: 12, color: 'rgba(255, 255, 255, 0.8)' }}>
-                        Cadastro e histórico de pacientes
-                      </Paragraph>
-                      <Link href="/patients" passHref>
-                        <Button type="link" style={{ padding: 0, color: '#1890ff' }}>
-                          Acessar <ArrowRightOutlined />
-                        </Button>
-                      </Link>
-                    </AntCard>
-                  </Col>
-                </Row>
-              </Col>
               
               {/* Appointments and Messages */}
-              <Col xs={24} md={16}>
-                <AntCard
-                  title={
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: 'rgba(255, 255, 255, 0.95)' }}>Próximas Consultas</span>
-                      <Link href="/appointments" passHref>
-                        <Button type="link" size="small" style={{ color: '#1890ff' }}>Ver todas</Button>
+            <div className="grid gap-6 md:grid-cols-3 mt-8">
+              <div className="md:col-span-2">
+                <Card>
+                  <CardHeader>
+                    <div className="flex justify-between items-center">
+                      <CardTitle>Próximas Consultas</CardTitle>
+                      <Link href="/appointments">
+                        <Button variant="link" size="sm">Ver todas</Button>
                       </Link>
                     </div>
-                  }
-                  loading={loading}
-                  className="dark-card"
-                >
-                  {upcomingAppointments.length > 0 ? (
-                    <List
-                      dataSource={upcomingAppointments}
-                      renderItem={appointment => (
-                        <List.Item
-                          actions={[
-                            <Space key="actions">
-                              <Button size="small" type="primary">Confirmar</Button>
-                              <Button size="small">Reagendar</Button>
-                            </Space>
-                          ]}
-                        >
-                          <List.Item.Meta
-                            avatar={<CalendarOutlined style={{ fontSize: 24, color: '#1890ff' }} />}
-                            title={
-                              <div>
-                                <Text strong style={{ color: 'rgba(255, 255, 255, 0.95)' }}>{appointment.patient}</Text>
-                                <Tag color={appointment.status === 'confirmed' ? 'success' : 'warning'} style={{ marginLeft: 8 }}>
+                  </CardHeader>
+                  <CardContent>
+                    {loading ? (
+                      <div className="space-y-4">
+                        <Skeleton className="h-16 w-full" />
+                        <Skeleton className="h-16 w-full" />
+                        <Skeleton className="h-16 w-full" />
+                      </div>
+                    ) : upcomingAppointments.length > 0 ? (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Paciente</TableHead>
+                            <TableHead>Data</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Ações</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {upcomingAppointments.map((appointment, index) => (
+                            <TableRow key={index}>
+                              <TableCell className="font-medium">{appointment.patient}</TableCell>
+                              <TableCell>
+                                {new Date(appointment.date).toLocaleDateString('pt-BR')} às {appointment.time}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={appointment.status === 'confirmed' ? 'default' : 'secondary'}>
                                   {appointment.status === 'confirmed' ? 'Confirmado' : 'Pendente'}
-                                </Tag>
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex space-x-2">
+                                  <Button size="sm">Confirmar</Button>
+                                  <Button size="sm" variant="outline">Reagendar</Button>
                               </div>
-                            }
-                            description={
-                              <>
-                                <Text style={{ color: 'rgba(255, 255, 255, 0.8)' }}>{new Date(appointment.date).toLocaleDateString('pt-BR')}</Text>
-                                <Text style={{ marginLeft: 8, color: 'rgba(255, 255, 255, 0.8)' }}>{appointment.time}</Text>
-                                <Text style={{ marginLeft: 8, color: 'rgba(255, 255, 255, 0.8)' }}>•</Text>
-                                <Text style={{ marginLeft: 8, color: 'rgba(255, 255, 255, 0.8)' }}>{appointment.type}</Text>
-                              </>
-                            }
-                          />
-                        </List.Item>
-                      )}
-                    />
-                  ) : (
-                    <Empty description="Não há consultas agendadas" />
-                  )}
-                </AntCard>
-              </Col>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        Não há consultas agendadas
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
               
-              <Col xs={24} md={8}>
+              <div>
                 <ConditionalRender hideOnContractData>
-                  <AntCard
-                    title={<span style={{ color: 'rgba(255, 255, 255, 0.95)' }}>Contratos Pendentes</span>}
-                    loading={loading}
-                    className="dark-card"
-                  >
-                    <Tabs 
-                      defaultActiveKey="1"
-                      items={[
-                        {
-                          key: '1',
-                          label: 'Contratos',
-                          children: pendingItems.contracts && pendingItems.contracts.length > 0 ? (
-                            <List
-                              size="small"
-                              dataSource={pendingItems.contracts}
-                              renderItem={item => (
-                                <List.Item>
-                                  <List.Item.Meta
-                                    avatar={<FileTextOutlined style={{ color: '#1890ff' }} />}
-                                    title={<Link href={item.link} style={{ color: 'rgba(255, 255, 255, 0.95)' }}>{item.title}</Link>}
-                                    description={<span style={{ color: 'rgba(255, 255, 255, 0.8)' }}>{item.description}</span>}
-                                  />
-                                  <Tag color={item.priority === 'high' ? 'red' : 'blue'}>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Contratos Pendentes</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Tabs defaultValue="contracts">
+                        <TabsList className="grid w-full grid-cols-1">
+                          <TabsTrigger value="contracts">Contratos</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="contracts">
+                          {loading ? (
+                            <div className="space-y-4">
+                              <Skeleton className="h-12 w-full" />
+                              <Skeleton className="h-12 w-full" />
+                            </div>
+                          ) : pendingItems.contracts && pendingItems.contracts.length > 0 ? (
+                            <div className="space-y-4">
+                              {pendingItems.contracts.map((item, index) => (
+                                <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                                  <div className="flex items-center space-x-3">
+                                    <FileText className="h-4 w-4 text-primary" />
+                                    <div>
+                                      <Link href={item.link} className="font-medium hover:underline">
+                                        {item.title}
+                                      </Link>
+                                      <p className="text-sm text-muted-foreground">{item.description}</p>
+                                    </div>
+                                  </div>
+                                  <Badge variant={item.priority === 'high' ? 'destructive' : 'secondary'}>
                                     {item.priority === 'high' ? 'Urgente' : 'Normal'}
-                                  </Tag>
-                                </List.Item>
-                              )}
-                            />
+                                  </Badge>
+                                </div>
+                              ))}
+                            </div>
                           ) : (
-                            <Empty description="Nenhum contrato pendente" />
-                          )
-                        },
-                      ]}
-                    />
-                  </AntCard>
+                            <div className="text-center py-8 text-muted-foreground">
+                              Nenhum contrato pendente
+                            </div>
+                          )}
+                        </TabsContent>
+                      </Tabs>
+                    </CardContent>
+                  </Card>
                 </ConditionalRender>
-              </Col>
-            </Row>
+              </div>
+            </div>
           </>
         );
     }
@@ -485,31 +410,24 @@ export default function DashboardHomepage() {
   return (
     <>
       {error && (
-        <Alert
-          message="Erro"
-          description={error}
-          type="error"
-          showIcon
-          closable
-          style={{ marginBottom: 24 }}
-        />
+        <Alert variant="destructive" className="mb-6">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
       
-      <Alert
-        message="Bem-vindo(a) aos novos recursos!"
-        description="Implementamos o assistente virtual SURI, recursos de LGPD e um sistema avançado de dupla checagem financeira. Explore as novas funcionalidades."
-        type="info"
-        showIcon
-        closable
-        style={{ marginBottom: 24 }}
-      />
+      <Alert className="mb-6">
+        <AlertDescription>
+          Bem-vindo(a) aos novos recursos! Implementamos o assistente virtual SURI, recursos de LGPD e um sistema avançado de dupla checagem financeira. Explore as novas funcionalidades.
+        </AlertDescription>
+      </Alert>
       
       {renderRoleDashboard()}
 
       {/* Seção de Negociações */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mt-8">
         <Link href="/negotiations">
-          <UICard className="hover:bg-accent transition-colors cursor-pointer h-full">
+          <Card className="hover:bg-accent transition-colors cursor-pointer h-full">
             <CardHeader>
               <CardTitle>Negociações</CardTitle>
               <CardDescription>
@@ -522,11 +440,11 @@ export default function DashboardHomepage() {
                 <span>Contratos e valores</span>
               </div>
             </CardContent>
-          </UICard>
+          </Card>
         </Link>
         
         <Link href="/negotiations/extemporaneous">
-          <UICard className="hover:bg-accent transition-colors cursor-pointer h-full">
+          <Card className="hover:bg-accent transition-colors cursor-pointer h-full">
             <CardHeader>
               <CardTitle>Negociações Extemporâneas</CardTitle>
               <CardDescription>
@@ -539,7 +457,7 @@ export default function DashboardHomepage() {
                 <span>Solicitações especiais</span>
               </div>
             </CardContent>
-          </UICard>
+          </Card>
         </Link>
       </div>
     </>

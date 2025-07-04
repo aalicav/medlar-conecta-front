@@ -11,7 +11,9 @@ import ProfessionalDashboard from "../components/dashboards/ProfessionalDashboar
 import ClinicDashboard from "../components/dashboards/ClinicDashboard";
 import AdminDashboard from "../components/dashboards/AdminDashboard";
 import { dashboardService, DashboardStats, Appointment, PendingItem } from "../services/dashboardService";
-import { Skeleton, Alert } from "antd";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
 import { redirect } from "next/navigation";
 
 export default function RoleBasedDashboard() {
@@ -65,15 +67,20 @@ export default function RoleBasedDashboard() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <Skeleton active />
-        <Skeleton active />
-        <Skeleton active />
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-32 w-full" />
       </div>
     );
   }
 
   if (error) {
-    return <Alert message="Erro" description={error} type="error" showIcon />;
+    return (
+      <Alert variant="destructive">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    );
   }
 
   // Render the appropriate dashboard based on user role
@@ -153,11 +160,11 @@ export default function RoleBasedDashboard() {
 
   // Default fallback
   return (
-    <Alert 
-      message="Perfil não reconhecido" 
-      description="Você não possui um perfil configurado para acessar o dashboard." 
-      type="warning" 
-      showIcon 
-    />
+    <Alert variant="default">
+      <AlertTriangle className="h-4 w-4" />
+      <AlertDescription>
+        Você não possui um perfil configurado para acessar o dashboard.
+      </AlertDescription>
+    </Alert>
   );
 } 

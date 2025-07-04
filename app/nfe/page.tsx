@@ -10,7 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
-import { Loader2, Search, FileText, Download, X, AlertTriangle, CheckCircle, Eye, Calendar, DollarSign, Building2, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Loader2, Search, FileText, Download, X, AlertTriangle, CheckCircle, Eye, Calendar, DollarSign, Building2, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Plus } from "lucide-react"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
 
@@ -47,6 +48,31 @@ interface SubstituteNFe {
   created_at: string
 }
 
+interface Appointment {
+  id: number
+  scheduled_date: string
+  status: string
+  patient: {
+    name: string
+    cpf: string
+  }
+  provider: {
+    name: string
+    specialty: string
+  }
+  procedure: {
+    code: string
+    description: string
+  }
+  solicitation: {
+    health_plan: {
+      id: number
+      name: string
+    }
+  }
+  amount: number
+}
+
 interface PaginatedResponse {
   data: NFe[]
   current_page: number
@@ -68,6 +94,13 @@ export default function NFesPage() {
   const [cancellationReason, setCancellationReason] = useState("")
   const [substituteNFeKey, setSubstituteNFeKey] = useState("")
   const [cancelling, setCancelling] = useState(false)
+  
+  // Estados para criação de NFe
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [loadingAppointments, setLoadingAppointments] = useState(false)
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
+  const [creatingNFe, setCreatingNFe] = useState(false)
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -106,6 +139,45 @@ export default function NFesPage() {
       toast.error("Erro ao carregar NFes")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadEligibleAppointments = async () => {
+    try {
+      setLoadingAppointments(true)
+      const response = await api.get('/appointments/eligible-for-nfe')
+      
+      if (response.data) {
+        setAppointments(response.data.data || [])
+      }
+    } catch (error) {
+      toast.error("Erro ao carregar agendamentos elegíveis")
+    } finally {
+      setLoadingAppointments(false)
+    }
+  }
+
+  const handleCreateNFe = async () => {
+    if (!selectedAppointment) {
+      toast.error("Selecione um agendamento")
+      return
+    }
+
+    try {
+      setCreatingNFe(true)
+      const response = await api.post(`/appointments/${selectedAppointment.id}/generate-nfe`)
+      
+      if (response.data) {
+        toast.success("NFe criada com sucesso!")
+        setShowCreateDialog(false)
+        setSelectedAppointment(null)
+        await loadNFes()
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || "Erro ao criar NFe"
+      toast.error(errorMessage)
+    } finally {
+      setCreatingNFe(false)
     }
   }
 
@@ -360,10 +432,21 @@ export default function NFesPage() {
             Gerencie as NFes emitidas pelo sistema
           </p>
         </div>
-        <Button onClick={loadNFes} disabled={loading}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Atualizar
-        </Button>
+        <div className="flex items-center space-x-2">
+          <Button 
+            onClick={() => {
+              setShowCreateDialog(true)
+              loadEligibleAppointments()
+            }}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Criar NFe
+          </Button>
+          <Button onClick={loadNFes} disabled={loading}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Atualizar
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -583,6 +666,115 @@ export default function NFesPage() {
                 </>
               ) : (
                 "Confirmar Cancelamento por Substituição"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Criação de NFe */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Criar Nova NFe</DialogTitle>
+            <DialogDescription>
+              Selecione um agendamento elegível para gerar uma nota fiscal eletrônica
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {loadingAppointments ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <span className="ml-2">Carregando agendamentos...</span>
+              </div>
+            ) : appointments.length === 0 ? (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Nenhum agendamento elegível encontrado para geração de NFe.
+                  Verifique se existem agendamentos concluídos sem NFe associada.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <div className="space-y-2">
+                <Label>Agendamentos Elegíveis</Label>
+                <div className="border rounded-md max-h-96 overflow-y-auto">
+                  {appointments.map((appointment) => (
+                    <div
+                      key={appointment.id}
+                      className={`p-4 border-b cursor-pointer hover:bg-gray-50 ${
+                        selectedAppointment?.id === appointment.id ? 'bg-blue-50 border-blue-200' : ''
+                      }`}
+                      onClick={() => setSelectedAppointment(appointment)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-4">
+                            <div>
+                              <div className="font-medium">#{appointment.id}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {new Date(appointment.scheduled_date).toLocaleDateString('pt-BR')}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="font-medium">{appointment.patient.name}</div>
+                              <div className="text-sm text-muted-foreground">
+                                CPF: {appointment.patient.cpf}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="font-medium">{appointment.provider.name}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {appointment.provider.specialty}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="font-medium">{appointment.procedure.description}</div>
+                              <div className="text-sm text-muted-foreground">
+                                Código: {appointment.procedure.code}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="font-medium">{appointment.solicitation.health_plan.name}</div>
+                              <div className="text-sm text-muted-foreground">
+                                Plano de Saúde
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-medium text-lg">
+                            {new Intl.NumberFormat('pt-BR', {
+                              style: 'currency',
+                              currency: 'BRL'
+                            }).format(appointment.amount)}
+                          </div>
+                          <Badge variant="secondary">{appointment.status}</Badge>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleCreateNFe} 
+              disabled={!selectedAppointment || creatingNFe}
+            >
+              {creatingNFe ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Criando NFe...
+                </>
+              ) : (
+                "Criar NFe"
               )}
             </Button>
           </DialogFooter>

@@ -1,34 +1,21 @@
-import { 
-  Row, 
-  Col, 
-  Card, 
-  Statistic, 
-  Typography, 
-  List, 
-  Button, 
-  Tag, 
-  Space,
-  Alert,
-  Tabs,
-  Empty
-} from 'antd';
-import { 
-  UserOutlined, 
-  DollarOutlined, 
-  CalendarOutlined,
-  FileTextOutlined,
-  BankOutlined,
-  TeamOutlined,
-  ArrowRightOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  AlertOutlined
-} from '@ant-design/icons';
 import Link from 'next/link';
 import { DashboardStats, Appointment, PendingItem } from '../../services/dashboardService';
-
-const { Title, Text, Paragraph } = Typography;
-const { TabPane } = Tabs;
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
+import { 
+  FileText, 
+  DollarSign, 
+  AlertTriangle, 
+  Users, 
+  ArrowRight, 
+  CheckCircle, 
+  XCircle, 
+  Calendar
+} from 'lucide-react';
 
 interface DirectorDashboardProps {
   stats: DashboardStats;
@@ -45,274 +32,312 @@ const DirectorDashboard: React.FC<DirectorDashboardProps> = ({
 }) => {
   return (
     <>
-      <Row gutter={[24, 24]}>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {/* Main Statistics */}
-        <Col xs={24} sm={12} md={6}>
-          <Card loading={loading}>
-            <Statistic 
-              title="Contratos Pendentes" 
-              value={stats.pending_approvals?.contracts || 0} 
-              prefix={<FileTextOutlined />} 
-            />
-            <div style={{ marginTop: 12 }}>
-              <Link href="/contracts?status=awaiting_approval" passHref>
-                <Button type="link" size="small" style={{ paddingLeft: 0 }}>Ver todos</Button>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Contratos Pendentes</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{loading ? <Skeleton className="h-8 w-16" /> : stats.pending_approvals?.contracts || 0}</div>
+            <div className="mt-2">
+              <Link href="/contracts?status=awaiting_approval">
+                <Button variant="link" size="sm" className="p-0">Ver todos</Button>
               </Link>
             </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card loading={loading}>
-            <Statistic 
-              title="Negociações Pendentes" 
-              value={stats.pending_approvals?.negotiations || 0}
-              prefix={<AlertOutlined />} 
-            />
-            <div style={{ marginTop: 12 }}>
-              <Link href="/extemporaneous-negotiations?status=pending" passHref>
-                <Button type="link" size="small" style={{ paddingLeft: 0 }}>Ver todas</Button>
-              </Link>
-            </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card loading={loading}>
-            <Statistic 
-              title="Verificações de Valores" 
-              value={stats.pending_approvals?.value_verifications || 0} 
-              prefix={<DollarOutlined />} 
-            />
-            <div style={{ marginTop: 12 }}>
-              <Link href="/value-verifications?status=pending" passHref>
-                <Button type="link" size="small" style={{ paddingLeft: 0 }}>Ver todas</Button>
-              </Link>
-            </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card loading={loading}>
-            <Statistic 
-              title="Total de Receitas" 
-              value={stats.revenue?.total || 0} 
-              prefix={<DollarOutlined />} 
-              precision={2} 
-              suffix="R$"
-            />
-            <div style={{ marginTop: 12 }}>
-              <Link href="/reports/financial" passHref>
-                <Button type="link" size="small" style={{ paddingLeft: 0 }}>Ver relatório</Button>
-              </Link>
-            </div>
-          </Card>
-        </Col>
+          </CardContent>
+        </Card>
         
-        {/* Pending Items Section */}
-        <Col xs={24} md={16}>
-          <Card
-            title={
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Itens que requerem sua aprovação</span>
-              </div>
-            }
-            loading={loading}
-          >
-            <Tabs defaultActiveKey="1">
-              <TabPane tab="Verificações de Valores" key="1">
-                {pendingItems.value_verifications && pendingItems.value_verifications.length > 0 ? (
-                  <List
-                    dataSource={pendingItems.value_verifications}
-                    renderItem={item => (
-                      <List.Item
-                        actions={[
-                          <Space key="actions">
-                            <Link href={`${item.link}/approve`} passHref>
-                              <Button size="small" type="primary" icon={<CheckCircleOutlined />}>Aprovar</Button>
-                            </Link>
-                            <Link href={`${item.link}/reject`} passHref>
-                              <Button size="small" danger icon={<CloseCircleOutlined />}>Rejeitar</Button>
-                            </Link>
-                          </Space>
-                        ]}
-                      >
-                        <List.Item.Meta
-                          avatar={<DollarOutlined style={{ fontSize: 24, color: '#52c41a' }} />}
-                          title={
-                            <div>
-                              <Link href={item.link}>{item.title}</Link>
-                              <Tag color={item.priority === 'high' ? 'red' : 'blue'} style={{ marginLeft: 8 }}>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Negociações Pendentes</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{loading ? <Skeleton className="h-8 w-16" /> : stats.pending_approvals?.negotiations || 0}</div>
+            <div className="mt-2">
+              <Link href="/extemporaneous-negotiations?status=pending">
+                <Button variant="link" size="sm" className="p-0">Ver todas</Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Verificações de Valores</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{loading ? <Skeleton className="h-8 w-16" /> : stats.pending_approvals?.value_verifications || 0}</div>
+            <div className="mt-2">
+              <Link href="/value-verifications?status=pending">
+                <Button variant="link" size="sm" className="p-0">Ver todas</Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total de Receitas</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {loading ? <Skeleton className="h-8 w-16" /> : `R$ ${(stats.revenue?.total || 0).toFixed(2)}`}
+            </div>
+            <div className="mt-2">
+              <Link href="/reports/financial">
+                <Button variant="link" size="sm" className="p-0">Ver relatório</Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+        
+      {/* Pending Items Section */}
+      <div className="grid gap-6 md:grid-cols-3 mt-8">
+        <div className="md:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Itens que requerem sua aprovação</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Tabs defaultValue="verifications">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="verifications">Verificações de Valores</TabsTrigger>
+                  <TabsTrigger value="contracts">Contratos</TabsTrigger>
+                  <TabsTrigger value="negotiations">Negociações</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="verifications">
+                  {loading ? (
+                    <div className="space-y-4">
+                      <Skeleton className="h-16 w-full" />
+                      <Skeleton className="h-16 w-full" />
+                    </div>
+                  ) : pendingItems.value_verifications && pendingItems.value_verifications.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Item</TableHead>
+                          <TableHead>Prioridade</TableHead>
+                          <TableHead>Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pendingItems.value_verifications.map((item, index) => (
+                          <TableRow key={index}>
+                            <TableCell>
+                              <div className="flex items-center space-x-3">
+                                <DollarSign className="h-4 w-4 text-green-500" />
+                                <div>
+                                  <Link href={item.link} className="font-medium hover:underline">
+                                    {item.title}
+                                  </Link>
+                                  <p className="text-sm text-muted-foreground">{item.description}</p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={item.priority === 'high' ? 'destructive' : 'secondary'}>
                                 {item.priority === 'high' ? 'Urgente' : 'Normal'}
-                              </Tag>
-                            </div>
-                          }
-                          description={item.description}
-                        />
-                      </List.Item>
-                    )}
-                  />
-                ) : (
-                  <Empty description="Não há verificações de valores pendentes" />
-                )}
-              </TabPane>
-              <TabPane tab="Contratos" key="2">
-                {pendingItems.contracts && pendingItems.contracts.length > 0 ? (
-                  <List
-                    dataSource={pendingItems.contracts}
-                    renderItem={item => (
-                      <List.Item
-                        actions={[
-                          <Space key="actions">
-                            <Link href={`${item.link}/approve`} passHref>
-                              <Button size="small" type="primary" icon={<CheckCircleOutlined />}>Aprovar</Button>
-                            </Link>
-                            <Link href={`${item.link}/reject`} passHref>
-                              <Button size="small" danger icon={<CloseCircleOutlined />}>Rejeitar</Button>
-                            </Link>
-                          </Space>
-                        ]}
-                      >
-                        <List.Item.Meta
-                          avatar={<FileTextOutlined style={{ fontSize: 24, color: '#1890ff' }} />}
-                          title={
-                            <div>
-                              <Link href={item.link}>{item.title}</Link>
-                              <Tag color={item.priority === 'high' ? 'red' : 'blue'} style={{ marginLeft: 8 }}>
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex space-x-2">
+                                <Link href={`${item.link}/approve`}>
+                                  <Button size="sm" className="flex items-center space-x-1">
+                                    <CheckCircle className="h-4 w-4" />
+                                    <span>Aprovar</span>
+                                  </Button>
+                                </Link>
+                                <Link href={`${item.link}/reject`}>
+                                  <Button size="sm" variant="destructive" className="flex items-center space-x-1">
+                                    <XCircle className="h-4 w-4" />
+                                    <span>Rejeitar</span>
+                                  </Button>
+                                </Link>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Não há verificações de valores pendentes
+                    </div>
+                  )}
+                </TabsContent>
+                
+                <TabsContent value="contracts">
+                  {loading ? (
+                    <div className="space-y-4">
+                      <Skeleton className="h-16 w-full" />
+                      <Skeleton className="h-16 w-full" />
+                    </div>
+                  ) : pendingItems.contracts && pendingItems.contracts.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Contrato</TableHead>
+                          <TableHead>Prioridade</TableHead>
+                          <TableHead>Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pendingItems.contracts.map((item, index) => (
+                          <TableRow key={index}>
+                            <TableCell>
+                              <div className="flex items-center space-x-3">
+                                <FileText className="h-4 w-4 text-blue-500" />
+                                <div>
+                                  <Link href={item.link} className="font-medium hover:underline">
+                                    {item.title}
+                                  </Link>
+                                  <p className="text-sm text-muted-foreground">{item.description}</p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={item.priority === 'high' ? 'destructive' : 'secondary'}>
                                 {item.priority === 'high' ? 'Urgente' : 'Normal'}
-                              </Tag>
-                            </div>
-                          }
-                          description={item.description}
-                        />
-                      </List.Item>
-                    )}
-                  />
-                ) : (
-                  <Empty description="Não há contratos pendentes de aprovação" />
-                )}
-              </TabPane>
-              <TabPane tab="Negociações" key="3">
-                {pendingItems.negotiations && pendingItems.negotiations.length > 0 ? (
-                  <List
-                    dataSource={pendingItems.negotiations}
-                    renderItem={item => (
-                      <List.Item
-                        actions={[
-                          <Space key="actions">
-                            <Link href={`${item.link}/approve`} passHref>
-                              <Button size="small" type="primary" icon={<CheckCircleOutlined />}>Aprovar</Button>
-                            </Link>
-                            <Link href={`${item.link}/reject`} passHref>
-                              <Button size="small" danger icon={<CloseCircleOutlined />}>Rejeitar</Button>
-                            </Link>
-                          </Space>
-                        ]}
-                      >
-                        <List.Item.Meta
-                          avatar={<AlertOutlined style={{ fontSize: 24, color: '#faad14' }} />}
-                          title={
-                            <div>
-                              <Link href={item.link}>{item.title}</Link>
-                              <Tag color={item.priority === 'high' ? 'red' : 'blue'} style={{ marginLeft: 8 }}>
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex space-x-2">
+                                <Link href={`${item.link}/approve`}>
+                                  <Button size="sm" className="flex items-center space-x-1">
+                                    <CheckCircle className="h-4 w-4" />
+                                    <span>Aprovar</span>
+                                  </Button>
+                                </Link>
+                                <Link href={`${item.link}/reject`}>
+                                  <Button size="sm" variant="destructive" className="flex items-center space-x-1">
+                                    <XCircle className="h-4 w-4" />
+                                    <span>Rejeitar</span>
+                                  </Button>
+                                </Link>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Não há contratos pendentes de aprovação
+                    </div>
+                  )}
+                </TabsContent>
+                
+                <TabsContent value="negotiations">
+                  {loading ? (
+                    <div className="space-y-4">
+                      <Skeleton className="h-16 w-full" />
+                      <Skeleton className="h-16 w-full" />
+                    </div>
+                  ) : pendingItems.negotiations && pendingItems.negotiations.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Negociação</TableHead>
+                          <TableHead>Prioridade</TableHead>
+                          <TableHead>Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pendingItems.negotiations.map((item, index) => (
+                          <TableRow key={index}>
+                            <TableCell>
+                              <div className="flex items-center space-x-3">
+                                <AlertTriangle className="h-4 w-4 text-orange-500" />
+                                <div>
+                                  <Link href={item.link} className="font-medium hover:underline">
+                                    {item.title}
+                                  </Link>
+                                  <p className="text-sm text-muted-foreground">{item.description}</p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={item.priority === 'high' ? 'destructive' : 'secondary'}>
                                 {item.priority === 'high' ? 'Urgente' : 'Normal'}
-                              </Tag>
-                            </div>
-                          }
-                          description={item.description}
-                        />
-                      </List.Item>
-                    )}
-                  />
-                ) : (
-                  <Empty description="Não há negociações extemporâneas pendentes" />
-                )}
-              </TabPane>
-            </Tabs>
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex space-x-2">
+                                <Link href={`${item.link}/approve`}>
+                                  <Button size="sm" className="flex items-center space-x-1">
+                                    <CheckCircle className="h-4 w-4" />
+                                    <span>Aprovar</span>
+                                  </Button>
+                                </Link>
+                                <Link href={`${item.link}/reject`}>
+                                  <Button size="sm" variant="destructive" className="flex items-center space-x-1">
+                                    <XCircle className="h-4 w-4" />
+                                    <span>Rejeitar</span>
+                                  </Button>
+                                </Link>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Não há negociações pendentes de aprovação
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </CardContent>
           </Card>
-        </Col>
-
-        {/* Appointments Section */}
-        <Col xs={24} md={8}>
-          <Card
-            title={
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Próximas Consultas</span>
-                <Link href="/appointments" passHref>
-                  <Button type="link" size="small">Ver todas</Button>
-                </Link>
-              </div>
-            }
-            loading={loading}
-          >
-            {upcomingAppointments.length > 0 ? (
-              <List
-                dataSource={upcomingAppointments}
-                renderItem={appointment => (
-                  <List.Item>
-                    <List.Item.Meta
-                      avatar={<CalendarOutlined style={{ fontSize: 24, color: '#1890ff' }} />}
-                      title={
+        </div>
+        
+        <div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Próximas Consultas</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                </div>
+              ) : upcomingAppointments.length > 0 ? (
+                <div className="space-y-4">
+                  {upcomingAppointments.slice(0, 5).map((appointment, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <Calendar className="h-4 w-4 text-primary" />
                         <div>
-                          <Text strong>{appointment.patient}</Text>
-                          <Tag color={appointment.status === 'confirmed' ? 'success' : 'warning'} style={{ marginLeft: 8 }}>
-                            {appointment.status === 'confirmed' ? 'Confirmado' : 'Pendente'}
-                          </Tag>
+                          <p className="font-medium">{appointment.patient}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(appointment.date).toLocaleDateString('pt-BR')} às {appointment.time}
+                          </p>
                         </div>
-                      }
-                      description={
-                        <>
-                          <Text>{new Date(appointment.date).toLocaleDateString('pt-BR')}</Text>
-                          <Text style={{ marginLeft: 8 }}>{appointment.time}</Text>
-                          <Text style={{ marginLeft: 8 }}>•</Text>
-                          <Text style={{ marginLeft: 8 }}>{appointment.type}</Text>
-                        </>
-                      }
-                    />
-                  </List.Item>
-                )}
-              />
-            ) : (
-              <Empty description="Não há consultas agendadas" />
-            )}
+                      </div>
+                      <Badge variant={appointment.status === 'confirmed' ? 'default' : 'secondary'}>
+                        {appointment.status === 'confirmed' ? 'Confirmado' : 'Pendente'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  Não há consultas agendadas
+                </div>
+              )}
+            </CardContent>
           </Card>
-        </Col>
-
-        {/* Overall Statistics */}
-        <Col xs={24}>
-          <Card title="Estatísticas Gerais" loading={loading}>
-            <Row gutter={[24, 24]}>
-              <Col xs={24} sm={12} md={6}>
-                <Statistic 
-                  title="Total de Pacientes" 
-                  value={stats.patients?.total || 0} 
-                  prefix={<TeamOutlined />} 
-                />
-              </Col>
-              <Col xs={24} sm={12} md={6}>
-                <Statistic 
-                  title="Total de Consultas" 
-                  value={stats.appointments?.total || 0} 
-                  prefix={<CalendarOutlined />} 
-                />
-              </Col>
-              <Col xs={24} sm={12} md={6}>
-                <Statistic 
-                  title="Consultas Pendentes" 
-                  value={stats.appointments?.pending || 0} 
-                  prefix={<CalendarOutlined />} 
-                />
-              </Col>
-              <Col xs={24} sm={12} md={6}>
-                <Statistic 
-                  title="Receitas Pendentes" 
-                  value={stats.revenue?.pending || 0} 
-                  prefix={<DollarOutlined />} 
-                  precision={2}
-                  suffix="R$"
-                />
-              </Col>
-            </Row>
-          </Card>
-        </Col>
-      </Row>
+        </div>
+      </div>
     </>
   );
 };

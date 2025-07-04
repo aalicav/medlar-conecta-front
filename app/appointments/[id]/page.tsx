@@ -11,7 +11,7 @@ import { toast } from "@/components/ui/use-toast"
 import { 
   Loader2, Edit, ArrowLeft, Calendar, MapPin, 
   AlertCircle, Clock, User, Building, FileText, 
-  AlertTriangle, CheckCircle, XCircle, Printer, Search, Receipt
+  AlertTriangle, CheckCircle, XCircle, Printer, Search, Receipt, Eye
 } from "lucide-react"
 import api from "@/services/api-client"
 import { formatDateTime } from "@/lib/utils"
@@ -56,34 +56,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { 
-  Typography, 
-  Descriptions, 
-  Space, 
-  Tag, 
-  Divider, 
-  Spin, 
-  Alert,
-  Row,
-  Col,
-  Statistic,
-  Timeline,
-  Table
-} from "antd"
-import { 
-  ArrowLeftOutlined, 
-  CheckCircleOutlined, 
-  CloseCircleOutlined,
-  ClockCircleOutlined,
-  ExclamationCircleOutlined,
-  DollarOutlined,
-  FileTextOutlined,
-  CalendarOutlined,
-  UserOutlined,
-  CheckOutlined,
-  CloseOutlined,
-  EyeOutlined
-} from "@ant-design/icons"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
 interface Appointment {
   id: number
@@ -270,6 +250,7 @@ export default function AppointmentDetailsPage() {
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false)
   const [cancelReason, setCancelReason] = useState("")
   const [completionNotes, setCompletionNotes] = useState("")
+  const [patientAttended, setPatientAttended] = useState<boolean | null>(null)
   const [isActionLoading, setIsActionLoading] = useState(false)
   const [isGeneratingNFe, setIsGeneratingNFe] = useState(false)
   
@@ -455,26 +436,47 @@ export default function AppointmentDetailsPage() {
   }
   
   const handleComplete = async () => {
+    // Validate that attendance is selected
+    if (patientAttended === null || patientAttended === undefined) {
+      toast({
+        title: "Erro de Validação",
+        description: "Por favor, selecione se o paciente compareceu ou não ao agendamento",
+        variant: "destructive"
+      })
+      return
+    }
+
     setIsActionLoading(true)
     try {
-      await api.post(`/appointments/${appointmentId}/complete`, {
-        completion_notes: completionNotes
-      })
+      const requestData = {
+        patient_attended: patientAttended,
+        notes: completionNotes || undefined
+      }
+      
+      console.log('Sending completion data:', requestData)
+      
+      await api.post(`/appointments/${appointmentId}/complete`, requestData)
       
       toast({
         title: "Sucesso",
-        description: "Agendamento concluído com sucesso",
+        description: patientAttended 
+          ? "Agendamento concluído com sucesso - Paciente compareceu" 
+          : "Agendamento concluído com sucesso - Paciente não compareceu",
       })
       
       setIsCompleteDialogOpen(false)
       setCompletionNotes("")
+      setPatientAttended(null)
       fetchAppointment()
     } catch (error: any) {
       console.error("Error completing appointment:", error)
+      console.error("Error response:", error.response?.data)
       
       let errorMessage = "Não foi possível concluir o agendamento"
       
-      if (error.response?.status === 404) {
+      if (error.response?.status === 422 && error.response?.data?.errors?.patient_attended) {
+        errorMessage = "Por favor, selecione se o paciente compareceu ou não ao agendamento"
+      } else if (error.response?.status === 404) {
         errorMessage = "Agendamento não encontrado"
       } else if (error.response?.status === 403) {
         errorMessage = "Você não tem permissão para concluir este agendamento"
@@ -490,6 +492,12 @@ export default function AppointmentDetailsPage() {
     } finally {
       setIsActionLoading(false)
     }
+  }
+
+  const handleCloseCompleteDialog = () => {
+    setIsCompleteDialogOpen(false)
+    setCompletionNotes("")
+    setPatientAttended(null)
   }
 
   const handleConfirm = async () => {
@@ -722,93 +730,6 @@ export default function AppointmentDetailsPage() {
     }).format(value);
   };
 
-  const verificationColumns = [
-    {
-      title: 'ID',
-      dataIndex: 'id',
-      key: 'id',
-      width: 80,
-      render: (id: number) => <Link href={`/value-verifications/${id}`}>{id}</Link>
-    },
-    {
-      title: 'Tipo',
-      dataIndex: 'value_type',
-      key: 'value_type',
-      width: 150,
-      render: (valueType: string) => (
-        <Tag color="blue">{getValueTypeDisplay(valueType)}</Tag>
-      )
-    },
-    {
-      title: 'Valor Original',
-      dataIndex: 'original_value',
-      key: 'original_value',
-      width: 120,
-      render: (value: number) => formatCurrency(value)
-    },
-    {
-      title: 'Valor Verificado',
-      dataIndex: 'verified_value',
-      key: 'verified_value',
-      width: 120,
-      render: (value: number) => value ? formatCurrency(value) : '-'
-    },
-    {
-      title: 'Prioridade',
-      dataIndex: 'priority',
-      key: 'priority',
-      width: 100,
-      render: (priority: string) => (
-        <Tag color={getPriorityColor(priority)}>
-          {priority.toUpperCase()}
-        </Tag>
-      )
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      width: 100,
-      render: (status: string) => (
-        <Tag color={getStatusColor(status)}>
-          {getStatusText(status)}
-        </Tag>
-      )
-    },
-    {
-      title: 'Motivo',
-      dataIndex: 'verification_reason',
-      key: 'verification_reason',
-      ellipsis: true,
-      render: (reason: string) => (
-        <Tooltip placement="top" title={reason}>
-          <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {reason}
-          </span>
-        </Tooltip>
-      )
-    },
-    {
-      title: 'Data Criação',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      width: 120,
-      render: (date: string) => new Date(date).toLocaleDateString('pt-BR')
-    },
-    {
-      title: 'Ações',
-      key: 'actions',
-      width: 100,
-      render: (_: any, record: ValueVerification) => (
-        <Link href={`/value-verifications/${record.id}`}>
-          <Button type="default" icon={<EyeOutlined />} size="small">
-            Ver
-          </Button>
-        </Link>
-      )
-    }
-  ];
-  
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -1182,31 +1103,94 @@ export default function AppointmentDetailsPage() {
 
         {/* Value Verifications Section */}
         {verifications.length > 0 && (
-          <Card title="Verificações de Valores" className="mb-6">
-            <Alert
-              message="Verificações de Valores"
-              description={`Este agendamento possui ${verifications.length} verificação(ões) de valores associada(s).`}
-              type="info"
-              showIcon
-              className="mb-4"
-              action={
-                <Link href="/value-verifications">
-                  <Button size="small" type="default">
-                    Ver Todas
-                  </Button>
-                </Link>
-              }
-            />
-            
-            <Table
-              columns={verificationColumns}
-              dataSource={verifications}
-              rowKey="id"
-              loading={loadingVerifications}
-              pagination={false}
-              size="small"
-              scroll={{ x: 800 }}
-            />
+          <Card>
+            <CardHeader>
+              <CardTitle>Verificações de Valores</CardTitle>
+              <CardDescription>
+                Este agendamento possui {verifications.length} verificação(ões) de valores associada(s).
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <p className="text-sm text-muted-foreground">
+                    Verificações de valores para este agendamento
+                  </p>
+                  <Link href="/value-verifications">
+                    <Button size="sm">
+                      Ver Todas
+                    </Button>
+                  </Link>
+                </div>
+                
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Valor Original</TableHead>
+                      <TableHead>Valor Verificado</TableHead>
+                      <TableHead>Prioridade</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Motivo</TableHead>
+                      <TableHead>Data Criação</TableHead>
+                      <TableHead>Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {verifications.map((verification) => (
+                      <TableRow key={verification.id}>
+                        <TableCell>
+                          <Link href={`/value-verifications/${verification.id}`} className="text-blue-600 hover:underline">
+                            {verification.id}
+                          </Link>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {getValueTypeDisplay(verification.value_type)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{formatCurrency(verification.original_value)}</TableCell>
+                        <TableCell>
+                          {verification.verified_value ? formatCurrency(verification.verified_value) : '-'}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getPriorityColor(verification.priority) === 'red' ? 'destructive' : 'secondary'}>
+                            {verification.priority.toUpperCase()}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getStatusColor(verification.status) === 'green' ? 'default' : 'secondary'}>
+                            {getStatusText(verification.status)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="block overflow-hidden text-ellipsis whitespace-nowrap">
+                                {verification.verification_reason}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{verification.verification_reason}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell>{new Date(verification.created_at).toLocaleDateString('pt-BR')}</TableCell>
+                        <TableCell>
+                          <Link href={`/value-verifications/${verification.id}`}>
+                            <Button size="sm">
+                              <Eye className="h-4 w-4 mr-1" />
+                              Ver
+                            </Button>
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
           </Card>
         )}
 
@@ -1243,7 +1227,7 @@ export default function AppointmentDetailsPage() {
         </Dialog>
 
         {/* Complete Dialog */}
-        <Dialog open={isCompleteDialogOpen} onOpenChange={setIsCompleteDialogOpen}>
+        <Dialog open={isCompleteDialogOpen} onOpenChange={handleCloseCompleteDialog}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Concluir Agendamento</DialogTitle>
@@ -1252,6 +1236,54 @@ export default function AppointmentDetailsPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
+              {/* Attendance Options */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Comparecimento</Label>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="attended"
+                      name="attendance"
+                      checked={patientAttended === true}
+                      onChange={() => setPatientAttended(true)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    />
+                    <Label htmlFor="attended" className="text-sm cursor-pointer">
+                      <div className="flex items-center">
+                        <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
+                        Paciente compareceu
+                      </div>
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="missed"
+                      name="attendance"
+                      checked={patientAttended === false}
+                      onChange={() => setPatientAttended(false)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    />
+                    <Label htmlFor="missed" className="text-sm cursor-pointer">
+                      <div className="flex items-center">
+                        <XCircle className="mr-2 h-4 w-4 text-red-600" />
+                        Paciente não compareceu
+                      </div>
+                    </Label>
+                  </div>
+                </div>
+                
+                {/* Error message */}
+                {patientAttended === null && (
+                  <div className="text-sm text-red-600 mt-2">
+                    * Selecione se o paciente compareceu ou não
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="completion-notes">Observações da Conclusão</Label>
                 <Textarea
@@ -1263,10 +1295,13 @@ export default function AppointmentDetailsPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsCompleteDialogOpen(false)} disabled={isActionLoading}>
+              <Button variant="outline" onClick={handleCloseCompleteDialog} disabled={isActionLoading}>
                 Voltar
               </Button>
-              <Button onClick={handleComplete} disabled={isActionLoading}>
+              <Button 
+                onClick={handleComplete} 
+                disabled={isActionLoading || patientAttended === null || patientAttended === undefined}
+              >
                 {isActionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Confirmar Conclusão
               </Button>

@@ -1,7 +1,8 @@
 'use client'
 
+import React from "react"
 import { useState, useEffect } from "react"
-import { fetchResource, updateResource } from "@/services/resource-service"
+import { createResource, fetchResource, updateResource } from "@/services/resource-service"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { 
@@ -21,7 +22,8 @@ import {
   MessageSquare,
   Eye,
   ClipboardList,
-  CreditCard
+  CreditCard,
+  XCircle
 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { ptBR } from "date-fns/locale"
@@ -53,20 +55,60 @@ import {
 interface Notification {
   id: string
   type: string
-  title: string
-  message: string | null
-  read_at: string | null
-  created_at: string
-  updated_at?: string
-  data?: {
-    body: string
-    action_link?: string
+  notifiable_type: string
+  notifiable_id: number
+  data: {
+    title?: string
+    message?: string
+    type: string
     icon?: string
-    professional_id?: number
-    professional_name?: string
-    professional_type?: string
+    link?: string
+    action?: {
+      label: string
+      url: string
+    }
+    // Solicitation specific fields
+    solicitation_id?: number
+    patient_id?: number
+    patient_name?: string
+    tuss_code?: string
+    tuss_description?: string
+    priority?: string
+    // Appointment specific fields
+    appointment_id?: number
+    confirmed_at?: string
+    cancelled_at?: string
+    detail_url?: string
+    // Report specific fields
+    report_type?: string
+    file_path?: string
+    // Error specific fields
+    error_message?: string
     [key: string]: any
   }
+  read_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+interface NotificationResponse {
+  current_page: number
+  data: Notification[]
+  first_page_url: string
+  from: number
+  last_page: number
+  last_page_url: string
+  links: Array<{
+    url: string | null
+    label: string
+    active: boolean
+  }>
+  next_page_url: string | null
+  path: string
+  per_page: number
+  prev_page_url: string | null
+  to: number
+  total: number
 }
 
 export default function NotificationsPage() {
@@ -84,6 +126,11 @@ export default function NotificationsPage() {
   
   const notificationTypes = [
     { value: "all", label: "Todos os tipos" },
+    { value: "solicitation_created", label: "Nova Solicitação" },
+    { value: "appointment_confirmed", label: "Agendamento Confirmado" },
+    { value: "appointment_cancelled", label: "Agendamento Cancelado" },
+    { value: "report_generated", label: "Relatório Gerado" },
+    { value: "report_generation_failed", label: "Erro na Geração de Relatório" },
     { value: "appointment_notification", label: "Agendamentos" },
     { value: "solicitation_notification", label: "Solicitações" },
     { value: "payment_notification", label: "Pagamentos" },
@@ -118,15 +165,15 @@ export default function NotificationsPage() {
         filters.search = searchQuery
       }
       
-      const response = await fetchResource<Notification[]>('notifications', {
+      const response = await fetchResource<NotificationResponse>('notifications', {
         page: page,
         per_page: 10,
         filters
       })
       
       if (response?.data) {
-        setNotifications(response.data)
-        setTotalPages(response.meta?.last_page || 1)
+        setNotifications(response.data.data)
+        setTotalPages(response.data.last_page || 1)
       }
     } catch (error) {
       console.error('Failed to fetch notifications:', error)
@@ -143,7 +190,7 @@ export default function NotificationsPage() {
   const markAllAsRead = async () => {
     try {
       setIsMarkingRead(true)
-      await updateResource<{ success: boolean }>('notifications/read-all', {}, 'PATCH')
+      await createResource<{ success: boolean }>('notifications/read-all', {})
       
       // Atualizar estado local
       setNotifications(notifications.map(notification => ({
@@ -268,6 +315,7 @@ export default function NotificationsPage() {
         case "bell": return <Bell className="h-5 w-5 text-yellow-500" />;
         case "calendar": return <CalendarClock className="h-5 w-5 text-green-500" />;
         case "file-text": return <FileText className="h-5 w-5 text-indigo-500" />;
+        case "file-medical": return <FileText className="h-5 w-5 text-blue-500" />;
         case "alert-circle": return <AlertCircle className="h-5 w-5 text-red-500" />;
         case "message-square": return <MessageSquare className="h-5 w-5 text-purple-500" />;
         default: return <Bell className="h-5 w-5 text-primary" />;
@@ -275,7 +323,17 @@ export default function NotificationsPage() {
     }
     
     // Fallback to type-based icon if no data.icon
-    switch(notification.type) {
+    switch(notification.data?.type) {
+      case "solicitation_created": 
+        return <FileText className="h-5 w-5 text-blue-500" />;
+      case "appointment_confirmed": 
+        return <CheckCircle className="h-5 w-5 text-green-500" />;
+      case "appointment_cancelled": 
+        return <XCircle className="h-5 w-5 text-red-500" />;
+      case "report_generated": 
+        return <FileText className="h-5 w-5 text-indigo-500" />;
+      case "report_generation_failed": 
+        return <AlertCircle className="h-5 w-5 text-red-500" />;
       case "appointment_notification": 
         return <CalendarClock className="h-5 w-5 text-green-500" />;
       case "solicitation_notification": 
@@ -292,6 +350,73 @@ export default function NotificationsPage() {
         return <Clock className="h-5 w-5 text-purple-500" />;
       default: 
         return <Bell className="h-5 w-5 text-primary" />;
+    }
+  }
+
+  const getNotificationTitle = (notification: Notification): string => {
+    if (notification.data?.title) {
+      return notification.data.title
+    }
+    
+    // Generate default titles based on notification type
+    switch (notification.data?.type) {
+      case "solicitation_created":
+        return "Nova Solicitação Criada"
+      case "appointment_confirmed":
+        return "Agendamento Confirmado"
+      case "appointment_cancelled":
+        return "Agendamento Cancelado"
+      case "report_generated":
+        return "Relatório Gerado"
+      case "report_generation_failed":
+        return "Erro na Geração de Relatório"
+      case "appointment_notification":
+        return "Atualização de Agendamento"
+      case "solicitation_notification":
+        return "Atualização de Solicitação"
+      case "payment_notification":
+        return "Atualização de Pagamento"
+      case "system_notification":
+        return "Notificação do Sistema"
+      case "professional_registration_submitted":
+        return "Cadastro de Profissional"
+      default:
+        return "Notificação"
+    }
+  }
+
+  const getNotificationMessage = (notification: Notification): string => {
+    if (notification.data?.message) {
+      return notification.data.message
+    }
+    
+    // Generate default messages based on notification type
+    switch (notification.data?.type) {
+      case "solicitation_created":
+        return notification.data?.patient_name 
+          ? `Nova solicitação criada para ${notification.data.patient_name}`
+          : "Uma nova solicitação foi criada"
+      case "appointment_confirmed":
+        return "Seu agendamento foi confirmado"
+      case "appointment_cancelled":
+        return "Seu agendamento foi cancelado"
+      case "report_generated":
+        return "Seu relatório está pronto para download"
+      case "report_generation_failed":
+        const reportType = notification.data?.report_type || "relatório"
+        return `Falha na geração do ${reportType}. Verifique os detalhes.`
+      case "appointment_notification":
+        return "Há uma atualização em seu agendamento"
+      case "solicitation_notification":
+        return "Há uma atualização em sua solicitação"
+      case "payment_notification":
+        return "Há uma atualização em seu pagamento"
+      case "system_notification":
+        return "Há uma notificação do sistema"
+      case "professional_registration_submitted":
+        return "Um novo profissional foi cadastrado"
+      default:
+        return "Você tem uma nova notificação"
     }
   }
 
@@ -312,6 +437,16 @@ export default function NotificationsPage() {
       setSelectedNotifications(notifications.map(n => n.id))
     }
   }
+
+  // Filter notifications based on active tab
+  const filteredNotifications = notifications.filter(notification => {
+    if (activeTab === "unread") {
+      return !notification.read_at
+    } else if (activeTab === "read") {
+      return notification.read_at
+    }
+    return true
+  })
 
   return (
     <div className="container py-6 space-y-6">
@@ -452,11 +587,13 @@ export default function NotificationsPage() {
               <CardContent className="pt-2">
                 <TabsContent value="all" className="m-0">
                   <NotificationList 
-                    notifications={notifications} 
+                    notifications={filteredNotifications} 
                     isLoading={isLoading}
                     markAsRead={markAsRead}
                     formatNotificationTime={formatNotificationTime}
                     getNotificationIcon={getNotificationIcon}
+                    getNotificationTitle={getNotificationTitle}
+                    getNotificationMessage={getNotificationMessage}
                     router={router}
                     selectedNotifications={selectedNotifications}
                     toggleSelectNotification={toggleSelectNotification}
@@ -467,11 +604,13 @@ export default function NotificationsPage() {
                 
                 <TabsContent value="unread" className="m-0">
                   <NotificationList 
-                    notifications={notifications} 
+                    notifications={filteredNotifications} 
                     isLoading={isLoading}
                     markAsRead={markAsRead}
                     formatNotificationTime={formatNotificationTime}
                     getNotificationIcon={getNotificationIcon}
+                    getNotificationTitle={getNotificationTitle}
+                    getNotificationMessage={getNotificationMessage}
                     router={router}
                     selectedNotifications={selectedNotifications}
                     toggleSelectNotification={toggleSelectNotification}
@@ -482,11 +621,13 @@ export default function NotificationsPage() {
                 
                 <TabsContent value="read" className="m-0">
                   <NotificationList 
-                    notifications={notifications} 
+                    notifications={filteredNotifications} 
                     isLoading={isLoading}
                     markAsRead={markAsRead}
                     formatNotificationTime={formatNotificationTime}
                     getNotificationIcon={getNotificationIcon}
+                    getNotificationTitle={getNotificationTitle}
+                    getNotificationMessage={getNotificationMessage}
                     router={router}
                     selectedNotifications={selectedNotifications}
                     toggleSelectNotification={toggleSelectNotification}
@@ -646,7 +787,9 @@ interface NotificationListProps {
   isLoading: boolean
   markAsRead: (id: string) => Promise<void>
   formatNotificationTime: (dateString: string) => string
-  getNotificationIcon: (notification: Notification) => JSX.Element
+  getNotificationIcon: (notification: Notification) => React.ReactElement
+  getNotificationTitle: (notification: Notification) => string
+  getNotificationMessage: (notification: Notification) => string
   router: any
   selectedNotifications: string[]
   toggleSelectNotification: (id: string) => void
@@ -660,6 +803,8 @@ function NotificationList({
   markAsRead,
   formatNotificationTime,
   getNotificationIcon,
+  getNotificationTitle,
+  getNotificationMessage,
   router,
   selectedNotifications,
   toggleSelectNotification,
@@ -730,11 +875,14 @@ function NotificationList({
             <div 
               className="flex-1 cursor-pointer"
               onClick={() => {
-                if (notification.data?.action_link) {
+                if (notification.data?.link || notification.data?.action?.url) {
                   if (!notification.read_at) {
                     markAsRead(notification.id)
                   }
-                  router.push(notification.data.action_link)
+                  const url = notification.data?.action?.url || notification.data?.link
+                  if (url) {
+                    router.push(url)
+                  }
                 } else if (!notification.read_at) {
                   markAsRead(notification.id)
                 }
@@ -743,14 +891,14 @@ function NotificationList({
               <div className="flex justify-between items-start">
                 <div className="space-y-1 flex-1">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-medium">{notification.title}</h3>
+                    <h3 className="text-sm font-medium">{getNotificationTitle(notification)}</h3>
                     {!notification.read_at && (
                       <Badge className="h-2 w-2 rounded-full p-0 bg-primary" />
                     )}
                   </div>
                   
                   <p className="text-sm text-muted-foreground">
-                    {notification.data?.body || notification.message}
+                    {getNotificationMessage(notification)}
                   </p>
                 </div>
                 
@@ -760,11 +908,44 @@ function NotificationList({
                 </div>
               </div>
               
-              {notification.data?.professional_name && (
+              {notification.data?.patient_name && (
                 <div className="mt-2 flex items-center">
                   <Badge variant="outline" className="text-xs">
-                    {notification.data.professional_name}
+                    {notification.data.patient_name}
                   </Badge>
+                </div>
+              )}
+              
+              {notification.data?.error_message && (
+                <div className="mt-2">
+                  <details className="text-xs">
+                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                      Ver detalhes do erro
+                    </summary>
+                    <div className="mt-1 p-2 bg-destructive/10 border border-destructive/20 rounded text-xs font-mono text-destructive">
+                      {notification.data.error_message}
+                    </div>
+                  </details>
+                </div>
+              )}
+              
+              {notification.data?.action && (
+                <div className="mt-2">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (notification.data?.action?.url) {
+                        if (!notification.read_at) {
+                          markAsRead(notification.id)
+                        }
+                        router.push(notification.data.action.url)
+                      }
+                    }}
+                  >
+                    {notification.data.action.label}
+                  </Button>
                 </div>
               )}
             </div>

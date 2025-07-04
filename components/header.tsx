@@ -36,32 +36,54 @@ import {
   AlertCircle,
   Loader2,
   ClipboardList,
-  CreditCard
+  CreditCard,
+  XCircle
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { fetchResource, updateResource, ApiResponse, createResource } from "@/services/resource-service"
 import { formatDistanceToNow } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { useRouter } from "next/navigation"
+import {notificationService} from "@/app/services/notification-service"
 
 // Interface for notifications
 interface Notification {
   id: string
   type: string
-  title: string
-  message: string | null
-  read_at: string | null
-  created_at: string
-  updated_at?: string
-  data?: {
-    body: string
-    action_link?: string
+  notifiable_type: string
+  notifiable_id: number
+  data: {
+    title?: string
+    message?: string
+    type: string
     icon?: string
-    professional_id?: number
-    professional_name?: string
-    professional_type?: string
+    link?: string
+    action?: {
+      label: string
+      url: string
+    }
+    // Solicitation specific fields
+    solicitation_id?: number
+    patient_id?: number
+    patient_name?: string
+    tuss_code?: string
+    tuss_description?: string
+    priority?: string
+    // Appointment specific fields
+    appointment_id?: number
+    confirmed_at?: string
+    cancelled_at?: string
+    detail_url?: string
+    // Report specific fields
+    report_type?: string
+    file_path?: string
+    // Error specific fields
+    error_message?: string
     [key: string]: any
   }
+  read_at: string | null
+  created_at: string
+  updated_at: string
 }
 
 interface HeaderProps {
@@ -82,15 +104,15 @@ export function Header({ className }: HeaderProps) {
 
   // Fetch notifications on mount
   useEffect(() => {
-    // Define the function inside useEffect to avoid dependency issues
     const getNotifications = async () => {
       try {
         setIsLoading(true)
-        const response = await fetchResource<Notification[]>('notifications', {
-          per_page: 10 // Limit to the 10 most recent notifications for the header
+        const response = await fetchResource<{ data: Notification[] }>('notifications', {
+          page: 1,
+          per_page: 5
         })
         if (response?.data) {
-          setNotifications(response.data?.data)
+          setNotifications(response.data.data || [])
         } else {
           setNotifications([]) // Ensure it's always an array
         }
@@ -121,26 +143,10 @@ export function Header({ className }: HeaderProps) {
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
 
-  const fetchNotifications = async () => {
-    try {
-      setIsLoading(true)
-      const response = await fetchResource<Notification[]>('notifications', {
-        per_page: 10
-      })
-      if (response?.data) {
-        setNotifications(response.data)
-      }
-    } catch (error) {
-      console.error('Failed to fetch notifications:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   const markAllAsRead = async () => {
     try {
       setIsMarkingRead(true)
-      await createResource<{ success: boolean }>('notifications/read-all', {}, 'PATCH')
+      await createResource('notifications/read-all', {})
       // Update local state instead of refetching
       setNotifications(notifications.map(notification => ({
         ...notification,
@@ -164,7 +170,8 @@ export function Header({ className }: HeaderProps) {
 
   const markAsRead = async (id: string) => {
     try {
-      await updateResource<{ success: boolean }>(`notifications/${id}/read`, {}, 'PATCH')
+      await updateResource(`notifications/${id}/read`, {}, 'PATCH')
+      
       // Update local state
       setNotifications(notifications.map(notification => 
         notification.id === id 
@@ -172,7 +179,7 @@ export function Header({ className }: HeaderProps) {
           : notification
       ))
     } catch (error) {
-      console.error(`Failed to mark notification ${id} as read:`, error)
+      console.error('Failed to mark notification as read:', error)
     }
   }
 
@@ -201,6 +208,7 @@ export function Header({ className }: HeaderProps) {
         case "bell": return <Bell className="h-5 w-5 text-yellow-500" />;
         case "calendar": return <CalendarClock className="h-5 w-5 text-green-500" />;
         case "file-text": return <FileText className="h-5 w-5 text-indigo-500" />;
+        case "file-medical": return <FileText className="h-5 w-5 text-blue-500" />;
         case "alert-circle": return <AlertCircle className="h-5 w-5 text-red-500" />;
         case "message-square": return <MessageSquare className="h-5 w-5 text-purple-500" />;
         default: return <Bell className="h-5 w-5 text-primary" />;
@@ -208,7 +216,17 @@ export function Header({ className }: HeaderProps) {
     }
     
     // Fallback to type-based icon if no data.icon
-    switch(notification.type) {
+    switch(notification.data?.type) {
+      case "solicitation_created": 
+        return <FileText className="h-5 w-5 text-blue-500" />;
+      case "appointment_confirmed": 
+        return <CheckCircle className="h-5 w-5 text-green-500" />;
+      case "appointment_cancelled": 
+        return <XCircle className="h-5 w-5 text-red-500" />;
+      case "report_generated": 
+        return <FileText className="h-5 w-5 text-indigo-500" />;
+      case "report_generation_failed": 
+        return <AlertCircle className="h-5 w-5 text-red-500" />;
       case "appointment_notification": 
         return <CalendarClock className="h-5 w-5 text-green-500" />;
       case "solicitation_notification": 
@@ -225,6 +243,73 @@ export function Header({ className }: HeaderProps) {
         return <Clock className="h-5 w-5 text-purple-500" />;
       default: 
         return <Bell className="h-5 w-5 text-primary" />;
+    }
+  }
+
+  const getNotificationTitle = (notification: Notification): string => {
+    if (notification.data?.title) {
+      return notification.data.title
+    }
+    
+    // Generate default titles based on notification type
+    switch (notification.data?.type) {
+      case "solicitation_created":
+        return "Nova Solicitação Criada"
+      case "appointment_confirmed":
+        return "Agendamento Confirmado"
+      case "appointment_cancelled":
+        return "Agendamento Cancelado"
+      case "report_generated":
+        return "Relatório Gerado"
+      case "report_generation_failed":
+        return "Erro na Geração de Relatório"
+      case "appointment_notification":
+        return "Atualização de Agendamento"
+      case "solicitation_notification":
+        return "Atualização de Solicitação"
+      case "payment_notification":
+        return "Atualização de Pagamento"
+      case "system_notification":
+        return "Notificação do Sistema"
+      case "professional_registration_submitted":
+        return "Cadastro de Profissional"
+      default:
+        return "Notificação"
+    }
+  }
+
+  const getNotificationMessage = (notification: Notification): string => {
+    if (notification.data?.message) {
+      return notification.data.message
+    }
+    
+    // Generate default messages based on notification type
+    switch (notification.data?.type) {
+      case "solicitation_created":
+        return notification.data?.patient_name 
+          ? `Nova solicitação criada para ${notification.data.patient_name}`
+          : "Uma nova solicitação foi criada"
+      case "appointment_confirmed":
+        return "Seu agendamento foi confirmado"
+      case "appointment_cancelled":
+        return "Seu agendamento foi cancelado"
+      case "report_generated":
+        return "Seu relatório está pronto para download"
+      case "report_generation_failed":
+        const reportType = notification.data?.report_type || "relatório"
+        return `Falha na geração do ${reportType}. Verifique os detalhes.`
+      case "appointment_notification":
+        return "Há uma atualização em seu agendamento"
+      case "solicitation_notification":
+        return "Há uma atualização em sua solicitação"
+      case "payment_notification":
+        return "Há uma atualização em seu pagamento"
+      case "system_notification":
+        return "Há uma notificação do sistema"
+      case "professional_registration_submitted":
+        return "Um novo profissional foi cadastrado"
+      default:
+        return "Você tem uma nova notificação"
     }
   }
 
@@ -340,12 +425,12 @@ export function Header({ className }: HeaderProps) {
                         key={notification.id}
                         className="p-3 hover:bg-muted/80 cursor-pointer border-b border-border/60 transition-colors duration-150 bg-primary/5"
                         onClick={() => {
-                          // Navigate to action_link if provided, otherwise just mark as read
-                          if (notification.data?.action_link) {
-                            markAsRead(notification.id);
-                            router.push(notification.data.action_link);
-                          } else {
-                            markAsRead(notification.id);
+                          notificationService.markAsRead(notification.id);
+                          if (notification.data?.link || notification.data?.action?.url) {
+                            const url = notification.data?.action?.url || notification.data?.link
+                            if (url) {
+                              router.push(url);
+                            }
                           }
                         }}
                       >
@@ -356,12 +441,12 @@ export function Header({ className }: HeaderProps) {
                           <div className="flex-1">
                             <div className="flex justify-between items-start">
                               <p className="text-sm font-semibold text-foreground">
-                                {notification.title}
+                                {getNotificationTitle(notification)}
                               </p>
                               <Badge variant="secondary" className="h-2 w-2 rounded-full p-0 bg-primary" />
                             </div>
                             <p className="text-xs text-foreground mt-0.5">
-                              {notification.data?.body || notification.message}
+                              {getNotificationMessage(notification)}
                             </p>
                             <p className="text-xs text-muted-foreground mt-1.5 flex items-center">
                               <Clock className="h-3.5 w-3.5 mr-1" />
@@ -393,9 +478,9 @@ export function Header({ className }: HeaderProps) {
                             {getNotificationIcon(notification)}
                           </div>
                           <div className="flex-1">
-                            <p className="text-sm font-medium text-primary">{notification.title}</p>
+                            <p className="text-sm font-medium text-primary">{getNotificationTitle(notification)}</p>
                             <p className="text-xs text-foreground mt-0.5">
-                              {notification.data?.body || notification.message}
+                              {getNotificationMessage(notification)}
                             </p>
                             <p className="text-xs text-muted-foreground mt-1.5 flex items-center">
                               <Clock className="h-3.5 w-3.5 mr-1" />
