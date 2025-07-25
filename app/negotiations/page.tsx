@@ -595,7 +595,9 @@ export default function NegotiationsPage() {
           {row.getValue("negotiable_name")}
           <div className="text-xs text-muted-foreground">
             {row.original.negotiable_type === "App\\Models\\Professional" ? "Profissional" : "Estabelecimento"}
+            
           </div>
+          {row.original.negotiable.name}
         </div>
       ),
       enableSorting: true,
