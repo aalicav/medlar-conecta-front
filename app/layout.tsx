@@ -8,6 +8,9 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: 'Medlar Conecta',
   description: 'Sistema de gestão para clínicas e profissionais de saúde',
+  icons: {
+    icon: 'favicon.ico'
+  }
 }
 
 export default function RootLayout({

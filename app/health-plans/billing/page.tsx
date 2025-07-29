@@ -560,8 +560,8 @@ export default function BillingPage() {
                 </div>
                 <div>
                   <h3 className="font-medium mb-1">Status</h3>
-                  <Badge variant={statusMap[selectedBatch.status].color as any}>
-                    {statusMap[selectedBatch.status].label}
+                  <Badge variant={statusMap[selectedBatch.status]?.color as any}>
+                    {statusMap[selectedBatch.status]?.label}
                   </Badge>
                 </div>
                 <div>

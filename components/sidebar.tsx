@@ -88,6 +88,12 @@ export function Sidebar({ className, items, isCollapsed: externalIsCollapsed, on
       roles: ["plan_admin", "super_admin"],
     },
     {
+      title: "Pacientes",
+      href: "/patients",
+      icon: Users,
+      roles: ["super_admin", "admin", "director", "commercial_manager", "operational", "clinic_admin", "clinic", "network_manager", "plan_admin"],
+    },
+    {
       title: "Documentos",
       href: "/health-plans/documents",
       icon: FileText,

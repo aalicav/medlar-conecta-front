@@ -7,6 +7,7 @@ import { FileText, BarChart3, Receipt, Calendar, Filter, MapPin, Building, Plus,
 import api from '@/services/api-client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useAuth } from '@/contexts/auth-context';
 
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -100,6 +101,7 @@ interface ReportConfig {
 
 function ReportsContent() {
   const router = useRouter();
+  const { getUserRole } = useAuth();
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState<ReportConfig | null>(null);
@@ -120,6 +122,9 @@ function ReportsContent() {
   const [expandedRows, setExpandedRows] = useState<number[]>([]);
   const [reportToDelete, setReportToDelete] = useState<Report | null>(null);
 
+  // Check if user is plan-admin
+  const isPlanAdmin = getUserRole() === 'plan_admin';
+
   // Carregar configuração dos relatórios
   useEffect(() => {
     fetchConfig();
@@ -137,7 +142,34 @@ function ReportsContent() {
       
       if (response.data.success) {
         console.log('Config loaded:', response.data.data);
-        setConfig(response.data.data);
+        let configData = response.data.data;
+        
+        // Filter out report types with clinic/professional filters for plan-admin
+        if (isPlanAdmin && configData.types) {
+          const filteredTypes: { [key: string]: any } = {};
+          Object.entries(configData.types).forEach(([key, type]: [string, any]) => {
+            if (type.filters) {
+              // Remove clinic_id and professional_id filters
+              const filteredFilters = { ...type.filters };
+              delete filteredFilters.clinic_id;
+              delete filteredFilters.professional_id;
+              
+              filteredTypes[key] = {
+                ...type,
+                filters: filteredFilters
+              };
+            } else {
+              filteredTypes[key] = type;
+            }
+          });
+          
+          configData = {
+            ...configData,
+            types: filteredTypes
+          };
+        }
+        
+        setConfig(configData);
       } else {
         throw new Error(response.data.message || 'Failed to load report configuration');
       }
@@ -533,7 +565,14 @@ function ReportsContent() {
               <SelectValue placeholder="Tipo de Relatório" />
             </SelectTrigger>
             <SelectContent>
-              {config && Object.entries(config.types).map(([key, type]) => (
+              {config && Object.entries(config.types).filter(([key, type]) => {
+                // For plan-admin, only show financial and appointment reports
+                if (isPlanAdmin) {
+                  return key === 'financial' || key === 'appointment';
+                }
+                // For other users, show all available report types
+                return true;
+              }).map(([key, type]) => (
                 <SelectItem key={key} value={key}>
                   {type.name}
                 </SelectItem>

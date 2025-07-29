@@ -1,54 +1,95 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { toast } from '@/components/ui/use-toast';
-import { Download, Filter, Calendar } from 'lucide-react';
-import api from '@/app/services/api';
-import { formatDate, formatTime } from '@/app/utils/formatters';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-
+import { toast } from '@/components/ui/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DatePicker } from '@/components/ui/date-picker';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Download, Filter, Calendar, MapPin, Building, Users } from 'lucide-react';
+import { format } from 'date-fns';
+import api from '@/services/api-client';
+
+import { DatePicker } from '@/components/ui/date-picker';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAuth } from '@/contexts/auth-context';
+
+interface AppointmentSummary {
+  total_appointments: number;
+  confirmed_appointments: number;
+  completed_appointments: number;
+  cancelled_appointments: number;
+  no_show_appointments: number;
+  attendance_rate: number;
+}
+
+interface Appointment {
+  id: number;
+  scheduled_date: string;
+  patient_name: string;
+  professional_name: string;
+  clinic_name: string;
+  procedure_name: string;
+  status: string;
+}
+
+interface ReportData {
+  summary?: AppointmentSummary;
+  appointments?: Appointment[];
+}
 
 export default function AppointmentsReportsPage() {
   const [loading, setLoading] = useState(false);
-  const [reportData, setReportData] = useState(null);
+  const [reportData, setReportData] = useState<ReportData | null>(null);
   const [clinics, setClinics] = useState([]);
   const [professionals, setProfessionals] = useState([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
   
   // Filter states
-  const [startDate, setStartDate] = useState(null);
-  const [endDate, setEndDate] = useState(null);
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
   const [clinicId, setClinicId] = useState('');
   const [professionalId, setProfessionalId] = useState('');
   const [status, setStatus] = useState('all');
   const [reportName, setReportName] = useState('Relatório de Agendamentos');
 
   const router = useRouter();
+  const { hasRole, user } = useAuth();
+
+  // Check if user is plan-admin
+  const isPlanAdmin = hasRole('plan_admin');
+
+  // Get health plan ID from user context
+  const healthPlanId = user?.entity_type === 'health_plan' ? user.entity_id : null;
 
   useEffect(() => {
-    // Load clinics and professionals for filters
+    // Load clinics and professionals for filters only if not plan-admin
     const fetchOptions = async () => {
       setLoadingOptions(true);
       try {
-        const [clinicsResponse, professionalsResponse] = await Promise.all([
-          api.get('/api/clinics'),
-          api.get('/api/professionals'),
-        ]);
-
-        if (clinicsResponse.data && Array.isArray(clinicsResponse.data.data)) {
-          setClinics(clinicsResponse.data.data);
+        const requests = [];
+        
+        if (!isPlanAdmin) {
+          requests.push(
+            api.get('/api/clinics'),
+            api.get('/api/professionals')
+          );
         }
 
-        if (professionalsResponse.data && Array.isArray(professionalsResponse.data.data)) {
-          setProfessionals(professionalsResponse.data.data);
+        if (requests.length > 0) {
+          const [clinicsResponse, professionalsResponse] = await Promise.all(requests);
+
+          if (clinicsResponse.data && Array.isArray(clinicsResponse.data.data)) {
+            setClinics(clinicsResponse.data.data);
+          }
+
+          if (professionalsResponse.data && Array.isArray(professionalsResponse.data.data)) {
+            setProfessionals(professionalsResponse.data.data);
+          }
         }
       } catch (error) {
         console.error('Erro ao carregar opções de filtro:', error);
@@ -63,56 +104,65 @@ export default function AppointmentsReportsPage() {
     };
 
     fetchOptions();
-  }, []);
+  }, [isPlanAdmin]);
 
   const fetchAppointmentsReport = async () => {
-    setLoading(true);
-    try {
-      const params = {};
-      
-      if (startDate) {
-        params.start_date = startDate.toISOString().split('T')[0];
-      }
-      
-      if (endDate) {
-        params.end_date = endDate.toISOString().split('T')[0];
-      }
-      
-      if (clinicId) {
-        params.clinic_id = clinicId;
-      }
-      
-      if (professionalId) {
-        params.professional_id = professionalId;
-      }
-      
-      if (status !== 'all') {
-        params.status = status;
-      }
-      
-      params.include_summary = true;
-      
-      const response = await api.get('/reports/appointments', { params });
-      
-      if (response.data.status === 'success') {
-        setReportData(response.data.data);
-        toast({
-          title: "Sucesso",
-          description: "Relatório carregado com sucesso"
-        });
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Erro",
-          description: "Erro ao carregar relatório de agendamentos"
-        });
-      }
-    } catch (error) {
-      console.error('Erro ao buscar relatório de agendamentos:', error);
+    if (!startDate && !endDate) {
       toast({
         variant: "destructive",
         title: "Erro",
-        description: "Não foi possível carregar o relatório de agendamentos"
+        description: "Selecione ao menos uma data (início ou fim) para gerar o relatório"
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const filters: any = {
+        start_date: startDate ? startDate.toISOString().split('T')[0] : null,
+        end_date: endDate ? endDate.toISOString().split('T')[0] : null,
+        status: status !== 'all' ? status : null,
+        include_summary: true
+      };
+
+      // Only include clinic_id and professional_id if user is not plan-admin
+      if (!isPlanAdmin) {
+        filters.clinic_id = clinicId || null;
+        filters.professional_id = professionalId || null;
+      }
+
+      // Automatically include health plan ID if user is associated with one
+      if (healthPlanId) {
+        filters.health_plan_id = healthPlanId;
+      }
+
+      const reportPayload = {
+        type: 'appointment',
+        format: 'pdf',
+        name: reportName,
+        description: `Relatório de agendamentos de ${startDate ? format(startDate, 'dd/MM/yyyy') : 'sempre'} até ${endDate ? format(endDate, 'dd/MM/yyyy') : 'hoje'}`,
+        filters
+      };
+
+      console.log('Gerando relatório com payload:', reportPayload);
+      
+      const response = await api.post('/reports/generate', reportPayload);
+      
+      if (response.data.success) {
+        setReportData(response.data.data);
+        toast({
+          title: "Sucesso",
+          description: "Relatório gerado com sucesso!"
+        });
+      } else {
+        throw new Error(response.data.message || 'Erro ao gerar relatório');
+      }
+    } catch (error: any) {
+      console.error('Erro ao gerar relatório:', error);
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: error.message || "Não foi possível gerar o relatório"
       });
     } finally {
       setLoading(false);
@@ -121,19 +171,30 @@ export default function AppointmentsReportsPage() {
 
   const handleExportReport = async () => {
     try {
+      const filters: any = {
+        start_date: startDate ? startDate.toISOString().split('T')[0] : null,
+        end_date: endDate ? endDate.toISOString().split('T')[0] : null,
+        status: status !== 'all' ? status : null,
+        include_summary: true
+      };
+
+      // Only include clinic_id and professional_id if user is not plan-admin
+      if (!isPlanAdmin) {
+        filters.clinic_id = clinicId || null;
+        filters.professional_id = professionalId || null;
+      }
+
+      // Automatically include health plan ID if user is associated with one
+      if (healthPlanId) {
+        filters.health_plan_id = healthPlanId;
+      }
+
       const params = {
         type: 'appointment',
         format: 'pdf',
         name: reportName,
-        description: `Relatório de agendamentos de ${startDate ? formatDate(startDate) : 'sempre'} até ${endDate ? formatDate(endDate) : 'hoje'}`,
-        filters: {
-          start_date: startDate ? startDate.toISOString().split('T')[0] : null,
-          end_date: endDate ? endDate.toISOString().split('T')[0] : null,
-          clinic_id: clinicId || null,
-          professional_id: professionalId || null,
-          status: status !== 'all' ? status : null,
-          include_summary: true
-        }
+        description: `Relatório de agendamentos de ${startDate ? format(startDate, 'dd/MM/yyyy') : 'sempre'} até ${endDate ? format(endDate, 'dd/MM/yyyy') : 'hoje'}`,
+        filters
       };
       
       const response = await api.post('/reports/create', params);
@@ -161,18 +222,18 @@ export default function AppointmentsReportsPage() {
     }
   };
 
-  const getStatusBadge = (status) => {
+  const getStatusBadge = (status: string) => {
     switch (status) {
       case 'scheduled':
         return <Badge variant="outline">Agendado</Badge>;
       case 'confirmed':
         return <Badge variant="secondary">Confirmado</Badge>;
       case 'completed':
-        return <Badge variant="success">Realizado</Badge>;
+        return <Badge variant="default" className="bg-green-600 text-white hover:bg-green-700">Realizado</Badge>;
       case 'cancelled':
         return <Badge variant="destructive">Cancelado</Badge>;
       case 'no_show':
-        return <Badge variant="warning">Não Compareceu</Badge>;
+        return <Badge variant="default" className="bg-amber-600 text-white hover:bg-amber-700">Não Compareceu</Badge>;
       default:
         return <Badge>{status}</Badge>;
     }
@@ -255,50 +316,53 @@ export default function AppointmentsReportsPage() {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                Estabelecimento
-              </label>
-              <Select
-                value={clinicId}
-                onValueChange={setClinicId}
-                disabled={loadingOptions || loading}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a clínica" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clinics.map((clinic) => (
-                    <SelectItem key={clinic.id} value={clinic.id.toString()}>
-                      {clinic.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {!isPlanAdmin && (
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">
+                    Estabelecimento
+                  </label>
+                  <Select
+                    value={clinicId}
+                    onValueChange={setClinicId}
+                    disabled={loadingOptions || loading}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a clínica" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clinics.map((clinic: any) => (
+                        <SelectItem key={clinic.id} value={clinic.id.toString()}>
+                          {clinic.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                Profissional
-              </label>
-              <Select
-                value={professionalId}
-                onValueChange={setProfessionalId}
-                disabled={loadingOptions || loading}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o profissional" />
-                </SelectTrigger>
-                <SelectContent>
-                  
-                  {professionals.map((professional) => (
-                    <SelectItem key={professional.id} value={professional.id.toString()}>
-                      {professional.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">
+                    Profissional
+                  </label>
+                  <Select
+                    value={professionalId}
+                    onValueChange={setProfessionalId}
+                    disabled={loadingOptions || loading}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o profissional" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {professionals.map((professional: any) => (
+                        <SelectItem key={professional.id} value={professional.id.toString()}>
+                          {professional.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
           </div>
         </CardContent>
         <CardFooter className="flex justify-end">
@@ -396,8 +460,8 @@ export default function AppointmentsReportsPage() {
                     reportData.appointments.map((appointment) => (
                       <TableRow key={appointment.id}>
                         <TableCell>{appointment.id}</TableCell>
-                        <TableCell>{formatDate(new Date(appointment.scheduled_date))}</TableCell>
-                        <TableCell>{formatTime(new Date(appointment.scheduled_date))}</TableCell>
+                        <TableCell>{format(new Date(appointment.scheduled_date), 'dd/MM/yyyy')}</TableCell>
+                        <TableCell>{format(new Date(appointment.scheduled_date), 'HH:mm')}</TableCell>
                         <TableCell>{appointment.patient_name}</TableCell>
                         <TableCell>{appointment.professional_name}</TableCell>
                         <TableCell>{appointment.clinic_name}</TableCell>

@@ -1,24 +1,26 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { toast } from '@/components/ui/use-toast';
-import { FileText, BarChart3, Receipt, Calendar, Filter, MapPin, Building } from 'lucide-react';
-import api from '@/app/services/api-client';
-
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { DatePicker } from '@/components/ui/date-picker';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { CalendarIcon, FileText, BarChart3, Receipt, Calendar, Users, Building, TrendingUp, Filter, Plus } from 'lucide-react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { DateInput } from '@/components/ui/date-input';
+import api from '@/services/api-client';
+import { useAuth } from '@/contexts/auth-context';
+
+import { DatePicker } from '@/components/ui/date-picker';
 import { Separator } from '@/components/ui/separator';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { useAuth } from '@/contexts/auth-context';
 import { Switch } from '@/components/ui/switch';
+import { toast } from '@/hooks/use-toast';
 
 interface Clinic {
   id: number;
@@ -113,7 +115,7 @@ const defaultFormData: FormData = {
   save_as_report: false
 };
 
-const validateFormData = (data: FormData): { isValid: boolean; errors: string[] } => {
+const validateFormData = (data: FormData, isPlanAdmin: boolean = false): { isValid: boolean; errors: string[] } => {
   const errors: string[] = [];
 
   // Required fields
@@ -152,7 +154,8 @@ const validateFormData = (data: FormData): { isValid: boolean; errors: string[] 
     if (!data.parameters.end_date) {
       errors.push('Data final é obrigatória para relatórios financeiros');
     }
-    if (!data.parameters.health_plan_id) {
+    // Only require health_plan_id for non-plan-admin users
+    if (!isPlanAdmin && !data.parameters.health_plan_id) {
       errors.push('Plano de saúde é obrigatório para relatórios financeiros');
     }
   }
@@ -173,7 +176,8 @@ const validateFormData = (data: FormData): { isValid: boolean; errors: string[] 
     if (!data.parameters.end_date) {
       errors.push('Data final é obrigatória para relatórios de desempenho');
     }
-    if (!data.parameters.professional_id && !data.parameters.clinic_id) {
+    // Only require professional_id or clinic_id for non-plan-admin users
+    if (!isPlanAdmin && !data.parameters.professional_id && !data.parameters.clinic_id) {
       errors.push('Profissional ou clínica é obrigatório para relatórios de desempenho');
     }
   }
@@ -189,6 +193,7 @@ const validateFormData = (data: FormData): { isValid: boolean; errors: string[] 
 
   // Log validation results
   console.log('Form data being validated:', data);
+  console.log('Is plan admin:', isPlanAdmin);
   if (errors.length > 0) {
     console.log('Validation errors:', errors);
   } else {
@@ -206,6 +211,7 @@ const NewReportContent = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const typeParam = searchParams?.get('type') ?? '';
+  const { getUserRole, hasRole, user: authUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [currentTab, setCurrentTab] = useState('report-type');
   
@@ -248,11 +254,10 @@ const NewReportContent = () => {
   const [states, setStates] = useState<string[]>([]);
   const [cities, setCities] = useState<Record<string, string[]>>({});
   const [loadingOptions, setLoadingOptions] = useState(false);
-
-  const [user, setUser] = useState<any>({});
-  const { hasPermission, hasRole, user: authUser } = useAuth();
-
   const [reportConfig, setReportConfig] = useState<ReportConfig | null>(null);
+
+  // Check if user is plan-admin
+  const isPlanAdmin = getUserRole() === 'plan_admin';
 
   // Definir os tipos de relatórios e suas permissões necessárias
   const reportTypes = [
@@ -298,6 +303,11 @@ const NewReportContent = () => {
     // Super admin tem acesso a tudo
     if (hasRole('super_admin')) return true;
 
+    // Plan-admin only has access to financial and appointment reports
+    if (isPlanAdmin) {
+      return type === 'financial' || type === 'appointment';
+    }
+
     // Verifica se o usuário tem uma das roles necessárias
     return hasRole(reportType.roles);
   };
@@ -323,49 +333,71 @@ const NewReportContent = () => {
     const loadOptionsData = async () => {
       setLoadingOptions(true);
       try {
-        // Carregar todas as opções de uma vez
-        const [clinicsResponse, healthPlansResponse, professionalsResponse] = await Promise.all([
-          api.get('/clinics', { params: { per_page: 100 } }),
-          api.get('/health-plans', { params: { per_page: 100 } }),
-          api.get('/professionals', { params: { per_page: 100 } })
-        ]);
-
-        // Processar dados de clínicas e extrair estados e cidades
-        if (clinicsResponse.data && Array.isArray(clinicsResponse.data.data)) {
-          const clinicsData = clinicsResponse.data.data as Clinic[];
-          setClinics(clinicsData);
-          
-          // Extrair estados únicos
-          const uniqueStates = [...new Set(clinicsData.map(clinic => clinic.state))].sort();
-          setStates(uniqueStates);
-          
-          // Agrupar cidades por estado
-          const citiesByState: Record<string, string[]> = {};
-          uniqueStates.forEach(state => {
-            const stateCities = [...new Set(clinicsData
-              .filter(clinic => clinic.state === state)
-              .map(clinic => clinic.city))]
-              .sort();
-            citiesByState[state] = stateCities;
-          });
-          setCities(citiesByState);
+        // Build the requests array based on user role
+        const requests = [];
+        
+        // Only load health plans if user is not plan-admin (plan-admin doesn't need to select from list)
+        if (!isPlanAdmin) {
+          requests.push(api.get('/health-plans', { params: { per_page: 100 } }));
+        }
+        
+        // Only load clinics and professionals if user is not plan-admin
+        if (!isPlanAdmin) {
+          requests.push(
+            api.get('/clinics', { params: { per_page: 100 } }),
+            api.get('/professionals', { params: { per_page: 100 } })
+          );
         }
 
-        // Processar dados de planos de saúde
-        if (healthPlansResponse.data && Array.isArray(healthPlansResponse.data.data)) {
-          setHealthPlans(healthPlansResponse.data.data);
+        // If no requests to make, just set loading to false
+        if (requests.length === 0) {
+          setLoadingOptions(false);
+          return;
         }
 
-        // Processar dados de profissionais
-        if (professionalsResponse.data && Array.isArray(professionalsResponse.data.data)) {
-          setProfessionals(professionalsResponse.data.data);
+        const responses = await Promise.all(requests);
+        
+        // Process health plans data only if loaded
+        if (!isPlanAdmin && responses[0] && responses[0].data && Array.isArray(responses[0].data.data)) {
+          const healthPlansData = responses[0].data.data as HealthPlan[];
+          setHealthPlans(healthPlansData);
+        }
+
+        // Process clinics and professionals data only if loaded
+        if (!isPlanAdmin && responses.length > 1) {
+          // Process clinics data
+          if (responses[1] && responses[1].data && Array.isArray(responses[1].data.data)) {
+            const clinicsData = responses[1].data.data as Clinic[];
+            setClinics(clinicsData);
+            
+            // Extrair estados únicos
+            const uniqueStates = [...new Set(clinicsData.map(clinic => clinic.state))].sort();
+            setStates(uniqueStates);
+            
+            // Agrupar cidades por estado
+            const citiesByState: Record<string, string[]> = {};
+            uniqueStates.forEach(state => {
+              const stateCities = [...new Set(clinicsData
+                .filter(clinic => clinic.state === state)
+                .map(clinic => clinic.city))]
+                .sort();
+              citiesByState[state] = stateCities;
+            });
+            setCities(citiesByState);
+          }
+
+          // Process professionals data
+          if (responses[2] && responses[2].data && Array.isArray(responses[2].data.data)) {
+            const professionalsData = responses[2].data.data as Professional[];
+            setProfessionals(professionalsData);
+          }
         }
       } catch (error) {
-        console.error('Erro ao carregar opções:', error);
+        console.error('Erro ao carregar dados:', error);
         toast({
-          variant: "destructive",
-          title: "Erro",
-          description: "Não foi possível carregar todas as opções de filtro"
+          title: 'Erro',
+          description: 'Não foi possível carregar todos os dados necessários',
+          variant: 'destructive',
         });
       } finally {
         setLoadingOptions(false);
@@ -373,7 +405,7 @@ const NewReportContent = () => {
     };
 
     loadOptionsData();
-  }, []);
+  }, [isPlanAdmin]);
 
   useEffect(() => {
     // Safely access localStorage only on client side
@@ -382,7 +414,7 @@ const NewReportContent = () => {
       if (storedUser) {
         try {
           const parsedUser = JSON.parse(storedUser);
-          setUser(parsedUser);
+          // setUser(parsedUser); // This line was removed as per the new_code
           
           // Se o usuário não tem acesso ao tipo selecionado, seleciona o primeiro tipo permitido
           if (!hasAccessToReportType(reportType) && allowedReportTypes.length > 0) {
@@ -423,19 +455,43 @@ const NewReportContent = () => {
     }
   };
 
-  // Função para obter o health_plan_id baseado no papel do usuário
-  const getHealthPlanId = () => {
-    if (hasRole(['plan_admin', 'health_plan'])) {
-      return authUser?.entity_id?.toString();
+  // Get health plan ID from user context - automatically set for plan users
+  const userHealthPlanId = authUser?.entity_type === 'health_plan' ? authUser.entity_id : null;
+
+  // Update form data with health plan ID when user changes or when component mounts
+  useEffect(() => {
+    if (userHealthPlanId && hasRole(['plan_admin', 'health_plan'])) {
+      setFormData(prev => ({
+        ...prev,
+        parameters: {
+          ...prev.parameters,
+          health_plan_id: userHealthPlanId
+        }
+      }));
     }
-    return healthPlanIdFinancial || healthPlanIdAppointment || null;
-  };
+  }, [userHealthPlanId, authUser, hasRole]);
+
+  // Also update form data when report type changes to ensure health_plan_id is set
+  useEffect(() => {
+    if (userHealthPlanId && hasRole(['plan_admin', 'health_plan']) && formData.type) {
+      setFormData(prev => ({
+        ...prev,
+        parameters: {
+          ...prev.parameters,
+          health_plan_id: userHealthPlanId
+        }
+      }));
+    }
+  }, [formData.type, userHealthPlanId, hasRole]);
 
   const handleCreateReport = async () => {
     try {
       setLoading(true);
       console.group('Creating New Report');
       console.log('Form Data:', formData);
+
+      // Automatically include health plan ID for plan users
+      const healthPlanId = userHealthPlanId || formData.parameters.health_plan_id;
 
       // Prepare report data according to backend structure
       const reportData = {
@@ -445,9 +501,11 @@ const NewReportContent = () => {
         filters: {
           start_date: formData.parameters.start_date,
           end_date: formData.parameters.end_date,
-          health_plan_id: formData.parameters.health_plan_id ? Number(formData.parameters.health_plan_id) : undefined,
-          clinic_id: formData.parameters.clinic_id ? Number(formData.parameters.clinic_id) : undefined,
-          professional_id: formData.parameters.professional_id ? Number(formData.parameters.professional_id) : undefined,
+          health_plan_id: healthPlanId ? Number(healthPlanId) : undefined,
+          ...(isPlanAdmin ? {} : {
+            clinic_id: formData.parameters.clinic_id ? Number(formData.parameters.clinic_id) : undefined,
+            professional_id: formData.parameters.professional_id ? Number(formData.parameters.professional_id) : undefined,
+          }),
           status: formData.parameters.status,
           city: formData.parameters.city,
           state: formData.parameters.state,
@@ -515,8 +573,12 @@ const NewReportContent = () => {
       router.push('/reports/financial');
     } else if (reportType === 'appointment') {
       router.push('/reports/appointments');
-    } else if (reportType === 'performance') {
+    } else if (reportType === 'performance' && !isPlanAdmin) {
+      // Only non-plan-admin users can access performance reports
       router.push('/reports/performance');
+    } else {
+      // For restricted report types or plan-admin users, stay on current page or redirect to main reports
+      router.push('/reports');
     }
   };
 
@@ -558,33 +620,31 @@ const NewReportContent = () => {
     return filtered;
   };
 
-  // Modificar o componente para esconder o select de plano de saúde quando for usuário do plano
-  const renderHealthPlanSelect = () => {
-    if (hasRole(['plan_admin', 'health_plan'])) {
-      return null; // Não mostra o select para usuários do plano
+  // Validate required filters from API configuration
+  const validateRequiredFilters = (data: FormData): string[] => {
+    const errors: string[] = [];
+    
+    if (reportConfig && data.type && reportConfig.types[data.type]) {
+      const typeConfig = reportConfig.types[data.type];
+      
+      Object.entries(typeConfig.filters).forEach(([key, filter]) => {
+        if (filter.required) {
+          const paramKey = key as keyof ReportParameters;
+          const value = data.parameters[paramKey];
+          
+          // Skip validation for plan-admin users on certain fields
+          if (isPlanAdmin && (key === 'health_plan_id' || key === 'clinic_id' || key === 'professional_id')) {
+            return; // Skip validation for these fields for plan-admin users
+          }
+          
+          if (!value || (typeof value === 'string' && !value.trim())) {
+            errors.push(`${filter.label} é obrigatório`);
+          }
+        }
+      });
     }
-
-    return (
-      <div className="space-y-2">
-        <Label htmlFor="healthPlanIdFinancial">Plano de Saúde</Label>
-        <Select
-          value={healthPlanIdFinancial}
-          onValueChange={setHealthPlanIdFinancial}
-          disabled={loadingOptions}
-        >
-          <SelectTrigger id="healthPlanIdFinancial">
-            <SelectValue placeholder="Selecione o plano de saúde" />
-          </SelectTrigger>
-          <SelectContent>
-            {healthPlans.map((plan) => (
-              <SelectItem key={plan.id} value={plan.id.toString()}>
-                {plan.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    );
+    
+    return errors;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -593,16 +653,23 @@ const NewReportContent = () => {
     console.log('Form submitted with data:', formData);
 
     // Validate form data
-    const validation = validateFormData(formData);
-    if (!validation.isValid) {
-      console.log('Form validation failed:', validation.errors);
-      validation.errors.forEach(error => {
-        toast({
-          variant: "destructive",
-          title: "Erro de Validação",
-          description: error
-        });
+    const validation = validateFormData(formData, isPlanAdmin);
+    const filterErrors = validateRequiredFilters(formData);
+    const allErrors = [...validation.errors, ...filterErrors];
+    
+    if (!validation.isValid || filterErrors.length > 0) {
+      console.log('Form validation failed:', allErrors);
+      
+      // Show each validation error in a separate toast with delay
+      allErrors.forEach((error, index) => {
+
+          toast({
+            variant: "destructive",
+            title: "Erro de Validação",
+            description: error
+          });
       });
+      
       console.groupEnd();
       return;
     }
@@ -634,6 +701,12 @@ const NewReportContent = () => {
   // Update the filter rendering to use type-safe parameter names
   const renderFilter = (key: string, filter: ReportFilter) => {
     const paramKey = key as keyof ReportParameters;
+    
+    // Skip health_plan_id, clinic_id and professional_id filters for plan-admin users
+    if (isPlanAdmin && (key === 'health_plan_id' || key === 'clinic_id' || key === 'professional_id')) {
+      return null;
+    }
+    
     return (
       <div key={key} className="space-y-2">
         <Label className="block">{filter.label}</Label>
@@ -725,7 +798,14 @@ const NewReportContent = () => {
                   <SelectValue placeholder="Selecione o tipo" />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(reportConfig.types).map(([key, type]) => (
+                  {Object.entries(reportConfig.types).filter(([key, type]) => {
+                    // For plan-admin, only show financial and appointment reports
+                    if (isPlanAdmin) {
+                      return key === 'financial' || key === 'appointment';
+                    }
+                    // For other users, show all available report types
+                    return true;
+                  }).map(([key, type]) => (
                     <SelectItem key={key} value={key}>
                       {type.name}
                     </SelectItem>

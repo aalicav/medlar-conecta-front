@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
-import { format } from "date-fns";
+import { format, parse, isValid } from "date-fns";
 
 interface DateInputProps {
   value: Date | null;
@@ -11,35 +11,63 @@ interface DateInputProps {
 }
 
 export function DateInput({ value, onChange, placeholder = "DD/MM/AAAA", className }: DateInputProps) {
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+  const [inputValue, setInputValue] = useState<string>('');
+
+  // Sincroniza o input com o valor da prop
+  useEffect(() => {
+    if (value) {
+      setInputValue(format(value, 'dd/MM/yyyy'));
+    } else {
+      setInputValue('');
+    }
+  }, [value]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    const rawValue = e.target.value;
+    
     // Remove caracteres não numéricos
-    const cleaned = value.replace(/\D/g, '');
+    const cleaned = rawValue.replace(/\D/g, '');
+    
+    // Limita a 8 dígitos (DDMMAAAA)
+    const limited = cleaned.slice(0, 8);
     
     // Formata a data automaticamente
-    let formatted = cleaned;
-    if (cleaned.length >= 2) {
-      formatted = cleaned.slice(0, 2) + '/' + cleaned.slice(2);
+    let formatted = limited;
+    if (limited.length >= 3) {
+      formatted = limited.slice(0, 2) + '/' + limited.slice(2);
     }
-    if (cleaned.length >= 4) {
-      formatted = formatted.slice(0, 5) + '/' + cleaned.slice(5);
+    if (limited.length >= 5) {
+      formatted = formatted.slice(0, 5) + '/' + limited.slice(4);
     }
     
-    // Atualiza o valor do input
-    e.target.value = formatted;
+    // Atualiza o estado do input
+    setInputValue(formatted);
     
     // Se tiver 8 dígitos, tenta converter para data
-    if (cleaned.length === 8) {
-      const day = parseInt(cleaned.slice(0, 2));
-      const month = parseInt(cleaned.slice(2, 4)) - 1;
-      const year = parseInt(cleaned.slice(4, 8));
-      const date = new Date(year, month, day);
+    if (limited.length === 8) {
+      const day = limited.slice(0, 2);
+      const month = limited.slice(2, 4);
+      const year = limited.slice(4, 8);
+      
+      // Tenta fazer o parse da data
+      const dateString = `${day}/${month}/${year}`;
+      const parsedDate = parse(dateString, 'dd/MM/yyyy', new Date());
       
       // Verifica se é uma data válida
-      if (!isNaN(date.getTime())) {
-        onChange(date);
+      if (isValid(parsedDate)) {
+        onChange(parsedDate);
+      } else {
+        // Se a data for inválida, limpa o valor
+        onChange(null);
       }
+    } else if (limited.length === 0) {
+      // Se o input estiver vazio, limpa a data
+      onChange(null);
     }
+  };
+
+  const handleDatePickerChange = (date: Date | null): void => {
+    onChange(date);
   };
 
   return (
@@ -47,14 +75,14 @@ export function DateInput({ value, onChange, placeholder = "DD/MM/AAAA", classNa
       <Input
         type="text"
         placeholder={placeholder}
-        value={value ? format(new Date(value), 'dd/MM/yyyy') : ''}
+        value={inputValue}
         onChange={handleInputChange}
         maxLength={10}
         className={className}
       />
       <DatePicker 
         date={value} 
-        setDate={onChange}
+        setDate={handleDatePickerChange}
       />
     </div>
   );

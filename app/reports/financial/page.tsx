@@ -6,6 +6,7 @@ import { Download, Filter } from 'lucide-react';
 import api from '../../../services/api-client';
 import { formatCurrency, formatDate } from '@/app/utils/formatters';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/auth-context';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,7 @@ interface FinancialReportData {
 interface ReportParams {
   start_date?: string;
   end_date?: string;
+  health_plan_id?: number;
   include_summary?: boolean;
 }
 
@@ -54,6 +56,13 @@ export default function FinancialReportsPage() {
   const [reportName, setReportName] = useState('Relatório Financeiro');
 
   const router = useRouter();
+  const { hasRole, user } = useAuth();
+
+  // Check if user is plan-admin
+  const isPlanAdmin = hasRole('plan_admin');
+
+  // Get health plan ID from user context
+  const healthPlanId = isPlanAdmin ? user?.entity_id : null;
 
   const fetchFinancialReport = async () => {
     setLoading(true);
@@ -66,6 +75,11 @@ export default function FinancialReportsPage() {
       
       if (endDate) {
         params.end_date = endDate.toISOString().split('T')[0];
+      }
+      
+      // Automatically include health plan ID if user is associated with one
+      if (healthPlanId) {
+        params.health_plan_id = healthPlanId;
       }
       
       params.include_summary = true;
@@ -99,16 +113,23 @@ export default function FinancialReportsPage() {
 
   const handleExportReport = async () => {
     try {
+      const filters: any = {
+        start_date: startDate ? startDate.toISOString().split('T')[0] : null,
+        end_date: endDate ? endDate.toISOString().split('T')[0] : null,
+        include_summary: true
+      };
+
+      // Automatically include health plan ID if user is associated with one
+      if (healthPlanId) {
+        filters.health_plan_id = healthPlanId;
+      }
+
       const params = {
         type: 'financial',
         format: 'pdf',
         name: reportName,
         description: `Relatório financeiro de ${startDate ? formatDate(startDate) : 'sempre'} até ${endDate ? formatDate(endDate) : 'hoje'}`,
-        filters: {
-          start_date: startDate ? startDate.toISOString().split('T')[0] : null,
-          end_date: endDate ? endDate.toISOString().split('T')[0] : null,
-          include_summary: true
-        }
+        filters
       };
       
       const response = await api.post('/reports/create', params);
@@ -162,7 +183,12 @@ export default function FinancialReportsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Filtros</CardTitle>
-          <CardDescription>Selecione um período para visualizar os dados financeiros</CardDescription>
+          <CardDescription>
+            {isPlanAdmin 
+              ? "Selecione um período para visualizar os dados financeiros do seu plano"
+              : "Selecione um período para visualizar os dados financeiros"
+            }
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
