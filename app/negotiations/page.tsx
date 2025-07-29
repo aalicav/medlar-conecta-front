@@ -137,20 +137,19 @@ const statusLabels: Record<NegotiationStatus, string> = {
 };
 
 // Updated status variant mapping
-const getStatusVariant = (status: NegotiationStatus): "default" | "secondary" | "destructive" | "outline" | null | "success" | "warning" => {
+const getStatusVariant = (status: NegotiationStatus): "default" | "secondary" | "destructive" | "outline" | null => {
   switch (status) {
     case 'approved':
     case 'complete':
-      return 'success';
+      return 'default'; // was 'success'
     case 'rejected':
       return 'destructive';
     case 'pending':
     case 'pending_approval':
     case 'pending_director_approval':
-      return 'warning';
     case 'partially_complete':
     case 'partially_approved':
-      return 'warning';
+      return 'outline'; // was 'warning'
     case 'forked':
     case 'expired':
       return 'secondary';
@@ -540,44 +539,21 @@ export default function NegotiationsPage() {
     }));
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "pending":
-        return (
-          <Tooltip>
-            <TooltipTrigger>
-              <Badge variant="outline">Pendente</Badge>
-            </TooltipTrigger>
-            <TooltipContent>
-              Aguardando aprovação
-            </TooltipContent>
-          </Tooltip>
-        );
-      case "approved":
-        return (
-          <Tooltip>
-            <TooltipTrigger>
-              <Badge>Aprovado</Badge>
-            </TooltipTrigger>
-            <TooltipContent>
-              Negociação aprovada
-            </TooltipContent>
-          </Tooltip>
-        );
-      case "rejected":
-        return (
-          <Tooltip>
-            <TooltipTrigger>
-              <Badge variant="destructive">Rejeitado</Badge>
-            </TooltipTrigger>
-            <TooltipContent>
-              Negociação rejeitada
-            </TooltipContent>
-          </Tooltip>
-        );
-      default:
-        return <Badge>{status}</Badge>;
-    }
+  const getStatusBadge = (status: NegotiationStatus) => {
+    const label = statusLabels[status] || status;
+    const variant = getStatusVariant(status) || "secondary";
+    const description = getStatusDescription(status);
+
+    return (
+      <Tooltip>
+        <TooltipTrigger>
+          <Badge variant={variant}>{label}</Badge>
+        </TooltipTrigger>
+        <TooltipContent>
+          {description}
+        </TooltipContent>
+      </Tooltip>
+    );
   };
 
   const columns: ColumnDef<Negotiation>[] = [

@@ -127,7 +127,7 @@ export function Sidebar({ className, items, isCollapsed: externalIsCollapsed, on
       title: "Negociações",
       href: "/negotiations",
       icon: GanttChart,
-      roles: ["super_admin", "admin", "director", "commercial_manager", "clinic_admin", "professional"],
+      roles: ["super_admin", "admin", "director", "commercial_manager", "clinic_admin", "professional", "network_manager"],
     },
     {
       title: "Verificações de Valores",
@@ -247,7 +247,7 @@ export function Sidebar({ className, items, isCollapsed: externalIsCollapsed, on
             </div>
           )}
           
-          <nav className="space-y-1">
+          <nav className="space-y-1 overflow-hidden">
             {filteredNavItems.map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
               const isHovered = hoveredItem === item.href;
@@ -291,7 +291,9 @@ export function Sidebar({ className, items, isCollapsed: externalIsCollapsed, on
                     )}>
                       <item.icon className="h-5 w-5" />
                     </div>
-                    {!isCollapsed && <span className="truncate">{item.title}</span>}
+                    {!isCollapsed && (
+                      <span className="truncate max-w-[140px] block">{item.title}</span>
+                    )}
                   </div>
                   
                   {isActive && !isCollapsed && (
@@ -318,8 +320,8 @@ export function Sidebar({ className, items, isCollapsed: externalIsCollapsed, on
           {!isCollapsed && (
             <>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">{user?.name}</p>
-                <p className="text-xs text-white/70 truncate">{user?.email}</p>
+                <p className="text-sm font-medium text-white truncate max-w-[120px]">{user?.name}</p>
+                <p className="text-xs text-white/70 truncate max-w-[120px]">{user?.email}</p>
               </div>
               <Button 
                 variant="ghost" 

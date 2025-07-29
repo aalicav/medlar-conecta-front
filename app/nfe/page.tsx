@@ -17,34 +17,67 @@ import { api } from "@/lib/api"
 
 interface NFe {
   id: number
+  billing_rule_id: number
+  entity_type: string
+  entity_id: number
+  reference_period_start: string
+  reference_period_end: string
+  items_count: number
+  total_amount: string
+  fees_amount: string
+  taxes_amount: string
+  net_amount: string
+  billing_date: string
+  due_date: string
+  status: string
+  payment_status: string
+  invoice_number: string | null
+  invoice_path: string | null
+  created_by: number
+  processing_notes: string | null
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
+  payment_received_at: string | null
+  payment_method: string | null
+  payment_reference: string | null
+  payment_proof_path: string | null
+  invoice_status: string | null
+  invoice_generated_at: string | null
+  invoice_sent_at: string | null
+  invoice_xml_path: string | null
+  invoice_pdf_path: string | null
+  operator_viewed_at: string | null
+  operator_approved_at: string | null
+  operator_approval_user: string | null
+  is_late: number
+  days_late: number | null
+  last_reminder_sent_at: string | null
+  reminders_sent_count: number
   nfe_number: string
   nfe_key: string
-  nfe_status: string
   nfe_xml: string
+  nfe_status: string
+  nfe_protocol: string | null
   nfe_authorization_date: string
-  nfe_cancellation_date?: string
-  nfe_cancellation_reason?: string
-  nfe_cancellation_protocol?: string
-  nfe_substitute_key?: string
-  total_amount: number
+  nfe_cancellation_date: string | null
+  nfe_cancellation_reason: string | null
+  nfe_cancellation_protocol: string | null
+  nfe_substitute_key: string | null
+  health_plan_id: number | null
+  contract_id: number | null
   health_plan: {
     id: number
     name: string
     cnpj: string
-  }
-  contract: {
-    id: number
-    name: string
-  }
-  created_at: string
-  updated_at: string
+  } | null
 }
 
 interface SubstituteNFe {
   id: number
   nfe_number: string
   nfe_key: string
-  total_amount: number
+  total_amount: string
   created_at: string
 }
 
@@ -295,11 +328,12 @@ export default function NFesPage() {
     }
   }
 
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (value: string | number) => {
+    const numValue = typeof value === 'string' ? parseFloat(value) : value
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
       currency: "BRL",
-    }).format(value)
+    }).format(numValue)
   }
 
   const formatDate = (dateString: string) => {
@@ -507,9 +541,11 @@ export default function NFesPage() {
                           </TableCell>
                           <TableCell>
                             <div>
-                              <div className="font-medium">{nfe.health_plan.name}</div>
+                              <div className="font-medium">
+                                {nfe.health_plan?.name || 'N/A'}
+                              </div>
                               <div className="text-sm text-muted-foreground">
-                                {nfe.health_plan.cnpj}
+                                {nfe.health_plan?.cnpj || 'N/A'}
                               </div>
                             </div>
                           </TableCell>
@@ -745,10 +781,7 @@ export default function NFesPage() {
                         </div>
                         <div className="text-right">
                           <div className="font-medium text-lg">
-                            {new Intl.NumberFormat('pt-BR', {
-                              style: 'currency',
-                              currency: 'BRL'
-                            }).format(appointment.amount)}
+                            {formatCurrency(appointment.amount)}
                           </div>
                           <Badge variant="secondary">{appointment.status}</Badge>
                         </div>

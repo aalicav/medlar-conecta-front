@@ -346,21 +346,6 @@ export function Header({ className }: HeaderProps) {
 
       <div className="flex flex-1 items-center justify-end space-x-4">
         <nav className="flex items-center space-x-1 md:space-x-2">
-          {/* Help button */}
-          <Button variant="ghost" size="icon" className="relative rounded-full text-primary hover:text-primary hover:bg-muted transition-colors duration-200">
-            <HelpCircle className="h-5 w-5" />
-          </Button>
-
-          {/* Messages */}
-          <Button variant="ghost" size="icon" className="relative rounded-full text-primary hover:text-primary hover:bg-muted transition-colors duration-200">
-            <MessageSquare className="h-5 w-5" />
-            <Badge 
-              variant="secondary" 
-              className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center bg-primary text-primary-foreground"
-            >
-              2
-            </Badge>
-          </Button>
 
           {/* Notifications */}
           <Popover>
