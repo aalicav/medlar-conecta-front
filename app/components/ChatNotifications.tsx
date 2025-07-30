@@ -15,22 +15,23 @@ export default function ChatNotifications({ phone, onNewMessage }: ChatNotificat
   useEffect(() => {
     if (!phone) return;
 
-    // Set up real-time notifications
-    const unsubscribe = BidirectionalMessageService.listenForNewMessages((newConversation) => {
-      // Check if this message is for the current conversation
-      if (newConversation.phone === phone && newConversation.latest_message) {
-        // Show notification
-        toast.success(`Nova mensagem de ${newConversation.phone}`, {
-          description: newConversation.latest_message.content,
-          duration: 5000,
-        });
+    console.log('Setting up notifications for phone:', phone);
 
-        // Call callback if provided
-        if (onNewMessage) {
-          onNewMessage(newConversation.latest_message);
-        }
+    // Temporarily disable polling to test if messages appear without it
+    /*
+    // Set up real-time notifications
+    const unsubscribe = BidirectionalMessageService.listenForNewMessages((newMessage) => {
+      // Show notification
+      toast.success(`Nova mensagem de ${phone}`, {
+        description: newMessage.content,
+        duration: 5000,
+      });
+
+      // Call callback if provided
+      if (onNewMessage) {
+        onNewMessage(newMessage);
       }
-    });
+    }, phone);
 
     setIsListening(true);
 
@@ -38,6 +39,7 @@ export default function ChatNotifications({ phone, onNewMessage }: ChatNotificat
       unsubscribe();
       setIsListening(false);
     };
+    */
   }, [phone, onNewMessage]);
 
   // This component doesn't render anything visible

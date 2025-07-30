@@ -10,6 +10,13 @@ export interface TwilioMessage {
   conversation_sid: string;
 }
 
+export interface PaginationInfo {
+  has_more: boolean;
+  next_page_token: string | null;
+  total_count: number;
+  limit: number;
+}
+
 export interface TwilioConversation {
   conversation_sid: string;
   phone: string;
@@ -32,6 +39,7 @@ export interface MessageStatistics {
 export interface PaginatedResponse<T> {
   success: boolean;
   data: T[];
+  pagination: PaginationInfo;
   total: number;
   message?: string;
 }
@@ -49,10 +57,26 @@ const BidirectionalMessageService = {
   },
 
   // Get conversation history for a specific phone
-  getConversationHistory: async (phone: string, limit: number = 50): Promise<TwilioMessage[]> => {
+  getConversationHistory: async (phone: string, limit: number = 50, pageToken?: string): Promise<{ messages: TwilioMessage[], pagination: PaginationInfo }> => {
     try {
-      const response = await api.get(`/messages/conversations/${phone}/history?limit=${limit}`);
-      return response.data.data || [];
+      // Encode the phone number for URL
+      const encodedPhone = encodeURIComponent(phone);
+      const params = new URLSearchParams();
+      params.append('limit', limit.toString());
+      if (pageToken) {
+        params.append('page_token', pageToken);
+      }
+      
+      const response = await api.get(`/messages/conversations/${encodedPhone}/history?${params.toString()}`);
+      return {
+        messages: response.data.data || [],
+        pagination: response.data.pagination || {
+          has_more: false,
+          next_page_token: null,
+          total_count: 0,
+          limit: limit,
+        }
+      };
     } catch (error) {
       console.error('Error fetching conversation history:', error);
       throw error;
@@ -116,7 +140,8 @@ const BidirectionalMessageService = {
   // Get messages directly from Twilio
   getTwilioMessages: async (phone: string, limit: number = 50): Promise<TwilioMessage[]> => {
     try {
-      const response = await api.get(`/messages/twilio/${phone}/messages?limit=${limit}`);
+      const encodedPhone = encodeURIComponent(phone);
+      const response = await api.get(`/messages/twilio/${encodedPhone}/messages?limit=${limit}`);
       return response.data.data || [];
     } catch (error) {
       console.error('Error fetching Twilio messages:', error);
@@ -127,7 +152,8 @@ const BidirectionalMessageService = {
   // Setup webhook for a conversation
   setupWebhook: async (phone: string, webhookUrl?: string): Promise<any> => {
     try {
-      const response = await api.post(`/messages/twilio/${phone}/webhook`, {
+      const encodedPhone = encodeURIComponent(phone);
+      const response = await api.post(`/messages/twilio/${encodedPhone}/webhook`, {
         webhook_url: webhookUrl,
       });
       return response.data.data;
@@ -140,7 +166,8 @@ const BidirectionalMessageService = {
   // Mark conversation as read
   markAsRead: async (phone: string): Promise<any> => {
     try {
-      const response = await api.post(`/messages/conversations/${phone}/read`);
+      const encodedPhone = encodeURIComponent(phone);
+      const response = await api.post(`/messages/conversations/${encodedPhone}/read`);
       return response.data.data;
     } catch (error) {
       console.error('Error marking conversation as read:', error);
@@ -149,14 +176,41 @@ const BidirectionalMessageService = {
   },
 
   // Real-time notifications (polling)
-  listenForNewMessages: (callback: (data: any) => void) => {
+  listenForNewMessages: (callback: (data: any) => void, phone?: string) => {
+    let lastProcessedMessageId: string | null = null;
+    
     // For now, we'll use polling. In production, you can use WebSockets
     const interval = setInterval(async () => {
       try {
-        const response = await api.get('/messages/conversations?limit=1');
+        const response = await api.get('/messages/conversations?limit=20');
         if (response.data.data && response.data.data.length > 0) {
-          const latestConversation = response.data.data[0];
-          callback(latestConversation);
+          // If phone is specified, filter for that phone only
+          if (phone) {
+            const conversationForPhone = response.data.data.find(
+              (conv: any) => conv.phone === phone
+            );
+            if (conversationForPhone && conversationForPhone.latest_message) {
+              const messageId = conversationForPhone.latest_message.id;
+              
+              // Only process if this is a new message
+              if (messageId !== lastProcessedMessageId) {
+                lastProcessedMessageId = messageId;
+                callback(conversationForPhone.latest_message);
+              }
+            }
+          } else {
+            // If no phone specified, return the latest conversation
+            const latestConversation = response.data.data[0];
+            if (latestConversation && latestConversation.latest_message) {
+              const messageId = latestConversation.latest_message.id;
+              
+              // Only process if this is a new message
+              if (messageId !== lastProcessedMessageId) {
+                lastProcessedMessageId = messageId;
+                callback(latestConversation);
+              }
+            }
+          }
         }
       } catch (error) {
         console.error('Error polling for new messages:', error);
@@ -178,8 +232,8 @@ const BidirectionalMessageService = {
   },
 
   // Get complete history (alias for getConversationHistory)
-  getCompleteHistory: async (phone: string, limit: number = 50): Promise<TwilioMessage[]> => {
-    return BidirectionalMessageService.getConversationHistory(phone, limit);
+  getCompleteHistory: async (phone: string, limit: number = 50, pageToken?: string): Promise<{ messages: TwilioMessage[], pagination: PaginationInfo }> => {
+    return BidirectionalMessageService.getConversationHistory(phone, limit, pageToken);
   },
 };
 

@@ -277,7 +277,7 @@ type ResponseForm = {
 export default function NegotiationDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const { toast } = useToast();
-  const { hasPermission, user } = useAuth();
+  const { hasPermission, user, hasRole } = useAuth();
   // NOTA: Em versões futuras do Next.js, será necessário usar React.use(params) 
   // em vez do acesso direto a params.id
   const negotiationId = parseInt(params.id);
@@ -595,7 +595,7 @@ export default function NegotiationDetailPage({ params }: { params: { id: string
     return (
       <div className="flex items-center gap-2">
         {/* Submit for approval */}
-        {negociacao.can_submit_for_approval && (
+        {negociacao.status === 'draft' && (hasRole('super_admin') || hasRole('network_manager')) && (
           <Button onClick={() => confirmAction('submit_for_approval')}>
             Enviar para Aprovação Interna
           </Button>

@@ -41,6 +41,14 @@ export default function ChatInterface({ phone, contactName, contactType }: ChatI
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [inputValue, setInputValue] = useState('');
+  const [isFetching, setIsFetching] = useState(false);
+  const [pagination, setPagination] = useState<{
+    has_more: boolean;
+    next_page_token: string | null;
+    total_count: number;
+    limit: number;
+  } | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const getContactIcon = () => {
@@ -107,14 +115,35 @@ export default function ChatInterface({ phone, contactName, contactType }: ChatI
   };
 
   const fetchMessages = async () => {
+    if (isFetching) {
+      console.log('Already fetching messages, skipping...');
+      return;
+    }
+
     try {
+      setIsFetching(true);
       setLoading(true);
-      const data = await BidirectionalMessageService.getConversationHistory(phone, 100);
+      console.log('Fetching messages for phone:', phone);
+      
+      const result = await BidirectionalMessageService.getConversationHistory(phone, 50);
+      console.log('Received data from API:', result);
+      console.log('Data type:', typeof result);
+      console.log('Messages array:', result.messages);
+      console.log('Messages length:', result.messages?.length || 0);
+      console.log('Pagination info:', result.pagination);
+      
+      if (!result.messages || result.messages.length === 0) {
+        console.log('No messages received from API');
+        setMessages([]);
+        setPagination(result.pagination);
+        return;
+      }
       
       // Ordena as mensagens por data de criação (mais antigas primeiro)
-      const sortedData = data.sort((a, b) => 
+      const sortedData = result.messages.sort((a, b) => 
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
       );
+      console.log('Sorted data:', sortedData);
       
       const chatMessages: ChatMessage[] = sortedData.map((msg: TwilioMessage) => ({
         id: msg.id,
@@ -126,12 +155,16 @@ export default function ChatInterface({ phone, contactName, contactType }: ChatI
         position: 'single' as const,
       }));
       
+      console.log('Chat messages processed:', chatMessages);
+      console.log('Setting messages state with:', chatMessages.length, 'messages');
       setMessages(chatMessages);
+      setPagination(result.pagination);
     } catch (error) {
       console.error('Error fetching messages:', error);
       toast.error('Erro ao carregar mensagens');
     } finally {
       setLoading(false);
+      setIsFetching(false);
     }
   };
 
@@ -205,6 +238,46 @@ export default function ChatInterface({ phone, contactName, contactType }: ChatI
     }
   };
 
+  const loadMoreMessages = async () => {
+    if (loadingMore || !pagination?.has_more || !pagination?.next_page_token) {
+      return;
+    }
+
+    try {
+      setLoadingMore(true);
+      console.log('Loading more messages with token:', pagination.next_page_token);
+      
+      const result = await BidirectionalMessageService.getConversationHistory(phone, 50, pagination.next_page_token);
+      console.log('Loaded more messages:', result);
+      
+      // Ordena as mensagens por data de criação (mais antigas primeiro)
+      const sortedData = result.messages.sort((a, b) => 
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+      
+      const chatMessages: ChatMessage[] = sortedData.map((msg: TwilioMessage) => ({
+        id: msg.id,
+        content: msg.content || '',
+        direction: msg.direction,
+        status: msg.status,
+        timestamp: parseDateWithTimezone(msg.timestamp),
+        sender: msg.direction === 'inbound' ? 'user' : 'me',
+        position: 'single' as const,
+      }));
+      
+      // Adiciona as novas mensagens no início (mensagens mais antigas)
+      setMessages(prev => [...chatMessages, ...prev]);
+      setPagination(result.pagination);
+      
+      console.log('Added', chatMessages.length, 'more messages');
+    } catch (error) {
+      console.error('Error loading more messages:', error);
+      toast.error('Erro ao carregar mais mensagens');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   useEffect(() => {
     fetchMessages();
   }, [phone]);
@@ -255,37 +328,55 @@ export default function ChatInterface({ phone, contactName, contactType }: ChatI
               typingIndicator={<TypingIndicator content="Digitando..." />}
               className="bg-gray-50"
             >
-              {messages.map((message, index) => (
-                <Message
-                  key={message.id}
-                  model={{
-                    message: message.content,
-                    sentTime: format(message.timestamp, 'HH:mm', { locale: ptBR }),
-                    sender: message.sender,
-                    direction: message.direction === 'inbound' ? 'incoming' : 'outgoing',
-                    position: message.position,
-                  }}
-                >
-                  <Message.Header 
-                    sender={message.sender === 'me' ? 'Operador' : getContactName()}
-                    sentTime={format(message.timestamp, 'dd/MM/yyyy HH:mm', { locale: ptBR })}
-                  />
-                  <Message.CustomContent>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm">{message.content}</span>
-                      {message.status === 'sent' && (
-                        <span className="text-xs text-green-500">✓</span>
-                      )}
-                      {message.status === 'delivered' && (
-                        <span className="text-xs text-blue-500">✓✓</span>
-                      )}
-                      {message.status === 'read' && (
-                        <span className="text-xs text-blue-600">✓✓</span>
-                      )}
-                    </div>
-                  </Message.CustomContent>
-                </Message>
-              ))}
+              {pagination?.has_more && (
+                <div className="p-4 text-center">
+                  <button
+                    onClick={loadMoreMessages}
+                    disabled={loadingMore}
+                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
+                  >
+                    {loadingMore ? 'Carregando...' : 'Carregar mais mensagens'}
+                  </button>
+                </div>
+              )}
+              
+              {messages.length === 0 ? (
+                <div className="p-4 text-center text-gray-500">
+                  Nenhuma mensagem encontrada
+                </div>
+              ) : (
+                messages.map((message, index) => (
+                  <Message
+                    key={message.id}
+                    model={{
+                      message: message.content,
+                      sentTime: format(message.timestamp, 'HH:mm', { locale: ptBR }),
+                      sender: message.sender,
+                      direction: message.direction === 'inbound' ? 'incoming' : 'outgoing',
+                      position: 'single',
+                    }}
+                  >
+                    <Message.Header 
+                      sender={message.sender === 'me' ? 'Operador' : getContactName()}
+                      sentTime={format(message.timestamp, 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                    />
+                    <Message.CustomContent>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm">{message.content}</span>
+                        {message.status === 'sent' && (
+                          <span className="text-xs text-green-500">✓</span>
+                        )}
+                        {message.status === 'delivered' && (
+                          <span className="text-xs text-blue-500">✓✓</span>
+                        )}
+                        {message.status === 'read' && (
+                          <span className="text-xs text-blue-600">✓✓</span>
+                        )}
+                      </div>
+                    </Message.CustomContent>
+                  </Message>
+                ))
+              )}
               <div ref={messagesEndRef} />
             </MessageList>
             

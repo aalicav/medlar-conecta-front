@@ -363,7 +363,7 @@ export function NegotiationActions({
         )}
 
         {/* Enviar para aprovação - apenas rascunho */}
-        {negotiation.status === 'draft' && negotiation.creator?.id === user?.id && (
+        {negotiation.status === 'draft' && (hasRole('super_admin') || hasRole('network_manager')) && (
           <DropdownMenuItem onClick={handleSubmitForApproval}>
             <Send className="mr-2 h-4 w-4" />
             Enviar para Aprovação
@@ -393,7 +393,7 @@ export function NegotiationActions({
         )}
 
         {/* Aprovação interna - apenas se submetido */}
-        {negotiation.status === 'submitted' && canApproveInternally() && (
+        {negotiation.status === 'pending_approval' && (hasRole('super_admin') || hasRole('network_manager')) && (
           <>
             <DropdownMenuItem onClick={() => handleInternalAction('approve')} className="text-green-600 focus:text-green-600">
               <CheckCircle className="mr-2 h-4 w-4" />
