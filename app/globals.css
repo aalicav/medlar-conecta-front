@@ -55,3 +55,145 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Chat UI Kit Custom Styles */
+.cs-message-input__content-editor-wrapper {
+  background-color: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+}
+
+.cs-message-input__content-editor {
+  color: hsl(var(--foreground));
+}
+
+.cs-message-input__content-editor[data-placeholder]:empty:before {
+  color: hsl(var(--muted-foreground));
+}
+
+.cs-message-input__content-editor:focus {
+  outline: none;
+  border-color: hsl(var(--primary));
+}
+
+.cs-message-input__content-editor-wrapper:focus-within {
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2);
+}
+
+.cs-message-input__content-editor-wrapper:hover {
+  border-color: hsl(var(--primary));
+}
+
+.cs-message-input__content-editor-wrapper {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Message bubbles */
+.cs-message--outgoing .cs-message__content {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.cs-message--incoming .cs-message__content {
+  background-color: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+
+/* Typing indicator */
+.cs-typing-indicator {
+  background-color: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+
+/* Conversation header */
+.cs-conversation-header {
+  background-color: hsl(var(--card));
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.cs-conversation-header__content {
+  color: hsl(var(--card-foreground));
+}
+
+/* Message list */
+.cs-message-list {
+  background-color: hsl(var(--background));
+}
+
+/* Send button */
+.cs-message-input__content-editor-wrapper .cs-button {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-radius: var(--radius);
+  transition: all 0.2s ease-in-out;
+}
+
+.cs-message-input__content-editor-wrapper .cs-button:hover {
+  background-color: hsl(var(--primary) / 0.9);
+}
+
+.cs-message-input__content-editor-wrapper .cs-button:disabled {
+  background-color: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  cursor: not-allowed;
+}
+
+/* Message status indicators */
+.message-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.message-status.sent {
+  color: hsl(var(--primary));
+}
+
+.message-status.delivered {
+  color: hsl(var(--primary));
+}
+
+.message-status.read {
+  color: hsl(var(--primary));
+}
+
+.message-status.failed {
+  color: hsl(var(--destructive));
+}
+
+/* Custom scrollbar for message list */
+.cs-message-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.cs-message-list::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+  border-radius: 3px;
+}
+
+.cs-message-list::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground));
+  border-radius: 3px;
+}
+
+.cs-message-list::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--foreground));
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .cs-main-container {
+    height: calc(100vh - 120px) !important;
+  }
+  
+  .cs-conversation-header {
+    padding: 0.75rem;
+  }
+  
+  .cs-message-input__content-editor-wrapper {
+    margin: 0.75rem;
+  }
+}
