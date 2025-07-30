@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Search, FileText, Download, X, AlertTriangle, CheckCircle, Eye, Calendar, DollarSign, Building2, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Plus } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Loader2, Search, FileText, Download, X, AlertTriangle, CheckCircle, Eye, Calendar, DollarSign, Building2, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Plus, MoreHorizontal } from "lucide-react"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
 
@@ -135,6 +136,16 @@ export default function NFesPage() {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const [creatingNFe, setCreatingNFe] = useState(false)
   
+  // Estados para envio para SEFAZ
+  const [sendingToSefaz, setSendingToSefaz] = useState(false)
+  const [selectedNfesForSefaz, setSelectedNfesForSefaz] = useState<number[]>([])
+  const [showSefazDialog, setShowSefazDialog] = useState(false)
+  const [sefazResults, setSefazResults] = useState<any[]>([])
+  
+  // Estados para visualização de detalhes
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false)
+  const [selectedNFeForDetails, setSelectedNFeForDetails] = useState<NFe | null>(null)
+  
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
   const [lastPage, setLastPage] = useState(1)
@@ -235,6 +246,81 @@ export default function NFesPage() {
 
     const config = statusConfig[status as keyof typeof statusConfig] || { label: status, variant: "secondary" as const }
     return <Badge variant={config.variant}>{config.label}</Badge>
+  }
+
+  const handleSendToSefaz = async (nfeId: number) => {
+    try {
+      setSendingToSefaz(true)
+      const response = await api.post(`/billing/nfe/${nfeId}/send-to-sefaz`)
+      
+      if (response.data) {
+        toast.success("NFe enviada para SEFAZ com sucesso!")
+        await loadNFes()
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || "Erro ao enviar NFe para SEFAZ"
+      toast.error(errorMessage)
+    } finally {
+      setSendingToSefaz(false)
+    }
+  }
+
+  const handleSendToSefazFromMenu = async (nfeId: number) => {
+    if (sendingToSefaz) return // Prevent multiple clicks
+    
+    try {
+      setSendingToSefaz(true)
+      const response = await api.post(`/billing/nfe/${nfeId}/send-to-sefaz`)
+      
+      if (response.data) {
+        toast.success("NFe enviada para SEFAZ com sucesso!")
+        await loadNFes()
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || "Erro ao enviar NFe para SEFAZ"
+      toast.error(errorMessage)
+    } finally {
+      setSendingToSefaz(false)
+    }
+  }
+
+  const handleSendMultipleToSefaz = async () => {
+    if (selectedNfesForSefaz.length === 0) {
+      toast.error("Selecione pelo menos uma NFe para enviar")
+      return
+    }
+
+    try {
+      setSendingToSefaz(true)
+      const response = await api.post('/billing/nfe/send-multiple-to-sefaz', {
+        nfe_ids: selectedNfesForSefaz
+      })
+      
+      if (response.data) {
+        setSefazResults(response.data.results || [])
+        setShowSefazDialog(true)
+        setSelectedNfesForSefaz([])
+        await loadNFes()
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || "Erro ao enviar NFes para SEFAZ"
+      toast.error(errorMessage)
+    } finally {
+      setSendingToSefaz(false)
+    }
+  }
+
+  const handleSelectNfeForSefaz = (nfeId: number) => {
+    setSelectedNfesForSefaz(prev => 
+      prev.includes(nfeId) 
+        ? prev.filter(id => id !== nfeId)
+        : [...prev, nfeId]
+    )
+  }
+
+  const handleViewDetails = (nfe: NFe) => {
+    setSelectedNFeForDetails(nfe)
+    setShowDetailsDialog(true)
   }
 
   const handleCancelNFe = async () => {
@@ -476,6 +562,25 @@ export default function NFesPage() {
             <Plus className="h-4 w-4 mr-2" />
             Criar NFe
           </Button>
+          {selectedNfesForSefaz.length > 0 && (
+            <Button 
+              onClick={handleSendMultipleToSefaz}
+              disabled={sendingToSefaz}
+              variant="secondary"
+            >
+              {sendingToSefaz ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Enviando...
+                </>
+              ) : (
+                <>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Enviar {selectedNfesForSefaz.length} para SEFAZ
+                </>
+              )}
+            </Button>
+          )}
           <Button onClick={loadNFes} disabled={loading}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Atualizar
@@ -513,6 +618,20 @@ export default function NFesPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-12">
+                        <input
+                          type="checkbox"
+                          checked={selectedNfesForSefaz.length === nfes.filter(n => n.nfe_status === 'pending').length && nfes.filter(n => n.nfe_status === 'pending').length > 0}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedNfesForSefaz(nfes.filter(n => n.nfe_status === 'pending').map(n => n.id))
+                            } else {
+                              setSelectedNfesForSefaz([])
+                            }
+                          }}
+                          className="rounded"
+                        />
+                      </TableHead>
                       <TableHead>Número</TableHead>
                       <TableHead>Plano de Saúde</TableHead>
                       <TableHead>Valor</TableHead>
@@ -524,13 +643,23 @@ export default function NFesPage() {
                   <TableBody>
                     {nfes.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                           {searchTerm ? "Nenhuma NFe encontrada para a busca" : "Nenhuma NFe encontrada"}
                         </TableCell>
                       </TableRow>
                     ) : (
                       nfes.map((nfe) => (
                         <TableRow key={nfe.id}>
+                          <TableCell>
+                            {nfe.nfe_status === 'pending' && (
+                              <input
+                                type="checkbox"
+                                checked={selectedNfesForSefaz.includes(nfe.id)}
+                                onChange={() => handleSelectNfeForSefaz(nfe.id)}
+                                className="rounded"
+                              />
+                            )}
+                          </TableCell>
                           <TableCell>
                             <div>
                               <div className="font-medium">{nfe.nfe_number}</div>
@@ -555,39 +684,68 @@ export default function NFesPage() {
                           <TableCell>{getStatusBadge(nfe.nfe_status)}</TableCell>
                           <TableCell>{formatDate(nfe.created_at)}</TableCell>
                           <TableCell>
-                            <div className="flex items-center space-x-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleDownloadXML(nfe)}
-                              >
-                                <Download className="h-4 w-4" />
-                              </Button>
-                              
-                              {(nfe.nfe_status === "issued" || nfe.nfe_status === "authorized") && (
-                                <>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                      setSelectedNFe(nfe)
-                                      setShowCancelDialog(true)
-                                    }}
-                                  >
-                                    <X className="h-4 w-4" />
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" className="h-8 w-8 p-0">
+                                    <span className="sr-only">Abrir menu</span>
+                                    <MoreHorizontal className="h-4 w-4" />
                                   </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                                  <DropdownMenuSeparator />
                                   
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleFindSubstitutes(nfe)}
-                                  >
-                                    <AlertTriangle className="h-4 w-4" />
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          </TableCell>
+                                  <DropdownMenuItem onClick={() => handleViewDetails(nfe)}>
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    Ver Detalhes
+                                  </DropdownMenuItem>
+                                  
+                                  <DropdownMenuItem onClick={() => handleDownloadXML(nfe)}>
+                                    <Download className="mr-2 h-4 w-4" />
+                                    Baixar XML
+                                  </DropdownMenuItem>
+                                  
+                                  {nfe.nfe_status === 'pending' && (
+                                    <DropdownMenuItem 
+                                      onClick={() => handleSendToSefazFromMenu(nfe.id)}
+                                      disabled={sendingToSefaz}
+                                    >
+                                      {sendingToSefaz ? (
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <FileText className="mr-2 h-4 w-4" />
+                                      )}
+                                      {sendingToSefaz ? 'Enviando...' : 'Enviar para SEFAZ'}
+                                    </DropdownMenuItem>
+                                  )}
+                                  
+                                  {(nfe.nfe_status === "issued" || nfe.nfe_status === "authorized") && (
+                                    <>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem onClick={() => {
+                                        setSelectedNFe(nfe)
+                                        setShowCancelDialog(true)
+                                      }}>
+                                        <X className="mr-2 h-4 w-4" />
+                                        Cancelar NFe
+                                      </DropdownMenuItem>
+                                      
+                                      <DropdownMenuItem onClick={() => handleFindSubstitutes(nfe)}>
+                                        <AlertTriangle className="mr-2 h-4 w-4" />
+                                        Substituir por outra NFe
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                  
+                                  {nfe.nfe_status === "cancelled" && (
+                                    <DropdownMenuItem disabled>
+                                      <X className="mr-2 h-4 w-4" />
+                                      NFe Cancelada
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
                         </TableRow>
                       ))
                     )}
@@ -810,6 +968,154 @@ export default function NFesPage() {
                 "Criar NFe"
               )}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Resultados SEFAZ */}
+      <Dialog open={showSefazDialog} onOpenChange={setShowSefazDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Resultados do Envio para SEFAZ</DialogTitle>
+            <DialogDescription>
+              Resultado do processamento das NFes enviadas para SEFAZ
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {sefazResults.length === 0 ? (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Nenhum resultado disponível
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <div className="space-y-2">
+                {sefazResults.map((result, index) => (
+                  <div
+                    key={index}
+                    className={`p-3 border rounded-md ${
+                      result.status === 'success' 
+                        ? 'border-green-200 bg-green-50' 
+                        : 'border-red-200 bg-red-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium">
+                          NFe #{result.nfe_number}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {result.message}
+                        </div>
+                        {result.protocol && (
+                          <div className="text-sm text-blue-600">
+                            Protocolo: {result.protocol}
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        {result.status === 'success' ? (
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                        ) : (
+                          <AlertTriangle className="h-5 w-5 text-red-600" />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button onClick={() => setShowSefazDialog(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Detalhes da NFe */}
+      <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Detalhes da NFe #{selectedNFeForDetails?.nfe_number}</DialogTitle>
+            <DialogDescription>
+              Informações detalhadas da nota fiscal eletrônica
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedNFeForDetails && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Número da NFe</Label>
+                  <p className="text-sm text-muted-foreground">{selectedNFeForDetails.nfe_number}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Status</Label>
+                  <div className="mt-1">{getStatusBadge(selectedNFeForDetails.nfe_status)}</div>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Chave da NFe</Label>
+                  <p className="text-sm text-muted-foreground font-mono">{selectedNFeForDetails.nfe_key}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Valor Total</Label>
+                  <p className="text-sm font-medium">{formatCurrency(selectedNFeForDetails.total_amount)}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Plano de Saúde</Label>
+                  <p className="text-sm text-muted-foreground">{selectedNFeForDetails.health_plan?.name || 'N/A'}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">CNPJ do Plano</Label>
+                  <p className="text-sm text-muted-foreground">{selectedNFeForDetails.health_plan?.cnpj || 'N/A'}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Data de Criação</Label>
+                  <p className="text-sm text-muted-foreground">{formatDate(selectedNFeForDetails.created_at)}</p>
+                </div>
+                {selectedNFeForDetails.nfe_authorization_date && (
+                  <div>
+                    <Label className="text-sm font-medium">Data de Autorização</Label>
+                    <p className="text-sm text-muted-foreground">{formatDate(selectedNFeForDetails.nfe_authorization_date)}</p>
+                  </div>
+                )}
+                {selectedNFeForDetails.nfe_protocol && (
+                  <div>
+                    <Label className="text-sm font-medium">Protocolo</Label>
+                    <p className="text-sm text-muted-foreground font-mono">{selectedNFeForDetails.nfe_protocol}</p>
+                  </div>
+                )}
+                {selectedNFeForDetails.nfe_cancellation_date && (
+                  <div>
+                    <Label className="text-sm font-medium">Data de Cancelamento</Label>
+                    <p className="text-sm text-muted-foreground">{formatDate(selectedNFeForDetails.nfe_cancellation_date)}</p>
+                  </div>
+                )}
+                {selectedNFeForDetails.nfe_cancellation_reason && (
+                  <div>
+                    <Label className="text-sm font-medium">Motivo do Cancelamento</Label>
+                    <p className="text-sm text-muted-foreground">{selectedNFeForDetails.nfe_cancellation_reason}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDetailsDialog(false)}>
+              Fechar
+            </Button>
+            {selectedNFeForDetails && (
+              <Button onClick={() => handleDownloadXML(selectedNFeForDetails)}>
+                <Download className="mr-2 h-4 w-4" />
+                Baixar XML
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

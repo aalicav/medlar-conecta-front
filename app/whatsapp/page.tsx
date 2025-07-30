@@ -70,6 +70,9 @@ export default function WhatsappDashboard() {
           <Button asChild variant="outline">
             <Link href="/whatsapp/mensagens">Ver Mensagens</Link>
           </Button>
+          <Button asChild variant="outline">
+            <Link href="/whatsapp/conversas">Conversas</Link>
+          </Button>
           <Button asChild>
             <Link href="/whatsapp/nova-mensagem">Nova Mensagem</Link>
           </Button>

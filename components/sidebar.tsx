@@ -33,7 +33,8 @@ import {
   AlertCircle,
   Building,
   Receipt,
-  Cog
+  Cog,
+  Stethoscope
 } from "lucide-react"
 import { NavigationMenuItem, NavigationMenuLink, NavigationMenu, NavigationMenuList } from "@/components/ui/navigation-menu"
 import { LucideIcon } from 'lucide-react'
@@ -148,6 +149,12 @@ export function Sidebar({ className, items, isCollapsed: externalIsCollapsed, on
       roles: ["super_admin", "admin", "director", "financial_manager", "commercial_manager"],
     },
     {
+      title: "Especialidades Médicas",
+      href: "/medical-specialties",
+      icon: Stethoscope,
+      roles: ["super_admin", "admin", "director", "network_manager"],
+    },
+    {
       title: "Contratos",
       href: "/contracts",
       icon: FileText,
@@ -204,6 +211,12 @@ export function Sidebar({ className, items, isCollapsed: externalIsCollapsed, on
     {
       title: "WhatsApp",
       href: "/whatsapp",
+      icon: MessageSquare,
+      roles: ["super_admin", "admin", "director", "operational", "network_manager"],
+    },
+    {
+      title: "Conversas WhatsApp",
+      href: "/whatsapp/conversas",
       icon: MessageSquare,
       roles: ["super_admin", "admin", "director", "operational", "network_manager"],
     },
