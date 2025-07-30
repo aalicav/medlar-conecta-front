@@ -447,8 +447,8 @@ export default function HealthPlansPage() {
         const status = row.getValue("status") as string
         return (
           <Badge variant={
-            status === "approved" ? "success" :
-            status === "pending" ? "warning" :
+            status === "approved" ? "default" :
+            status === "pending" ? "secondary" :
             "destructive"
           }>
             {status === "approved" ? "Aprovado" :
@@ -459,12 +459,29 @@ export default function HealthPlansPage() {
       }
     },
     {
+      accessorKey: "email",
+      header: "Email",
+      cell: ({ row }) => {
+        const email = row.original.user?.email as string
+        return (
+          <div className="text-sm">
+            <a 
+              href={`mailto:${email}`}
+              className="text-blue-600 hover:text-blue-800 underline"
+            >
+              {email}
+            </a>
+          </div>
+        )
+      }
+    },
+    {
       accessorKey: "has_signed_contract",
       header: "Contrato",
       cell: ({ row }) => {
         const hasContract = row.getValue("has_signed_contract") as boolean
         return (
-          <Badge variant={hasContract ? "success" : "secondary"}>
+          <Badge variant={hasContract ? "default" : "secondary"}>
             {hasContract ? "Assinado" : "Pendente"}
           </Badge>
         )
