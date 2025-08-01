@@ -28,7 +28,8 @@ export const specialtyService = {
   list: async (): Promise<MedicalSpecialty[]> => {
     try {
       const response = await api.get('/medical-specialties');
-      return response.data.data;
+      // Handle the correct structure: response.data.data (array of specialties)
+      return response.data.data || [];
     } catch (error) {
       console.error('Error fetching medical specialties:', error);
       throw error;

@@ -207,7 +207,6 @@ export function SolicitationForm({
 
   // Debug log for preferred_date changes
   useEffect(() => {
-    console.log('Preferred date changed:', preferredDate);
   }, [preferredDate]);
 
   // Set price from query params if available
@@ -306,9 +305,7 @@ export function SolicitationForm({
       if (search && search.length >= 3) {
         params.search = search
       }
-      
-      console.log('Fetching patients with params:', params) // Debug log
-      
+            
       const response = await fetchResource("patients", params as any) as ResourceResponse<Patient[]>
       
       if (response?.data && Array.isArray(response.data)) {
@@ -678,8 +675,8 @@ export function SolicitationForm({
     setLoadingSpecialties(true);
     try {
       const response = await fetchResource("medical-specialties") as ResourceResponse<MedicalSpecialty[]>;
-      if (response?.data && Array.isArray(response.data)) {
-        const specialtyOptions = (response.data as MedicalSpecialty[])
+      if (response?.data && Array.isArray(response.data?.data)) {
+        const specialtyOptions = (response.data?.data as MedicalSpecialty[])
           .filter((specialty: MedicalSpecialty): specialty is MedicalSpecialty => 
             specialty != null && 
             typeof specialty === 'object' && 
@@ -751,7 +748,6 @@ export function SolicitationForm({
                               options={healthPlans}
                               value={field.value}
                               onValueChange={(value) => {
-                                console.log('Selected health plan value:', value); // Debug log
                                 handleHealthPlanChange(value);
                               }}
                               placeholder="Pesquise pelo nome do plano"
@@ -867,7 +863,6 @@ export function SolicitationForm({
                     <DatePicker
                       date={field.value ? new Date(field.value) : null}
                       setDate={(date) => {
-                        console.log('Date selected:', date); // Debug log
                         // Ensure we're setting a valid Date object or null
                         const normalizedDate = date instanceof Date && !isNaN(date.getTime()) ? date : null;
                         field.onChange(normalizedDate);

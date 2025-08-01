@@ -189,9 +189,16 @@ export default function PaginaCriarNegociacao() {
     setCarregandoEspecialidades(true);
     try {
       const response = await specialtyService.list();
-      setOpcoesEspecialidades(response);
+      
+      if (Array.isArray(response)) {
+        setOpcoesEspecialidades(response);
+      } else {
+        console.error('Response is not an array:', response);
+        setOpcoesEspecialidades([]);
+      }
     } catch (error) {
       console.error('Erro ao carregar especialidades:', error);
+      setOpcoesEspecialidades([]);
       toast({
         title: "Erro",
         description: "Não foi possível carregar as especialidades médicas",
@@ -465,11 +472,15 @@ export default function PaginaCriarNegociacao() {
                                     <SelectValue placeholder="Selecione a especialidade" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {opcoesEspecialidades.map((specialty) => (
+                                    {Array.isArray(opcoesEspecialidades) ? opcoesEspecialidades.map((specialty) => (
                                       <SelectItem key={specialty.id} value={specialty.id.toString()}>
                                         {specialty.name}
                                       </SelectItem>
-                                    ))}
+                                    )) : (
+                                      <SelectItem value="" disabled>
+                                        {carregandoEspecialidades ? "Carregando..." : "Nenhuma especialidade encontrada"}
+                                      </SelectItem>
+                                    )}
                                   </SelectContent>
                                 </Select>
                                 <FormMessage />
