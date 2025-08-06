@@ -4,11 +4,12 @@ export interface MedicalSpecialty {
   id: number;
   name: string;
   description?: string;
-  default_price: number;
   tuss_code: string;
   tuss_description: string;
   active: boolean;
   negotiable: boolean;
+  city?: string;
+  state?: string;
   created_at?: string;
   updated_at?: string;
 }

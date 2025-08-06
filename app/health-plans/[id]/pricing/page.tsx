@@ -16,6 +16,7 @@ import { api } from "@/lib/api"
 import { DataTable } from "@/components/data-table/data-table"
 import { ColumnDef } from "@tanstack/react-table"
 import { Loader2 } from "lucide-react"
+import { useEstadosCidades } from "@/hooks/useEstadosCidades"
 
 interface HealthPlan {
   id: number
@@ -31,6 +32,17 @@ interface TussProcedure {
   description?: string
 }
 
+interface MedicalSpecialty {
+  id: number
+  name: string
+  tuss_code: string
+  tuss_description: string
+  active: boolean
+  negotiable: boolean
+  city?: string
+  state?: string
+}
+
 interface PricingItem {
   id: number
   tuss_procedure_id: number
@@ -41,7 +53,9 @@ interface PricingItem {
   end_date?: string
   created_at: string
   updated_at: string
+  medical_specialty_id?: number
   procedure: TussProcedure
+  medical_specialty?: MedicalSpecialty
 }
 
 interface CsvRow {
@@ -68,6 +82,14 @@ export default function HealthPlanPricingPage() {
   const [csvPreview, setCsvPreview] = useState<CsvRow[]>([])
   const [isProcessingCsv, setIsProcessingCsv] = useState(false)
   
+  // Filter states
+  const [cityFilter, setCityFilter] = useState("")
+  const [stateFilter, setStateFilter] = useState("")
+  const [selectedCities, setSelectedCities] = useState<string[]>([])
+  
+  // Estados e Cidades hook
+  const { getEstados, getCidadesByEstado } = useEstadosCidades()
+  
   // Form states for individual item
   const [selectedTuss, setSelectedTuss] = useState<TussProcedure | null>(null)
   const [tussSearchValue, setTussSearchValue] = useState("")
@@ -75,6 +97,11 @@ export default function HealthPlanPricingPage() {
   const [isLoadingTuss, setIsLoadingTuss] = useState(false)
   const [price, setPrice] = useState("")
   const [notes, setNotes] = useState("")
+  
+  // Medical specialty states
+  const [selectedSpecialty, setSelectedSpecialty] = useState<MedicalSpecialty | null>(null)
+  const [specialtyOptions, setSpecialtyOptions] = useState<MedicalSpecialty[]>([])
+  const [isLoadingSpecialties, setIsLoadingSpecialties] = useState(false)
 
   // New states for bulk editing
   const [isEditing, setIsEditing] = useState(false)
@@ -96,6 +123,9 @@ export default function HealthPlanPricingPage() {
         const pricingResponse = await api.get(`/health-plans/${healthPlanId}/procedures`)
         const pricingData = pricingResponse.data.data || []
         setPricingItems(pricingData)
+        
+        // Carregar especialidades médicas
+        await loadMedicalSpecialties()
       } catch (error) {
         console.error('Erro ao carregar dados:', error)
         toast({
@@ -110,6 +140,28 @@ export default function HealthPlanPricingPage() {
 
     loadData()
   }, [healthPlanId, toast])
+
+  // Carregar TUSS padrão para consulta
+  useEffect(() => {
+    const loadDefaultTuss = async () => {
+      try {
+        // Buscar e definir o TUSS padrão para consulta (10101012)
+        const consultationTussResponse = await api.get('/tuss', {
+          params: { search: '10101012', per_page: 1 }
+        })
+        
+        if (consultationTussResponse?.data?.data?.length > 0) {
+          const consultationTuss = consultationTussResponse.data.data[0]
+          setSelectedTuss(consultationTuss)
+          setTussSearchValue(`${consultationTuss.code} - ${consultationTuss.name}`)
+        }
+      } catch (error) {
+        console.error('Erro ao carregar TUSS padrão:', error)
+      }
+    }
+
+    loadDefaultTuss()
+  }, [])
 
   // Função para buscar TUSS
   const searchTuss = async (searchTerm: string) => {
@@ -136,6 +188,40 @@ export default function HealthPlanPricingPage() {
     }
   }
 
+  // Função para carregar especialidades médicas
+  const loadMedicalSpecialties = async () => {
+    setIsLoadingSpecialties(true)
+    try {
+      const params: any = { 
+        active: true, 
+        per_page: 100 
+      }
+      
+      // Adicionar filtros se aplicável
+      if (stateFilter) {
+        params.state = stateFilter
+      }
+      if (selectedCities.length > 0) {
+        params.cities = selectedCities.join(',')
+      }
+      
+      const response = await api.get('/medical-specialties', { params })
+      
+      if (response?.data?.data?.data) {
+        setSpecialtyOptions(response.data.data.data)
+      }
+    } catch (error) {
+      console.error('Erro ao carregar especialidades:', error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar as especialidades médicas",
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoadingSpecialties(false)
+    }
+  }
+
   // Debounce para busca de TUSS
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -147,11 +233,45 @@ export default function HealthPlanPricingPage() {
     return () => clearTimeout(timeoutId)
   }, [tussSearchValue])
 
+  // Reset form when dialog opens
+  useEffect(() => {
+    if (isAddDialogOpen) {
+      // Reset form fields
+      setPrice("")
+      setNotes("")
+      setSelectedSpecialty(null)
+      
+      // Set default TUSS for consultation
+      if (selectedTuss) {
+        setTussSearchValue(`${selectedTuss.code} - ${selectedTuss.name}`)
+      }
+    }
+  }, [isAddDialogOpen, selectedTuss])
+
+  // Reload specialties when filters change
+  useEffect(() => {
+    if (isAddDialogOpen) {
+      loadMedicalSpecialties()
+    }
+  }, [stateFilter, selectedCities, isAddDialogOpen])
+
+  // Reload specialties when dialog opens
+  useEffect(() => {
+    if (isAddDialogOpen) {
+      // Reset filters when dialog opens
+      setStateFilter("")
+      setSelectedCities([])
+      setSelectedSpecialty(null)
+      loadMedicalSpecialties()
+    }
+  }, [isAddDialogOpen])
+
   const handleAddItem = async () => {
-    if (!selectedTuss || !price || parseFloat(price) <= 0) {
+    console.log(selectedTuss, price, selectedSpecialty)
+    if (!selectedTuss || !price || parseFloat(price) <= 0 || !selectedSpecialty) {
       toast({
         title: "Atenção",
-        description: "Selecione um procedimento TUSS e informe um valor válido",
+        description: "Selecione uma especialidade médica e informe um valor válido",
         variant: "destructive"
       })
       return
@@ -162,7 +282,8 @@ export default function HealthPlanPricingPage() {
       const newItem = {
         tuss_procedure_id: selectedTuss.id,
         price: parseFloat(price),
-        notes: notes || ""
+        notes: notes || "",
+        medical_specialty_id: selectedSpecialty?.id || null
       }
 
       await api.post(`/health-plans/${healthPlanId}/procedures`, newItem)
@@ -177,6 +298,9 @@ export default function HealthPlanPricingPage() {
       setTussSearchValue("")
       setPrice("")
       setNotes("")
+      setSelectedSpecialty(null)
+      setStateFilter("")
+      setSelectedCities([])
       setIsAddDialogOpen(false)
 
       // Recarregar dados
@@ -434,12 +558,33 @@ export default function HealthPlanPricingPage() {
   }
 
   const filteredItems = pricingItems.filter(item => {
-    if (!searchQuery) return true
-    const query = searchQuery.toLowerCase()
-    return (
-      item.procedure.name?.toLowerCase().includes(query) ||
-      item.procedure.code?.toLowerCase().includes(query)
-    )
+    // Filter by search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase()
+      const matchesSearch = (
+        item.procedure.name?.toLowerCase().includes(query) ||
+        item.procedure.code?.toLowerCase().includes(query) ||
+        item.medical_specialty?.name?.toLowerCase().includes(query)
+      )
+      if (!matchesSearch) return false
+    }
+    
+    // Filter by city
+    if (selectedCities.length > 0) {
+      const itemCity = item.medical_specialty?.city?.toLowerCase() || ''
+      const matchesCity = selectedCities.some(city => 
+        itemCity.includes(city.toLowerCase())
+      )
+      if (!matchesCity) return false
+    }
+    
+    // Filter by state
+    if (stateFilter) {
+      const itemState = item.medical_specialty?.state?.toLowerCase() || ''
+      if (itemState !== stateFilter.toLowerCase()) return false
+    }
+    
+    return true
   })
 
   const columns: ColumnDef<PricingItem>[] = [
@@ -456,6 +601,35 @@ export default function HealthPlanPricingPage() {
           {row.original.procedure.name}
         </div>
       ),
+    },
+    {
+      accessorKey: "medical_specialty.name",
+      header: "Especialidade",
+      size: 150,
+      cell: ({ row }) => (
+        <div className="max-w-xs truncate" title={row.original.medical_specialty?.name || '-'}>
+          {row.original.medical_specialty?.name || '-'}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "medical_specialty.location",
+      header: "Localização",
+      size: 120,
+      cell: ({ row }) => {
+        const specialty = row.original.medical_specialty
+        if (!specialty) return <span>-</span>
+        
+        const location = []
+        if (specialty.city) location.push(specialty.city)
+        if (specialty.state) location.push(specialty.state)
+        
+        return (
+          <div className="max-w-xs truncate" title={location.join(', ')}>
+            {location.length > 0 ? location.join(', ') : '-'}
+          </div>
+        )
+      },
     },
     {
       accessorKey: "price",
@@ -641,41 +815,118 @@ export default function HealthPlanPricingPage() {
                       <DialogHeader>
                         <DialogTitle>Adicionar Valor</DialogTitle>
                         <DialogDescription>
-                          Adicione um novo valor para um procedimento TUSS
+                          Adicione um novo valor para consulta médica com especialidade
                         </DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4">
                         <div>
                           <Label>Procedimento TUSS</Label>
-                          <div className="relative">
-                            <Input
-                              placeholder="Buscar procedimento..."
-                              value={tussSearchValue}
-                              onChange={(e) => setTussSearchValue(e.target.value)}
-                            />
-                            {isLoadingTuss && (
-                              <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin" />
+                          <div className="p-3 bg-gray-50 rounded-md border">
+                            <div className="font-medium">{selectedTuss?.code || '10101012'}</div>
+                            <div className="text-sm text-gray-600">{selectedTuss?.name || 'Consulta em Clínica Médica'}</div>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="dialog-state-filter">Estado</Label>
+                            <select
+                              id="dialog-state-filter"
+                              value={stateFilter}
+                              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                setStateFilter(e.target.value)
+                                setSelectedCities([]) // Reset cities when state changes
+                              }}
+                              className="w-full p-2 border rounded-md"
+                            >
+                              <option value="">Todos os estados</option>
+                              {getEstados().map((estado: any) => (
+                                <option key={estado.sigla} value={estado.sigla}>
+                                  {estado.nome}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <Label htmlFor="dialog-city-filter">Cidades</Label>
+                            <select
+                              id="dialog-city-filter"
+                              multiple
+                              value={selectedCities}
+                              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                const selectedOptions = Array.from(e.target.selectedOptions, option => option.value)
+                                setSelectedCities(selectedOptions)
+                              }}
+                              className="w-full p-2 border rounded-md min-h-[80px]"
+                              disabled={!stateFilter}
+                            >
+                              {stateFilter ? (
+                                getCidadesByEstado(stateFilter).map((cidade: string) => (
+                                  <option key={cidade} value={cidade}>
+                                    {cidade}
+                                  </option>
+                                ))
+                              ) : (
+                                <option value="">Selecione um estado primeiro</option>
+                              )}
+                            </select>
+                            {stateFilter && (
+                              <div className="text-xs text-muted-foreground mt-1">
+                                Pressione Ctrl (ou Cmd) para selecionar múltiplas cidades
+                              </div>
                             )}
                           </div>
-                          {tussOptions.length > 0 && (
-                            <div className="mt-2 max-h-40 overflow-y-auto border rounded-md">
-                              {tussOptions.map((tuss) => (
-                                <div
-                                  key={tuss.id}
-                                  className="p-2 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
-                                  onClick={() => {
-                                    setSelectedTuss(tuss)
-                                    setTussSearchValue(`${tuss.code} - ${tuss.description}`)
-                                    setTussOptions([])
-                                  }}
-                                >
-                                  <div className="font-medium">{tuss.code}</div>
-                                  <div className="text-sm text-gray-600">{tuss.description}</div>
+                        </div>
+                        
+                        <div>
+                          <Label>Especialidade Médica</Label>
+                          <select
+                            value={selectedSpecialty?.id || ''}
+                            onChange={(e) => {
+                              const specialty = specialtyOptions.find(s => s.id === parseInt(e.target.value))
+                              setSelectedSpecialty(specialty || null)
+                            }}
+                            className="w-full p-2 border rounded-md"
+                            disabled={isLoadingSpecialties}
+                          >
+                            <option value="">Selecione uma especialidade</option>
+                            {specialtyOptions.map((specialty) => (
+                              <option key={specialty.id} value={specialty.id}>
+                                {specialty.name}
+                                {specialty.city && specialty.state && ` - ${specialty.city}/${specialty.state}`}
+                              </option>
+                            ))}
+                          </select>
+                          {isLoadingSpecialties && (
+                            <div className="flex items-center mt-2">
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              <span className="text-sm text-gray-500">Carregando especialidades...</span>
+                            </div>
+                          )}
+                          {!isLoadingSpecialties && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {specialtyOptions.length} especialidade(s) encontrada(s)
+                              {(stateFilter || selectedCities.length > 0) && (
+                                <span className="ml-1">
+                                  (filtradas por {stateFilter && `estado: ${getEstados().find((e: any) => e.sigla === stateFilter)?.nome}`}
+                                  {stateFilter && selectedCities.length > 0 && ' e '}
+                                  {selectedCities.length > 0 && `cidade(s): ${selectedCities.join(', ')}`})
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {selectedSpecialty && (
+                            <div className="mt-2 p-2 bg-blue-50 rounded-md">
+                              <div className="text-sm font-medium">{selectedSpecialty.name}</div>
+                              {selectedSpecialty.city && selectedSpecialty.state && (
+                                <div className="text-xs text-gray-600">
+                                  {selectedSpecialty.city}/{selectedSpecialty.state}
                                 </div>
-                              ))}
+                              )}
                             </div>
                           )}
                         </div>
+                        
                         <div>
                           <Label>Valor (R$)</Label>
                           <Input
@@ -687,6 +938,24 @@ export default function HealthPlanPricingPage() {
                             placeholder="0,00"
                           />
                         </div>
+                        
+                        {(stateFilter || selectedCities.length > 0) && (
+                          <div className="flex justify-end">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setStateFilter("")
+                                setSelectedCities([])
+                                loadMedicalSpecialties()
+                              }}
+                            >
+                              <X className="h-4 w-4 mr-2" />
+                              Limpar Filtros
+                            </Button>
+                          </div>
+                        )}
+                        
                         <div>
                           <Label>Observações</Label>
                           <Textarea
@@ -720,16 +989,100 @@ export default function HealthPlanPricingPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="mb-4">
+              <div className="mb-4 space-y-4">
                 <div className="relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
-                    placeholder="Buscar procedimento..."
+                    placeholder="Buscar procedimento ou especialidade..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10"
                   />
                 </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="state-filter">Estado</Label>
+                    <select
+                      id="state-filter"
+                      value={stateFilter}
+                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                        setStateFilter(e.target.value)
+                        setSelectedCities([]) // Reset cities when state changes
+                      }}
+                      className="w-full p-2 border rounded-md"
+                    >
+                      <option value="">Todos os estados</option>
+                      {getEstados().map((estado: any) => (
+                        <option key={estado.sigla} value={estado.sigla}>
+                          {estado.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label htmlFor="city-filter">Cidades</Label>
+                    <select
+                      id="city-filter"
+                      multiple
+                      value={selectedCities}
+                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                        const selectedOptions = Array.from(e.target.selectedOptions, option => option.value)
+                        setSelectedCities(selectedOptions)
+                      }}
+                      className="w-full p-2 border rounded-md min-h-[100px]"
+                    >
+                      {stateFilter ? (
+                        getCidadesByEstado(stateFilter).map((cidade: string) => (
+                          <option key={cidade} value={cidade}>
+                            {cidade}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="">Selecione um estado primeiro</option>
+                      )}
+                    </select>
+                    {stateFilter && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Pressione Ctrl (ou Cmd) para selecionar múltiplas cidades
+                      </div>
+                    )}
+                    {selectedCities.length > 0 && (
+                      <div className="mt-2">
+                        <div className="text-xs text-muted-foreground mb-1">
+                          Cidades selecionadas:
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {selectedCities.map((city) => (
+                            <Badge key={city} variant="secondary" className="text-xs">
+                              {city}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {(searchQuery || stateFilter || selectedCities.length > 0) && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSearchQuery("")
+                        setStateFilter("")
+                        setSelectedCities([])
+                      }}
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Limpar Filtros
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      {filteredItems.length} de {pricingItems.length} itens
+                    </span>
+                  </div>
+                )}
               </div>
               
               {filteredItems.length > 0 ? (
