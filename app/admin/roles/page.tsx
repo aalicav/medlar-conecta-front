@@ -50,9 +50,9 @@ export default function RolesAdminPage() {
         per_page: perPage
       };
       
-      const data = await getRoles();
-      setRoles(data.data);
-      setTotalItems(data.total || data.data.length);
+      const data = await getRoles(params);
+      setRoles(data.data.data || data.data);
+      setTotalItems(data.data.total || data.data.length);
     } catch (e) {
       setError('Erro ao carregar funções');
       toast({

@@ -21,19 +21,14 @@ interface MedicalSpecialty {
   name: string
   tuss_code: string
   tuss_description: string
-  negotiable: boolean
   active: boolean
-  default_price: number | null
   created_at: string
   updated_at: string
-  prices_count?: number
 }
 
 interface SpecialtyStats {
   total: number
   active: number
-  negotiable: number
-  with_prices: number
   recent_additions: number
 }
 
@@ -50,11 +45,7 @@ export default function MedicalSpecialtiesPage() {
   const [selectedSpecialty, setSelectedSpecialty] = useState<MedicalSpecialty | null>(null)
   const [formData, setFormData] = useState({
     name: "",
-    tuss_code: "",
-    tuss_description: "",
-    negotiable: false,
-    active: true,
-    default_price: ""
+    active: true
   })
   const [submitting, setSubmitting] = useState(false)
   
@@ -69,14 +60,37 @@ export default function MedicalSpecialtiesPage() {
     loadStats()
   }, [currentPage, searchTerm])
 
+  // Debounced search effect
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (currentPage === 1) {
+        loadSpecialties()
+      } else {
+        setCurrentPage(1) // Reset to first page when searching
+      }
+    }, 500)
+
+    return () => clearTimeout(timeoutId)
+  }, [searchTerm])
+
+  // Reload when perPage changes
+  useEffect(() => {
+    setCurrentPage(1) // Reset to first page when changing perPage
+    loadSpecialties()
+  }, [perPage])
+
   const loadSpecialties = async () => {
     try {
       setLoading(true)
       const params = new URLSearchParams({
         page: currentPage.toString(),
         per_page: perPage.toString(),
-        search: searchTerm,
       })
+
+      // Add search parameter if not empty
+      if (searchTerm.trim()) {
+        params.append('search', searchTerm.trim())
+      }
 
       const response = await api.get(`/medical-specialties?${params}`)
 
@@ -187,11 +201,7 @@ export default function MedicalSpecialtiesPage() {
   const resetForm = () => {
     setFormData({
       name: "",
-      tuss_code: "",
-      tuss_description: "",
-      negotiable: false,
-      active: true,
-      default_price: ""
+      active: true
     })
     setSelectedSpecialty(null)
   }
@@ -200,11 +210,7 @@ export default function MedicalSpecialtiesPage() {
     setSelectedSpecialty(specialty)
     setFormData({
       name: specialty.name,
-      tuss_code: specialty.tuss_code,
-      tuss_description: specialty.tuss_description,
-      negotiable: specialty.negotiable,
-      active: specialty.active,
-      default_price: specialty.default_price?.toString() || ""
+      active: specialty.active
     })
     setShowEditDialog(true)
   }
@@ -212,14 +218,6 @@ export default function MedicalSpecialtiesPage() {
   const openDeleteDialog = (specialty: MedicalSpecialty) => {
     setSelectedSpecialty(specialty)
     setShowDeleteDialog(true)
-  }
-
-  const formatCurrency = (value: number | null) => {
-    if (value === null) return "Não definido"
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(value)
   }
 
   const formatDate = (dateString: string) => {
@@ -243,7 +241,7 @@ export default function MedicalSpecialtiesPage() {
 
       {/* Statistics Cards */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total</CardTitle>
@@ -261,26 +259,6 @@ export default function MedicalSpecialtiesPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.active}</div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Negociáveis</CardTitle>
-              <DollarSign className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.negotiable}</div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Com Preços</CardTitle>
-              <DollarSign className="h-4 w-4 text-amber-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.with_prices}</div>
             </CardContent>
           </Card>
           
@@ -314,6 +292,20 @@ export default function MedicalSpecialtiesPage() {
                 className="pl-8"
               />
             </div>
+            <div className="flex items-center space-x-2">
+              <Label htmlFor="per-page" className="text-sm">Itens por página:</Label>
+              <Select value={perPage.toString()} onValueChange={(value) => setPerPage(parseInt(value))}>
+                <SelectTrigger className="w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="15">15</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {loading ? (
@@ -321,103 +313,134 @@ export default function MedicalSpecialtiesPage() {
               <Loader2 className="h-8 w-8 animate-spin" />
             </div>
           ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Código TUSS</TableHead>
-                    <TableHead>Preço Padrão</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Negociável</TableHead>
-                    <TableHead>Criado em</TableHead>
-                    <TableHead>Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {specialties.length === 0 ? (
+            <>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                        {searchTerm ? "Nenhuma especialidade encontrada para a busca" : "Nenhuma especialidade encontrada"}
-                      </TableCell>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Criado em</TableHead>
+                      <TableHead>Ações</TableHead>
                     </TableRow>
-                  ) : (
-                    specialties.map((specialty) => (
-                      <TableRow key={specialty.id}>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{specialty.name}</div>
-                            <div className="text-sm text-muted-foreground">
-                              {specialty.tuss_description}
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{specialty.tuss_code}</Badge>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {formatCurrency(specialty.default_price)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={specialty.active ? "default" : "secondary"}>
-                            {specialty.active ? "Ativa" : "Inativa"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={specialty.negotiable ? "default" : "outline"}>
-                            {specialty.negotiable ? "Sim" : "Não"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{formatDate(specialty.created_at)}</TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" className="h-8 w-8 p-0">
-                                <span className="sr-only">Abrir menu</span>
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              
-                              <DropdownMenuItem onClick={() => openEditDialog(specialty)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Editar
-                              </DropdownMenuItem>
-                              
-                              <DropdownMenuItem onClick={() => handleToggleActive(specialty)}>
-                                {specialty.active ? (
-                                  <>
-                                    <XCircle className="mr-2 h-4 w-4" />
-                                    Desativar
-                                  </>
-                                ) : (
-                                  <>
-                                    <CheckCircle className="mr-2 h-4 w-4" />
-                                    Ativar
-                                  </>
-                                )}
-                              </DropdownMenuItem>
-                              
-                              <DropdownMenuSeparator />
-                              
-                              <DropdownMenuItem 
-                                onClick={() => openDeleteDialog(specialty)}
-                                className="text-red-600"
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Excluir
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                  </TableHeader>
+                  <TableBody>
+                    {specialties.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                          {searchTerm ? "Nenhuma especialidade encontrada para a busca" : "Nenhuma especialidade encontrada"}
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                    ) : (
+                      specialties.map((specialty) => (
+                        <TableRow key={specialty.id}>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">{specialty.name}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {specialty.tuss_description}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={specialty.active ? "default" : "secondary"}>
+                              {specialty.active ? "Ativa" : "Inativa"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{formatDate(specialty.created_at)}</TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                  <span className="sr-only">Abrir menu</span>
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                
+                                <DropdownMenuItem onClick={() => openEditDialog(specialty)}>
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Editar
+                                </DropdownMenuItem>
+                                
+                                <DropdownMenuItem onClick={() => handleToggleActive(specialty)}>
+                                  {specialty.active ? (
+                                    <>
+                                      <XCircle className="mr-2 h-4 w-4" />
+                                      Desativar
+                                    </>
+                                  ) : (
+                                    <>
+                                      <CheckCircle className="mr-2 h-4 w-4" />
+                                      Ativar
+                                    </>
+                                  )}
+                                </DropdownMenuItem>
+                                
+                                <DropdownMenuSeparator />
+                                
+                                <DropdownMenuItem 
+                                  onClick={() => openDeleteDialog(specialty)}
+                                  className="text-red-600"
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Excluir
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+              
+              {/* Pagination Controls */}
+              {lastPage > 1 && (
+                <div className="flex items-center justify-between mt-4">
+                  <div className="text-sm text-muted-foreground">
+                    Mostrando {((currentPage - 1) * perPage) + 1} a {Math.min(currentPage * perPage, total)} de {total} resultados
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(currentPage - 1)}
+                      disabled={currentPage === 1}
+                    >
+                      Anterior
+                    </Button>
+                    <div className="flex items-center space-x-1">
+                      {Array.from({ length: Math.min(5, lastPage) }, (_, i) => {
+                        const page = Math.max(1, Math.min(lastPage - 4, currentPage - 2)) + i
+                        return (
+                          <Button
+                            key={page}
+                            variant={page === currentPage ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setCurrentPage(page)}
+                            className="w-8 h-8"
+                          >
+                            {page}
+                          </Button>
+                        )
+                      })}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(currentPage + 1)}
+                      disabled={currentPage === lastPage}
+                    >
+                      Próxima
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
@@ -433,74 +456,25 @@ export default function MedicalSpecialtiesPage() {
           </DialogHeader>
           
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Nome da especialidade"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="tuss_code">Código TUSS</Label>
-                <Input
-                  id="tuss_code"
-                  value={formData.tuss_code}
-                  onChange={(e) => setFormData({ ...formData, tuss_code: e.target.value })}
-                  placeholder="Código TUSS"
-                />
-              </div>
-            </div>
-            
             <div className="space-y-2">
-              <Label htmlFor="tuss_description">Descrição TUSS</Label>
+              <Label htmlFor="name">Nome</Label>
               <Input
-                id="tuss_description"
-                value={formData.tuss_description}
-                onChange={(e) => setFormData({ ...formData, tuss_description: e.target.value })}
-                placeholder="Descrição do procedimento TUSS"
+                id="name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Nome da especialidade"
               />
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="default_price">Preço Padrão</Label>
-                <Input
-                  id="default_price"
-                  type="number"
-                  step="0.01"
-                  value={formData.default_price}
-                  onChange={(e) => setFormData({ ...formData, default_price: e.target.value })}
-                  placeholder="0,00"
-                />
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="negotiable"
-                  checked={formData.negotiable}
-                  onChange={(e) => setFormData({ ...formData, negotiable: e.target.checked })}
-                  className="rounded"
-                />
-                <Label htmlFor="negotiable">Negociável</Label>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="active"
-                  checked={formData.active}
-                  onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
-                  className="rounded"
-                />
-                <Label htmlFor="active">Ativa</Label>
-              </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="active"
+                checked={formData.active}
+                onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
+                className="rounded"
+              />
+              <Label htmlFor="active">Ativa</Label>
             </div>
           </div>
           
@@ -533,74 +507,25 @@ export default function MedicalSpecialtiesPage() {
           </DialogHeader>
           
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit_name">Nome</Label>
-                <Input
-                  id="edit_name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Nome da especialidade"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="edit_tuss_code">Código TUSS</Label>
-                <Input
-                  id="edit_tuss_code"
-                  value={formData.tuss_code}
-                  onChange={(e) => setFormData({ ...formData, tuss_code: e.target.value })}
-                  placeholder="Código TUSS"
-                />
-              </div>
-            </div>
-            
             <div className="space-y-2">
-              <Label htmlFor="edit_tuss_description">Descrição TUSS</Label>
+              <Label htmlFor="edit_name">Nome</Label>
               <Input
-                id="edit_tuss_description"
-                value={formData.tuss_description}
-                onChange={(e) => setFormData({ ...formData, tuss_description: e.target.value })}
-                placeholder="Descrição do procedimento TUSS"
+                id="edit_name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Nome da especialidade"
               />
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit_default_price">Preço Padrão</Label>
-                <Input
-                  id="edit_default_price"
-                  type="number"
-                  step="0.01"
-                  value={formData.default_price}
-                  onChange={(e) => setFormData({ ...formData, default_price: e.target.value })}
-                  placeholder="0,00"
-                />
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="edit_negotiable"
-                  checked={formData.negotiable}
-                  onChange={(e) => setFormData({ ...formData, negotiable: e.target.checked })}
-                  className="rounded"
-                />
-                <Label htmlFor="edit_negotiable">Negociável</Label>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="edit_active"
-                  checked={formData.active}
-                  onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
-                  className="rounded"
-                />
-                <Label htmlFor="edit_active">Ativa</Label>
-              </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="edit_active"
+                checked={formData.active}
+                onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
+                className="rounded"
+              />
+              <Label htmlFor="edit_active">Ativa</Label>
             </div>
           </div>
           

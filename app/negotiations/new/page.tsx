@@ -61,12 +61,6 @@ import { Separator } from '@/components/ui/separator';
 import { Combobox, ComboboxOption } from '@/components/ui/combobox';
 import debounce from 'lodash/debounce';
 
-interface OpcaoEntidade {
-  id: number;
-  name: string;
-  type?: string;
-}
-
 interface Tuss {
   id: number;
   code: string;
@@ -80,9 +74,20 @@ interface TussOption extends ComboboxOption {
   description: string;
 }
 
+// Tipo para opções do Combobox de Entidades
+interface EntityOption extends ComboboxOption {
+  type: string;
+}
+
 interface MedicalSpecialty {
   id: number;
   name: string;
+}
+
+interface ApiEntity {
+  id: number;
+  name: string;
+  type?: string;
 }
 
 interface CreateNegotiationResponse {
@@ -130,7 +135,11 @@ const buscarEntidades = async (tipo: string, termo: string = '') => {
     });
     
     if (response?.data?.data) {
-      return response.data.data;
+      return response.data.data.map((entidade: ApiEntity) => ({
+        value: entidade.id.toString(),
+        label: entidade.name,
+        type: tipo
+      }));
     }
     
     return [];
@@ -153,11 +162,11 @@ export default function PaginaCriarNegociacao() {
   const [carregando, setCarregando] = useState(false);
   const [carregandoEntidades, setCarregandoEntidades] = useState(false);
   const [carregandoTuss, setCarregandoTuss] = useState(false);
-  const [carregandoEspecialidades, setCarregandoEspecialidades] = useState(false);
-  const [opcoesEntidades, setOpcoesEntidades] = useState<OpcaoEntidade[]>([]);
+  const [opcoesEntidades, setOpcoesEntidades] = useState<EntityOption[]>([]);
   const [tipoEntidadeSelecionada, setTipoEntidadeSelecionada] = useState<string>('');
   const [opcoesTuss, setOpcoesTuss] = useState<TussOption[]>([]);
   const [opcoesEspecialidades, setOpcoesEspecialidades] = useState<MedicalSpecialty[]>([]);
+  const [carregandoEspecialidades, setCarregandoEspecialidades] = useState(false);
 
   const form = useForm<ValoresFormulario>({
     resolver: zodResolver(formularioSchema),
@@ -177,14 +186,20 @@ export default function PaginaCriarNegociacao() {
     
     setCarregandoEspecialidades(true);
     try {
-      const response = await specialtyService.list();
+      const response = await specialtyService.list({ 
+        active: true, 
+        per_page: 100 
+      });
       
+      // Tratar diferentes formatos de resposta
+      let especialidades: MedicalSpecialty[] = [];
       if (Array.isArray(response?.data)) {
-        setOpcoesEspecialidades(response?.data);
-      } else {
-        console.error('Response is not an array:', response);
-        setOpcoesEspecialidades([]);
+        especialidades = response.data;
+      } else if (Array.isArray(response)) {
+        especialidades = response;
       }
+      
+      setOpcoesEspecialidades(especialidades);
     } catch (error) {
       console.error('Erro ao carregar especialidades:', error);
       setOpcoesEspecialidades([]);
@@ -197,11 +212,6 @@ export default function PaginaCriarNegociacao() {
       setCarregandoEspecialidades(false);
     }
   }, [carregandoEspecialidades, toast]);
-
-  // Efeito para carregar especialidades quando necessário
-  useEffect(() => {
-    carregarEspecialidades();
-  }, [carregarEspecialidades]);
 
   // Buscar procedimentos TUSS com debounce
   const buscarProcedimentosTuss = debounce(async (termo: string) => {
@@ -235,17 +245,90 @@ export default function PaginaCriarNegociacao() {
     }
   }, 300);
 
+  // Buscar entidades com debounce
+  const buscarEntidadesComDebounce = debounce(async (termo: string) => {
+    if (!tipoEntidadeSelecionada) return;
+    
+    setCarregandoEntidades(true);
+    try {
+      const entidades = await buscarEntidades(tipoEntidadeSelecionada, termo);
+      setOpcoesEntidades(entidades);
+    } catch (error) {
+      console.error('Erro ao buscar entidades:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível buscar as entidades",
+        variant: "destructive"
+      });
+    } finally {
+      setCarregandoEntidades(false);
+    }
+  }, 300);
+
+  // Buscar especialidades médicas com debounce
+  const buscarEspecialidadesComDebounce = useCallback(
+    debounce(async (termo: string) => {
+      setCarregandoEspecialidades(true);
+      try {
+        const params: { active?: boolean; search?: string; per_page?: number } = { 
+          active: true,
+          per_page: 50
+        };
+        
+        // Se há um termo de busca, adicionar ao parâmetro search
+        if (termo && termo.length >= 2) {
+          params.search = termo;
+        }
+        
+        const response = await specialtyService.list(params);
+        
+        // Tratar diferentes formatos de resposta
+        let especialidades: MedicalSpecialty[] = [];
+        if (Array.isArray(response?.data)) {
+          especialidades = response.data;
+        } else if (Array.isArray(response)) {
+          especialidades = response;
+        }
+        
+        setOpcoesEspecialidades(especialidades);
+      } catch (error) {
+        console.error('Erro ao buscar especialidades:', error);
+        toast({
+          title: "Erro",
+          description: "Não foi possível buscar as especialidades médicas",
+          variant: "destructive"
+        });
+      } finally {
+        setCarregandoEspecialidades(false);
+      }
+    }, 300),
+    []
+  );
+
   // Efeito para carregar procedimentos TUSS iniciais
   useEffect(() => {
     buscarProcedimentosTuss('');
   }, []);
 
+  // Efeito para buscar entidades quando o termo mudar
+  useEffect(() => {
+    if (tipoEntidadeSelecionada) {
+      buscarEntidadesComDebounce(''); // Clear search term when type changes
+    }
+  }, [tipoEntidadeSelecionada]);
+
   const handleMudancaTipoEntidade = async (valor: string) => {
     setTipoEntidadeSelecionada(valor);
     form.setValue('entity_type', valor);
+    form.setValue('entity_id', 0); // Reset entity selection
     
-    const entidades = await buscarEntidades(valor);
-    setOpcoesEntidades(entidades);
+    // Load initial entities for the selected type
+    if (valor) {
+      const entidades = await buscarEntidades(valor);
+      setOpcoesEntidades(entidades);
+    } else {
+      setOpcoesEntidades([]);
+    }
   };
 
   const adicionarItem = () => {
@@ -351,21 +434,16 @@ export default function PaginaCriarNegociacao() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Entidade</FormLabel>
-                        <Select
+                        <Combobox
+                          options={opcoesEntidades}
+                          value={field.value?.toString() || ""}
                           onValueChange={(value) => field.onChange(parseInt(value))}
-                          value={field.value?.toString()}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione a entidade" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {opcoesEntidades.map((entidade) => (
-                              <SelectItem key={entidade.id} value={entidade.id.toString()}>
-                                {entidade.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          placeholder={tipoEntidadeSelecionada ? "Buscar entidade..." : "Selecione o tipo primeiro"}
+                          onSearch={buscarEntidadesComDebounce}
+                          loading={carregandoEntidades}
+                          emptyText={tipoEntidadeSelecionada ? "Digite pelo menos 3 caracteres para buscar" : "Selecione o tipo de entidade primeiro"}
+                          disabled={!tipoEntidadeSelecionada}
+                        />
                         <FormMessage />
                       </FormItem>
                     )}
@@ -453,25 +531,25 @@ export default function PaginaCriarNegociacao() {
                             render={({ field }) => (
                               <FormItem>
                                 <FormLabel>Especialidade Médica</FormLabel>
-                                <Select
+                                <Combobox
+                                  options={opcoesEspecialidades.map(specialty => ({
+                                    value: specialty.id.toString(),
+                                    label: specialty.name
+                                  }))}
+                                  value={field.value?.toString() || ""}
                                   onValueChange={(value) => field.onChange(parseInt(value))}
-                                  value={field.value?.toString()}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Selecione a especialidade" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {Array.isArray(opcoesEspecialidades) ? opcoesEspecialidades.map((specialty) => (
-                                      <SelectItem key={specialty.id} value={specialty.id.toString()}>
-                                        {specialty.name}
-                                      </SelectItem>
-                                    )) : (
-                                      <SelectItem value="" disabled>
-                                        {carregandoEspecialidades ? "Carregando..." : "Nenhuma especialidade encontrada"}
-                                      </SelectItem>
-                                    )}
-                                  </SelectContent>
-                                </Select>
+                                  placeholder="Buscar especialidade médica..."
+                                  onSearch={(termo) => {
+                                    // Se não há especialidades carregadas e o termo está vazio, carregar todas
+                                    if (opcoesEspecialidades.length === 0 && !termo) {
+                                      carregarEspecialidades();
+                                    } else {
+                                      buscarEspecialidadesComDebounce(termo);
+                                    }
+                                  }}
+                                  loading={carregandoEspecialidades}
+                                  emptyText="Digite para buscar especialidades médicas"
+                                />
                                 <FormMessage />
                               </FormItem>
                             )}

@@ -16,21 +16,29 @@ export interface MedicalSpecialty {
 
 export interface CreateMedicalSpecialtyData {
   name: string;
-  tuss_code: string;
-  tuss_description: string;
-  default_price: number;
   active: boolean;
-  negotiable: boolean;
 }
 
 export interface UpdateMedicalSpecialtyData extends Partial<CreateMedicalSpecialtyData> {}
 
 export const specialtyService = {
-  list: async (): Promise<MedicalSpecialty[]> => {
+  list: async (params?: { search?: string; active?: boolean; per_page?: number }): Promise<{data?:MedicalSpecialty[]}> => {
     try {
-      const response = await api.get('/medical-specialties');
-      // Handle the correct structure: response.data.data (array of specialties)
-      return response.data.data || [];
+      const response = await api.get('/medical-specialties', { params });
+      
+      // Tratar diferentes formatos de resposta da API
+      if (response?.data?.data?.data) {
+        // API retorna dados paginados
+        return { data: response.data.data.data };
+      } else if (response?.data?.data) {
+        // API retorna dados diretos
+        return { data: response.data.data };
+      } else if (Array.isArray(response?.data)) {
+        // API retorna array direto
+        return { data: response.data };
+      }
+      
+      return { data: [] };
     } catch (error) {
       console.error('Error fetching medical specialties:', error);
       throw error;

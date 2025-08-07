@@ -35,7 +35,7 @@ interface User {
 
 export default function UsersAdminPage() {
   const [users, setUsers] = useState<User[]>([]);
-  const [roles, setRoles] = useState([]);
+  const [roles, setRoles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
@@ -103,9 +103,19 @@ export default function UsersAdminPage() {
   const fetchRoles = async () => {
     try {
       const data = await getRoles();
-      setRoles(data.data || []);
+      
+      // Garantir que roles seja sempre um array
+      let rolesArray = [];
+      if (Array.isArray(data?.data)) {
+        rolesArray = data.data;
+      } else if (Array.isArray(data)) {
+        rolesArray = data;
+      }
+      
+      setRoles(rolesArray);
     } catch (e) {
       console.error("Erro ao carregar roles:", e);
+      setRoles([]); // Definir como array vazio em caso de erro
     }
   };
 
@@ -174,7 +184,6 @@ export default function UsersAdminPage() {
       id: "name",
       accessorKey: "name",
       header: "Nome",
-      enableFiltering: true,
       cell: ({ row }) => (
         <div className="font-medium flex items-center gap-2">
           <UserRound className="h-4 w-4 text-muted-foreground" />
@@ -186,7 +195,6 @@ export default function UsersAdminPage() {
       id: "email",
       accessorKey: "email",
       header: "E-mail",
-      enableFiltering: true,
     },
     {
       id: "roles",
@@ -288,7 +296,7 @@ export default function UsersAdminPage() {
                   <SelectValue placeholder="Filtrar por função" />
                 </SelectTrigger>
                 <SelectContent>
-                  {roles.map((role: any) => (
+                  {Array.isArray(roles) && roles.map((role: any) => (
                     <SelectItem key={role.id} value={role.name}>
                       {getRoleDisplayName(role.name)}
                     </SelectItem>

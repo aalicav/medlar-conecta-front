@@ -36,9 +36,26 @@ export const deleteUser = async (id: number) => {
 };
 
 // Obter todas as roles disponíveis
-export const getRoles = async () => {
-  const res = await apiClient.get('/roles');
-  return res.data;
+export const getRoles = async (params?: { 
+  search?: string; 
+  guard_name?: string;
+  page?: number;
+  per_page?: number;
+}) => {
+  const res = await apiClient.get('/roles', { params });
+  
+  // Se a resposta tem dados paginados, retornar apenas os dados
+  if (res.data?.data?.data) {
+    return { data: res.data.data.data };
+  }
+  
+  // Se a resposta tem dados diretos
+  if (res.data?.data) {
+    return { data: res.data.data };
+  }
+  
+  // Fallback
+  return { data: [] };
 };
 
 // Obter uma role específica
@@ -81,7 +98,7 @@ export const syncRolePermissions = async (roleId: number, permissions: string[])
 
 // Obter todas as permissões disponíveis
 export const getPermissions = async () => {
-  const res = await apiClient.get('/permissions');
+  const res = await apiClient.get('/roles/permissions/all');
   return res.data;
 };
 
