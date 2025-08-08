@@ -333,6 +333,53 @@ export function NegotiationActions({
     }
   };
 
+  // Função para lidar com aprovação/rejeição externa
+  const handleExternalAction = async (action: 'approve' | 'reject') => {
+    try {
+      setIsLoading(true);
+      
+      if (!canApproveExternally()) {
+        toast({
+          title: "Erro",
+          description: "Você não tem permissão para aprovar/rejeitar esta negociação",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (action === 'approve') {
+        await negotiationService.markAsComplete(negotiation.id);
+        
+        toast({
+          title: "Sucesso",
+          description: "Negociação aprovada externamente e marcada como completa com sucesso",
+        });
+      } else {
+        await negotiationService.processExternalApproval(negotiation.id, {
+          approved: false,
+          approval_notes: 'Rejeitado pela entidade',
+          approved_items: []
+        });
+        
+        toast({
+          title: "Sucesso",
+          description: "Negociação rejeitada pela entidade com sucesso",
+        });
+      }
+      
+      onActionComplete();
+    } catch (error) {
+      console.error('Error performing external action:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao executar ação",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -408,10 +455,16 @@ export function NegotiationActions({
 
         {/* Aprovação externa - apenas se aprovado internamente */}
         {negotiation.status === 'approved' && canApproveExternally() && (
-          <DropdownMenuItem onClick={() => router.push(`/negotiations/${negotiation.id}`)}>
-            <UserCheck className="mr-2 h-4 w-4" />
-            Aprovar/Rejeitar Externamente
-          </DropdownMenuItem>
+          <>
+            <DropdownMenuItem onClick={() => handleExternalAction('approve')} className="text-green-600 focus:text-green-600">
+              <UserCheck className="mr-2 h-4 w-4" />
+              Aprovar Externamente
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExternalAction('reject')} className="text-red-600 focus:text-red-600">
+              <XCircle className="mr-2 h-4 w-4" />
+              Rejeitar Externamente
+            </DropdownMenuItem>
+          </>
         )}
 
         {/* Marcar como formalizada - apenas se aprovado e pendente aditivo */}

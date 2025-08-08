@@ -150,6 +150,23 @@ interface Professional {
   created_at: string
   updated_at: string
   addresses: Address[]
+  price?: number
+}
+
+interface Clinic {
+  id: number
+  name: string
+  cnpj: string
+  corporate_name: string
+  trade_name: string
+  description: string | null
+  status: string
+  approved_at: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  addresses: Address[]
+  price?: number
 }
 
 interface Address {
@@ -178,11 +195,12 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess, preSelec
   const [selectedSolicitation, setSelectedSolicitation] = useState<Solicitation | null>(null)
   const [availabilities, setAvailabilities] = useState<ProfessionalAvailability[]>([])
   const [showDirectScheduling, setShowDirectScheduling] = useState(false)
+  const [schedulingType, setSchedulingType] = useState<'availabilities' | 'direct'>('availabilities')
   const [directSchedulingDate, setDirectSchedulingDate] = useState("")
   const [directSchedulingTime, setDirectSchedulingTime] = useState("")
   const [selectedProviderId, setSelectedProviderId] = useState<number | null>(null)
-  const [professionals, setProfessionals] = useState<Professional[]>([])
-  const [selectedProvider, setSelectedProvider] = useState<Professional | null>(null)
+  const [providers, setProviders] = useState<(Professional | Clinic)[]>([])
+  const [selectedProvider, setSelectedProvider] = useState<(Professional | Clinic) | null>(null)
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null)
   const [customAddress, setCustomAddress] = useState({
     street: '',
@@ -204,10 +222,16 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess, preSelec
   }, [open, preSelectedSolicitation])
 
   useEffect(() => {
-    if (selectedSolicitation && showDirectScheduling && providerType) {
-      fetchProfessionals(selectedSolicitation.id, providerType)
+    if (selectedSolicitation && schedulingType === 'availabilities') {
+      fetchAvailabilities(selectedSolicitation.id)
     }
-  }, [selectedSolicitation, showDirectScheduling, providerType])
+  }, [selectedSolicitation, schedulingType])
+
+  useEffect(() => {
+    if (selectedSolicitation && schedulingType === 'direct' && providerType) {
+      fetchProviders(selectedSolicitation.id, providerType)
+    }
+  }, [selectedSolicitation, schedulingType, providerType])
 
   useEffect(() => {
     if (selectedProviderId && providerType) {
@@ -263,19 +287,21 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess, preSelec
     }
   }
 
-  const fetchProfessionals = async (solicitationId: number, type: string) => {
+  const fetchProviders = async (solicitationId: number, type: string) => {
     try {
-      const endpoint = type === 'App\\Models\\Clinic' 
-        ? `/solicitations/${solicitationId}/available-clinics`
-        : `/solicitations/${solicitationId}/available-professionals`
+      const endpoint = `/solicitations/${solicitationId}/available-providers`
       
-      const response = await api.get(endpoint)
-      setProfessionals(response.data.data)
+      const response = await api.get(endpoint, {
+        params: {
+          provider_type: type
+        }
+      })
+      setProviders(response.data.data)
     } catch (error) {
-      console.error("Error fetching professionals:", error)
+      console.error("Error fetching providers:", error)
       toast({
         title: "Erro",
-        description: "Não foi possível carregar os profissionais",
+        description: "Não foi possível carregar os provedores",
         variant: "destructive"
       })
     }
@@ -283,9 +309,17 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess, preSelec
 
   const fetchProviderDetails = async (providerId: number, type: string) => {
     try {
-      const endpoint = type === 'App\\Models\\Clinic' 
-        ? `/clinics/${providerId}`
-        : `/professionals/${providerId}`
+      // Determina o endpoint baseado no tipo de provedor
+      // type pode ser "App\\Models\\Professional" ou "App\\Models\\Clinic"
+      let endpoint: string
+      
+      if (type.includes('Clinic')) {
+        endpoint = `/clinics/${providerId}`
+      } else if (type.includes('Professional')) {
+        endpoint = `/professionals/${providerId}`
+      } else {
+        throw new Error(`Tipo de provedor inválido: ${type}`)
+      }
       
       const response = await api.get(endpoint)
       setSelectedProvider(response.data.data)
@@ -293,7 +327,7 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess, preSelec
       console.error("Error fetching provider details:", error)
       toast({
         title: "Erro",
-        description: "Não foi possível carregar os detalhes do profissional",
+        description: "Não foi possível carregar os detalhes do provedor",
         variant: "destructive"
       })
     }
@@ -410,7 +444,7 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess, preSelec
     setDirectSchedulingDate("")
     setDirectSchedulingTime("")
     setSelectedProviderId(null)
-    setProfessionals([])
+    setProviders([])
     setSelectedProvider(null)
     setSelectedAddressId(null)
     setProviderType("")
@@ -440,6 +474,16 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess, preSelec
     }
   }
 
+  // Função para validar se há um endereço válido
+  const hasValidAddress = () => {
+    // Se há um endereço selecionado, é válido
+    if (selectedAddressId) return true
+    
+    // Se não há endereço selecionado, verifica se o endereço personalizado está preenchido
+    const { street, number, neighborhood, city, state, postal_code } = customAddress
+    return street && number && neighborhood && city && state && postal_code
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {showTriggerButton && (
@@ -463,11 +507,11 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess, preSelec
           <Select
             onValueChange={(value) => {
               if (value === 'direct') {
-                setShowDirectScheduling(true)
+                setSchedulingType('direct')
                 setSelectedSolicitation(null)
                 setAvailabilities([])
               } else {
-                setShowDirectScheduling(false)
+                setSchedulingType('availabilities')
               }
             }}
             defaultValue="availability"
@@ -482,7 +526,7 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess, preSelec
           </Select>
         </div>
 
-        {!showDirectScheduling ? (
+        {schedulingType === 'availabilities' ? (
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <h3 className="font-medium text-sm">Solicitações Pendentes e em Processamento</h3>
@@ -497,7 +541,7 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess, preSelec
                     }`}
                     onClick={() => {
                       setSelectedSolicitation(solicitation)
-                      if (!showDirectScheduling) {
+                      if (schedulingType === 'availabilities') {
                         fetchAvailabilities(solicitation.id)
                       }
                     }}
@@ -721,34 +765,41 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess, preSelec
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Tipo de Profissional</Label>
+                  <Label>Tipo de Prestador</Label>
                   <Select onValueChange={(value) => {
                     setProviderType(value)
                     setSelectedProviderId(null)
-                    setProfessionals([])
+                    setProviders([])
                     setSelectedProvider(null)
                   }}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione o tipo de profissional" />
+                      <SelectValue placeholder="Selecione o tipo de prestador" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="App\\Models\\Professional">Profissional</SelectItem>
-                      <SelectItem value="App\\Models\\Clinic">Estabelecimento</SelectItem>
+                      <SelectItem value="App\\Models\\Clinic">Estabelecimento (Clínica)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 {providerType && (
                   <div className="space-y-2">
-                    <Label>Profissional/Estabelecimento</Label>
+                    <Label>{providerType.includes('Clinic') ? 'Estabelecimento' : 'Profissional'}</Label>
                     <Select onValueChange={(value) => setSelectedProviderId(Number(value))}>
                       <SelectTrigger>
-                        <SelectValue placeholder={`Selecione ${providerType.includes('Clinic') ? 'a clínica' : 'o profissional'}`} />
+                        <SelectValue placeholder={`Selecione ${providerType.includes('Clinic') ? 'o estabelecimento' : 'o profissional'}`} />
                       </SelectTrigger>
                       <SelectContent>
-                        {professionals.map((professional) => (
-                          <SelectItem key={professional.id} value={professional.id.toString()}>
-                            {professional.name}
+                        {providers.map((provider) => (
+                          <SelectItem key={provider.id} value={provider.id.toString()}>
+                            <div className="flex justify-between items-center w-full">
+                              <span>{provider.name}</span>
+                              {provider.price && (
+                                <span className="text-sm text-green-600 ml-2">
+                                  R$ {provider.price.toFixed(2)}
+                                </span>
+                              )}
+                            </div>
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -756,125 +807,130 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess, preSelec
                   </div>
                 )}
 
-                <div className="space-y-2">
-                  <Label>Endereço</Label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Usar endereço existente</Label>
-                      {selectedProvider?.addresses?.map((address: Address) => (
-                        <Card
-                          key={address.id}
-                          className={`cursor-pointer mt-2 transition-colors ${
-                            selectedAddressId === address.id
-                              ? "border-primary"
-                              : "hover:border-muted-foreground"
-                          }`}
-                          onClick={() => {
-                            setSelectedAddressId(address.id)
-                            setCustomAddress({
-                              street: '',
-                              number: '',
-                              complement: '',
-                              neighborhood: '',
-                              city: '',
-                              state: '',
-                              postal_code: ''
-                            })
-                          }}
-                        >
-                          <CardContent className="p-3">
-                            <div className="space-y-1">
-                              <div className="text-sm font-medium">
-                                {address.street}, {address.number}
-                                {address.is_primary && (
-                                  <Badge variant="outline" className="ml-2 text-xs">Principal</Badge>
-                                )}
+                {selectedProvider && (
+                  <div className="space-y-2">
+                    <Label>Endereço</Label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Usar endereço existente</Label>
+                        {selectedProvider?.addresses?.map((address: Address) => (
+                          <Card
+                            key={address.id}
+                            className={`cursor-pointer mt-2 transition-colors ${
+                              selectedAddressId === address.id
+                                ? "border-primary"
+                                : "hover:border-muted-foreground"
+                            }`}
+                            onClick={() => {
+                              setSelectedAddressId(address.id)
+                              setCustomAddress({
+                                street: '',
+                                number: '',
+                                complement: '',
+                                neighborhood: '',
+                                city: '',
+                                state: '',
+                                postal_code: ''
+                              })
+                            }}
+                          >
+                            <CardContent className="p-3">
+                              <div className="space-y-1">
+                                <div className="text-sm font-medium">
+                                  {address.street}, {address.number}
+                                  {address.is_primary && (
+                                    <Badge variant="outline" className="ml-2 text-xs">Principal</Badge>
+                                  )}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {address.complement && `${address.complement}, `}
+                                  {address.neighborhood} - {address.city}/{address.state}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  CEP: {address.postal_code}
+                                </div>
                               </div>
-                              <div className="text-xs text-muted-foreground">
-                                {address.complement && `${address.complement}, `}
-                                {address.neighborhood} - {address.city}/{address.state}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                CEP: {address.postal_code}
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
 
-                    <div>
-                      <Label>Ou usar endereço personalizado</Label>
-                      <div className="space-y-2 mt-2">
-                        <Input
-                          placeholder="CEP"
-                          value={customAddress.postal_code}
-                          onChange={(e) => {
-                            const cep = e.target.value.replace(/\D/g, '')
-                            setCustomAddress(prev => ({ ...prev, postal_code: cep }))
-                            if (cep.length === 8) {
-                              handleSearchCep(cep)
-                            }
-                          }}
-                          maxLength={8}
-                        />
-                        <Input
-                          placeholder="Rua"
-                          value={customAddress.street}
-                          onChange={(e) => setCustomAddress(prev => ({ ...prev, street: e.target.value }))}
-                        />
-                        <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label>Ou usar endereço personalizado</Label>
+                        <div className="space-y-2 mt-2">
                           <Input
-                            placeholder="Número"
-                            value={customAddress.number}
-                            onChange={(e) => setCustomAddress(prev => ({ ...prev, number: e.target.value }))}
+                            placeholder="CEP"
+                            value={customAddress.postal_code}
+                            onChange={(e) => {
+                              const cep = e.target.value.replace(/\D/g, '')
+                              setCustomAddress(prev => ({ ...prev, postal_code: cep }))
+                              if (cep.length === 8) {
+                                handleSearchCep(cep)
+                              }
+                            }}
+                            maxLength={8}
                           />
                           <Input
-                            placeholder="Complemento"
-                            value={customAddress.complement}
-                            onChange={(e) => setCustomAddress(prev => ({ ...prev, complement: e.target.value }))}
+                            placeholder="Rua"
+                            value={customAddress.street}
+                            onChange={(e) => setCustomAddress(prev => ({ ...prev, street: e.target.value }))}
                           />
-                        </div>
-                        <Input
-                          placeholder="Bairro"
-                          value={customAddress.neighborhood}
-                          onChange={(e) => setCustomAddress(prev => ({ ...prev, neighborhood: e.target.value }))}
-                        />
-                        <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <Input
+                              placeholder="Número"
+                              value={customAddress.number}
+                              onChange={(e) => setCustomAddress(prev => ({ ...prev, number: e.target.value }))}
+                            />
+                            <Input
+                              placeholder="Complemento"
+                              value={customAddress.complement}
+                              onChange={(e) => setCustomAddress(prev => ({ ...prev, complement: e.target.value }))}
+                            />
+                          </div>
                           <Input
-                            placeholder="Cidade"
-                            value={customAddress.city}
-                            onChange={(e) => setCustomAddress(prev => ({ ...prev, city: e.target.value }))}
+                            placeholder="Bairro"
+                            value={customAddress.neighborhood}
+                            onChange={(e) => setCustomAddress(prev => ({ ...prev, neighborhood: e.target.value }))}
                           />
-                          <Input
-                            placeholder="Estado"
-                            value={customAddress.state}
-                            onChange={(e) => setCustomAddress(prev => ({ ...prev, state: e.target.value }))}
-                            maxLength={2}
-                          />
+                          <div className="grid grid-cols-2 gap-2">
+                            <Input
+                              placeholder="Cidade"
+                              value={customAddress.city}
+                              onChange={(e) => setCustomAddress(prev => ({ ...prev, city: e.target.value }))}
+                            />
+                            <Input
+                              placeholder="Estado"
+                              value={customAddress.state}
+                              onChange={(e) => setCustomAddress(prev => ({ ...prev, state: e.target.value }))}
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                )}
 
-                <Button 
-                  className="w-full"
-                  onClick={handleCreateDirectAppointment}
-                  disabled={
-                    !selectedSolicitation ||
-                    !directSchedulingDate ||
-                    !directSchedulingTime ||
-                    !selectedProviderId ||
-                    !providerType ||
-                    (!selectedAddressId && (!customAddress.street || !customAddress.number))
-                  }
-                >
-                  {isActionLoading ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : null}
-                  Criar Agendamento
-                </Button>
+                {selectedProviderId && directSchedulingDate && directSchedulingTime && hasValidAddress() && (
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={handleCreateDirectAppointment}
+                      disabled={isActionLoading}
+                      className="w-full"
+                    >
+                      {isActionLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Criando Agendamento...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="mr-2 h-4 w-4" />
+                          Criar Agendamento
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>

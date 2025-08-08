@@ -703,6 +703,60 @@ export function SolicitationForm({
     }
   };
 
+  // Buscar especialidades médicas com debounce
+  const buscarEspecialidadesComDebounce = debounce(async (termo: string) => {
+    setLoadingSpecialties(true);
+    try {
+      const params: { active?: boolean; search?: string; per_page?: number } = { 
+        active: true,
+        per_page: 50
+      };
+      
+      // Se há um termo de busca, adicionar ao parâmetro search
+      if (termo && termo.length >= 2) {
+        params.search = termo;
+      }
+      
+      // @ts-ignore - API response type is complex
+      const response = await fetchResource("medical-specialties", params);
+      
+      // Tratar diferentes formatos de resposta
+      let especialidades: MedicalSpecialty[] = [];
+      // @ts-ignore - Handle different response formats
+      if (response?.data && Array.isArray(response.data)) {
+        especialidades = response.data;
+      // @ts-ignore - Handle paginated response
+      } else if (response?.data?.data && Array.isArray(response.data.data)) {
+        especialidades = response.data.data;
+      }
+      
+      const specialtyOptions = especialidades
+        .filter((specialty: MedicalSpecialty): specialty is MedicalSpecialty => 
+          specialty != null && 
+          typeof specialty === 'object' && 
+          'id' in specialty && 
+          specialty.id != null && 
+          'name' in specialty && 
+          specialty.name != null
+        )
+        .map((specialty: MedicalSpecialty) => ({
+          value: String(specialty.id),
+          label: specialty.name || 'Unnamed Specialty'
+        }));
+      
+      setSpecialties(specialtyOptions);
+    } catch (error) {
+      console.error('Erro ao buscar especialidades:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível buscar as especialidades médicas",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingSpecialties(false);
+    }
+  }, 300);
+
   // Carregar especialidades médicas quando necessário
   useEffect(() => {
     if (selectedTussCode === "10101012") {
@@ -830,24 +884,14 @@ export function SolicitationForm({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Especialidade Médica</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
+                      <Combobox
+                        options={specialties}
                         value={field.value}
-                        disabled={loadingSpecialties}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione a especialidade médica" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {specialties.map((specialty) => (
-                            <SelectItem key={specialty.value} value={specialty.value}>
-                              {specialty.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        onValueChange={field.onChange}
+                        placeholder="Pesquise pelo nome da especialidade"
+                        onSearch={buscarEspecialidadesComDebounce}
+                        loading={loadingSpecialties}
+                      />
                       <FormMessage />
                     </FormItem>
                   )}

@@ -226,7 +226,7 @@ export default function NegotiationsPage() {
     try {
       setLoading(true);
       const response = await negotiationService.getNegotiations({
-        status: filters.status || undefined,
+        status: (filters.status as NegotiationStatus) || undefined,
         entity_type: filters.entity_type || undefined,
         search: filters.search || undefined,
         page: pagination.currentPage,
@@ -288,7 +288,9 @@ export default function NegotiationsPage() {
     if (!selectedNegotiation) return;
 
     try {
-      await negotiationService.forkNegotiation(selectedNegotiation.id, itemGroups);
+      // Extrair os IDs dos itens dos grupos
+      const targetIds = itemGroups.flatMap(group => group.items);
+      await negotiationService.forkNegotiation(selectedNegotiation.id, targetIds);
       
       toast({
         title: "Sucesso",
@@ -444,19 +446,27 @@ export default function NegotiationsPage() {
           description: `Negociação ${approved ? 'aprovada' : 'rejeitada'} internamente com sucesso`,
         });
       } else {
-        await negotiationService.processExternalApproval(negotiation.id, {
-          ...approvalData,
-          approval_notes: approved ? 'Aprovado pela entidade' : 'Rejeitado pela entidade',
-          approved_items: negotiation.items.map(item => ({
-            item_id: item.id,
-            approved_value: Number(item.proposed_value)
-          }))
-        });
-        
-        toast({
-          title: "Sucesso",
-          description: `Negociação ${approved ? 'aprovada' : 'rejeitada'} pela entidade com sucesso`,
-        });
+        // Para aprovação externa, se for aprovada, usar markAsComplete para marcar todos os itens como completos
+        if (approved) {
+          await negotiationService.markAsComplete(negotiation.id);
+          
+          toast({
+            title: "Sucesso",
+            description: "Negociação aprovada externamente e marcada como completa com sucesso",
+          });
+        } else {
+          // Para rejeição externa, usar processExternalApproval
+          await negotiationService.processExternalApproval(negotiation.id, {
+            ...approvalData,
+            approval_notes: 'Rejeitado pela entidade',
+            approved_items: [] // Array vazio para rejeição
+          });
+          
+          toast({
+            title: "Sucesso",
+            description: "Negociação rejeitada pela entidade com sucesso",
+          });
+        }
       }
       
       await loadNegotiations();

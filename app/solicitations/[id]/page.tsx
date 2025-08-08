@@ -31,6 +31,7 @@ interface Solicitation {
   health_plan_id: number
   patient_id: number
   tuss_id: number
+  medical_specialty_id?: number
   status: string
   priority: string
   notes: string | null
@@ -57,6 +58,12 @@ interface Solicitation {
     id: number
     code: string
     name: string
+  }
+  medical_specialty?: {
+    id: number
+    name: string
+    tuss_code: string
+    tuss_description: string
   }
   requested_by_user: {
     id: number
@@ -387,9 +394,39 @@ export default function SolicitationDetailsPage() {
                 <Label>Descrição</Label>
                 <p className="text-sm text-muted-foreground">{solicitation.tuss.name}</p>
               </div>
+              {!solicitation.medical_specialty && (
+                <div>
+                  <Label>Especialidade Médica</Label>
+                  <p className="text-sm text-muted-foreground">Não especificada</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
+
+        {solicitation.medical_specialty && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Especialidade Médica</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <div>
+                  <Label>Nome da Especialidade</Label>
+                  <p className="text-sm text-muted-foreground">{solicitation.medical_specialty.name}</p>
+                </div>
+                <div>
+                  <Label>Código TUSS da Especialidade</Label>
+                  <p className="text-sm text-muted-foreground">{solicitation.medical_specialty.tuss_code}</p>
+                </div>
+                <div>
+                  <Label>Descrição TUSS</Label>
+                  <p className="text-sm text-muted-foreground">{solicitation.medical_specialty.tuss_description}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {solicitation.status === "failed" && (
           <Card className="col-span-full">

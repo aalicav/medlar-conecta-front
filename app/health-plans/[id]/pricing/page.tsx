@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,7 +16,16 @@ import { api } from "@/lib/api"
 import { DataTable } from "@/components/data-table/data-table"
 import { ColumnDef } from "@tanstack/react-table"
 import { Loader2 } from "lucide-react"
+import debounce from "lodash/debounce"
+import { Combobox } from "@/components/ui/combobox"
 import { useEstadosCidades } from "@/hooks/useEstadosCidades"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface HealthPlan {
   id: number
@@ -39,8 +48,6 @@ interface MedicalSpecialty {
   tuss_description: string
   active: boolean
   negotiable: boolean
-  city?: string
-  state?: string
 }
 
 interface PricingItem {
@@ -56,6 +63,8 @@ interface PricingItem {
   medical_specialty_id?: number
   procedure: TussProcedure
   medical_specialty?: MedicalSpecialty
+  state?: string
+  city?: string
 }
 
 interface CsvRow {
@@ -65,11 +74,18 @@ interface CsvRow {
   observacoes?: string
 }
 
+interface Estado {
+  sigla: string
+  nome: string
+  cidades: string[]
+}
+
 export default function HealthPlanPricingPage() {
   const params = useParams()
   const router = useRouter()
   const { toast } = useToast()
   const healthPlanId = params?.id as string
+  const { getEstados, getCidadesByEstado } = useEstadosCidades()
   
   const [healthPlan, setHealthPlan] = useState<HealthPlan | null>(null)
   const [pricingItems, setPricingItems] = useState<PricingItem[]>([])
@@ -81,14 +97,6 @@ export default function HealthPlanPricingPage() {
   const [csvFile, setCsvFile] = useState<File | null>(null)
   const [csvPreview, setCsvPreview] = useState<CsvRow[]>([])
   const [isProcessingCsv, setIsProcessingCsv] = useState(false)
-  
-  // Filter states
-  const [cityFilter, setCityFilter] = useState("")
-  const [stateFilter, setStateFilter] = useState("")
-  const [selectedCities, setSelectedCities] = useState<string[]>([])
-  
-  // Estados e Cidades hook
-  const { getEstados, getCidadesByEstado } = useEstadosCidades()
   
   // Form states for individual item
   const [selectedTuss, setSelectedTuss] = useState<TussProcedure | null>(null)
@@ -107,6 +115,23 @@ export default function HealthPlanPricingPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [editingItems, setEditingItems] = useState<Map<number, { price: string; notes: string }>>(new Map())
 
+  // Estado e cidade states
+  const [selectedState, setSelectedState] = useState<string>("")
+  const [selectedCity, setSelectedCity] = useState<string>("")
+  const [availableCities, setAvailableCities] = useState<string[]>([])
+
+  // Carregar cidades quando estado for selecionado
+  useEffect(() => {
+    if (selectedState) {
+      const cities = getCidadesByEstado(selectedState)
+      setAvailableCities(cities)
+      setSelectedCity("") // Reset cidade quando estado muda
+    } else {
+      setAvailableCities([])
+      setSelectedCity("")
+    }
+  }, [selectedState])
+  
   // Carregar dados do plano e valores
   useEffect(() => {
     const loadData = async () => {
@@ -197,14 +222,6 @@ export default function HealthPlanPricingPage() {
         per_page: 100 
       }
       
-      // Adicionar filtros se aplicável
-      if (stateFilter) {
-        params.state = stateFilter
-      }
-      if (selectedCities.length > 0) {
-        params.cities = selectedCities.join(',')
-      }
-      
       const response = await api.get('/medical-specialties', { params })
       
       if (response?.data?.data?.data) {
@@ -221,6 +238,45 @@ export default function HealthPlanPricingPage() {
       setIsLoadingSpecialties(false)
     }
   }
+
+  // Buscar especialidades médicas com debounce
+  const buscarEspecialidadesComDebounce = debounce(async (termo: string) => {
+    setIsLoadingSpecialties(true)
+    try {
+      const params: { active?: boolean; search?: string; per_page?: number } = { 
+        active: true,
+        per_page: 50
+      }
+      
+      // Se há um termo de busca, adicionar ao parâmetro search
+      if (termo && termo.length >= 2) {
+        params.search = termo
+      }
+      
+      const response = await api.get('/medical-specialties', { params })
+      
+      // Tratar diferentes formatos de resposta
+      let especialidades: MedicalSpecialty[] = []
+      if (response?.data?.data?.data && Array.isArray(response.data.data.data)) {
+        especialidades = response.data.data.data
+      } else if (response?.data?.data && Array.isArray(response.data.data)) {
+        especialidades = response.data.data
+      } else if (response?.data && Array.isArray(response.data)) {
+        especialidades = response.data
+      }
+      
+      setSpecialtyOptions(especialidades)
+    } catch (error) {
+      console.error('Erro ao buscar especialidades:', error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível buscar as especialidades médicas",
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoadingSpecialties(false)
+    }
+  }, 300)
 
   // Debounce para busca de TUSS
   useEffect(() => {
@@ -240,6 +296,8 @@ export default function HealthPlanPricingPage() {
       setPrice("")
       setNotes("")
       setSelectedSpecialty(null)
+      setSelectedState("")
+      setSelectedCity("")
       
       // Set default TUSS for consultation
       if (selectedTuss) {
@@ -248,19 +306,9 @@ export default function HealthPlanPricingPage() {
     }
   }, [isAddDialogOpen, selectedTuss])
 
-  // Reload specialties when filters change
-  useEffect(() => {
-    if (isAddDialogOpen) {
-      loadMedicalSpecialties()
-    }
-  }, [stateFilter, selectedCities, isAddDialogOpen])
-
   // Reload specialties when dialog opens
   useEffect(() => {
     if (isAddDialogOpen) {
-      // Reset filters when dialog opens
-      setStateFilter("")
-      setSelectedCities([])
       setSelectedSpecialty(null)
       loadMedicalSpecialties()
     }
@@ -283,7 +331,9 @@ export default function HealthPlanPricingPage() {
         tuss_procedure_id: selectedTuss.id,
         price: parseFloat(price),
         notes: notes || "",
-        medical_specialty_id: selectedSpecialty?.id || null
+        medical_specialty_id: selectedSpecialty?.id || null,
+        state: selectedState || null,
+        city: selectedCity || null
       }
 
       await api.post(`/health-plans/${healthPlanId}/procedures`, newItem)
@@ -299,18 +349,36 @@ export default function HealthPlanPricingPage() {
       setPrice("")
       setNotes("")
       setSelectedSpecialty(null)
-      setStateFilter("")
-      setSelectedCities([])
+      setSelectedState("")
+      setSelectedCity("")
       setIsAddDialogOpen(false)
 
       // Recarregar dados
       const pricingResponse = await api.get(`/health-plans/${healthPlanId}/procedures`)
       setPricingItems(pricingResponse.data.data || [])
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao adicionar valor:', error)
+      
+      // Extrair mensagem de erro do backend
+      let errorMessage = "Não foi possível adicionar o valor"
+      
+      if (error?.response?.data?.message) {
+        const backendMessage = error.response.data.message
+        
+        // Traduzir mensagens específicas do backend
+        if (backendMessage.includes("Procedure already exists")) {
+          errorMessage = "Já existe um valor cadastrado para esta especialidade médica neste plano de saúde"
+        } else if (backendMessage.includes("already exists")) {
+          errorMessage = "Esta especialidade já está cadastrada para este plano de saúde"
+        } else {
+          // Usar a mensagem do backend se não for uma das mensagens conhecidas
+          errorMessage = backendMessage
+        }
+      }
+      
       toast({
         title: "Erro",
-        description: "Não foi possível adicionar o valor",
+        description: errorMessage,
         variant: "destructive"
       })
     } finally {
@@ -411,11 +479,29 @@ export default function HealthPlanPricingPage() {
       // Recarregar dados
       const pricingResponse = await api.get(`/health-plans/${healthPlanId}/procedures`)
       setPricingItems(pricingResponse.data.data || [])
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao importar CSV:', error)
+      
+      // Extrair mensagem de erro do backend
+      let errorMessage = "Não foi possível importar os valores"
+      
+      if (error?.response?.data?.message) {
+        const backendMessage = error.response.data.message
+        
+        // Traduzir mensagens específicas do backend
+        if (backendMessage.includes("Procedure already exists")) {
+          errorMessage = "Alguns valores já existem para este plano de saúde. Verifique os dados e tente novamente."
+        } else if (backendMessage.includes("already exists")) {
+          errorMessage = "Algumas especialidades já estão cadastradas para este plano de saúde"
+        } else {
+          // Usar a mensagem do backend se não for uma das mensagens conhecidas
+          errorMessage = backendMessage
+        }
+      }
+      
       toast({
         title: "Erro",
-        description: "Não foi possível importar os valores",
+        description: errorMessage,
         variant: "destructive"
       })
     } finally {
@@ -564,24 +650,11 @@ export default function HealthPlanPricingPage() {
       const matchesSearch = (
         item.procedure.name?.toLowerCase().includes(query) ||
         item.procedure.code?.toLowerCase().includes(query) ||
-        item.medical_specialty?.name?.toLowerCase().includes(query)
+        item.medical_specialty?.name?.toLowerCase().includes(query) ||
+        item.state?.toLowerCase().includes(query) ||
+        item.city?.toLowerCase().includes(query)
       )
       if (!matchesSearch) return false
-    }
-    
-    // Filter by city
-    if (selectedCities.length > 0) {
-      const itemCity = item.medical_specialty?.city?.toLowerCase() || ''
-      const matchesCity = selectedCities.some(city => 
-        itemCity.includes(city.toLowerCase())
-      )
-      if (!matchesCity) return false
-    }
-    
-    // Filter by state
-    if (stateFilter) {
-      const itemState = item.medical_specialty?.state?.toLowerCase() || ''
-      if (itemState !== stateFilter.toLowerCase()) return false
     }
     
     return true
@@ -613,23 +686,24 @@ export default function HealthPlanPricingPage() {
       ),
     },
     {
-      accessorKey: "medical_specialty.location",
-      header: "Localização",
-      size: 120,
-      cell: ({ row }) => {
-        const specialty = row.original.medical_specialty
-        if (!specialty) return <span>-</span>
-        
-        const location = []
-        if (specialty.city) location.push(specialty.city)
-        if (specialty.state) location.push(specialty.state)
-        
-        return (
-          <div className="max-w-xs truncate" title={location.join(', ')}>
-            {location.length > 0 ? location.join(', ') : '-'}
-          </div>
-        )
-      },
+      accessorKey: "state",
+      header: "Estado",
+      size: 100,
+      cell: ({ row }) => (
+        <div className="max-w-xs truncate" title={row.original.state || '-'}>
+          {row.original.state || '-'}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "city",
+      header: "Cidade",
+      size: 150,
+      cell: ({ row }) => (
+        <div className="max-w-xs truncate" title={row.original.city || '-'}>
+          {row.original.city || '-'}
+        </div>
+      ),
     },
     {
       accessorKey: "price",
@@ -827,76 +901,23 @@ export default function HealthPlanPricingPage() {
                           </div>
                         </div>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <Label htmlFor="dialog-state-filter">Estado</Label>
-                            <select
-                              id="dialog-state-filter"
-                              value={stateFilter}
-                              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                                setStateFilter(e.target.value)
-                                setSelectedCities([]) // Reset cities when state changes
-                              }}
-                              className="w-full p-2 border rounded-md"
-                            >
-                              <option value="">Todos os estados</option>
-                              {getEstados().map((estado: any) => (
-                                <option key={estado.sigla} value={estado.sigla}>
-                                  {estado.nome}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <Label htmlFor="dialog-city-filter">Cidades</Label>
-                            <select
-                              id="dialog-city-filter"
-                              multiple
-                              value={selectedCities}
-                              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                                const selectedOptions = Array.from(e.target.selectedOptions, option => option.value)
-                                setSelectedCities(selectedOptions)
-                              }}
-                              className="w-full p-2 border rounded-md min-h-[80px]"
-                              disabled={!stateFilter}
-                            >
-                              {stateFilter ? (
-                                getCidadesByEstado(stateFilter).map((cidade: string) => (
-                                  <option key={cidade} value={cidade}>
-                                    {cidade}
-                                  </option>
-                                ))
-                              ) : (
-                                <option value="">Selecione um estado primeiro</option>
-                              )}
-                            </select>
-                            {stateFilter && (
-                              <div className="text-xs text-muted-foreground mt-1">
-                                Pressione Ctrl (ou Cmd) para selecionar múltiplas cidades
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        
                         <div>
                           <Label>Especialidade Médica</Label>
-                          <select
-                            value={selectedSpecialty?.id || ''}
-                            onChange={(e) => {
-                              const specialty = specialtyOptions.find(s => s.id === parseInt(e.target.value))
+                          <Combobox
+                            options={specialtyOptions.map(specialty => ({
+                              value: specialty.id.toString(),
+                              label: specialty.name
+                            }))}
+                            value={selectedSpecialty?.id?.toString() || ""}
+                            onValueChange={(value) => {
+                              const specialty = specialtyOptions.find(s => s.id === parseInt(value))
                               setSelectedSpecialty(specialty || null)
                             }}
-                            className="w-full p-2 border rounded-md"
-                            disabled={isLoadingSpecialties}
-                          >
-                            <option value="">Selecione uma especialidade</option>
-                            {specialtyOptions.map((specialty) => (
-                              <option key={specialty.id} value={specialty.id}>
-                                {specialty.name}
-                                {specialty.city && specialty.state && ` - ${specialty.city}/${specialty.state}`}
-                              </option>
-                            ))}
-                          </select>
+                            placeholder="Pesquise pelo nome da especialidade"
+                            onSearch={buscarEspecialidadesComDebounce}
+                            loading={isLoadingSpecialties}
+                            emptyText="Digite para buscar especialidades médicas"
+                          />
                           {isLoadingSpecialties && (
                             <div className="flex items-center mt-2">
                               <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -906,23 +927,11 @@ export default function HealthPlanPricingPage() {
                           {!isLoadingSpecialties && (
                             <div className="text-xs text-muted-foreground mt-1">
                               {specialtyOptions.length} especialidade(s) encontrada(s)
-                              {(stateFilter || selectedCities.length > 0) && (
-                                <span className="ml-1">
-                                  (filtradas por {stateFilter && `estado: ${getEstados().find((e: any) => e.sigla === stateFilter)?.nome}`}
-                                  {stateFilter && selectedCities.length > 0 && ' e '}
-                                  {selectedCities.length > 0 && `cidade(s): ${selectedCities.join(', ')}`})
-                                </span>
-                              )}
                             </div>
                           )}
                           {selectedSpecialty && (
                             <div className="mt-2 p-2 bg-blue-50 rounded-md">
                               <div className="text-sm font-medium">{selectedSpecialty.name}</div>
-                              {selectedSpecialty.city && selectedSpecialty.state && (
-                                <div className="text-xs text-gray-600">
-                                  {selectedSpecialty.city}/{selectedSpecialty.state}
-                                </div>
-                              )}
                             </div>
                           )}
                         </div>
@@ -939,23 +948,6 @@ export default function HealthPlanPricingPage() {
                           />
                         </div>
                         
-                        {(stateFilter || selectedCities.length > 0) && (
-                          <div className="flex justify-end">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setStateFilter("")
-                                setSelectedCities([])
-                                loadMedicalSpecialties()
-                              }}
-                            >
-                              <X className="h-4 w-4 mr-2" />
-                              Limpar Filtros
-                            </Button>
-                          </div>
-                        )}
-                        
                         <div>
                           <Label>Observações</Label>
                           <Textarea
@@ -965,6 +957,41 @@ export default function HealthPlanPricingPage() {
                             rows={3}
                           />
                         </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label>Estado</Label>
+                            <Select value={selectedState} onValueChange={setSelectedState}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione o estado" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {getEstados().map((estado: Estado) => (
+                                  <SelectItem key={estado.sigla} value={estado.sigla}>
+                                    {estado.sigla} - {estado.nome}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          <div>
+                            <Label>Cidade</Label>
+                            <Select value={selectedCity} onValueChange={setSelectedCity} disabled={!selectedState}>
+                              <SelectTrigger>
+                                <SelectValue placeholder={selectedState ? "Selecione a cidade" : "Selecione o estado primeiro"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availableCities.map((cidade) => (
+                                  <SelectItem key={cidade} value={cidade}>
+                                    {cidade}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        
                         <div className="flex gap-2">
                           <Button onClick={handleAddItem} disabled={isSaving} className="flex-1">
                             {isSaving ? (
@@ -1000,79 +1027,13 @@ export default function HealthPlanPricingPage() {
                   />
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="state-filter">Estado</Label>
-                    <select
-                      id="state-filter"
-                      value={stateFilter}
-                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                        setStateFilter(e.target.value)
-                        setSelectedCities([]) // Reset cities when state changes
-                      }}
-                      className="w-full p-2 border rounded-md"
-                    >
-                      <option value="">Todos os estados</option>
-                      {getEstados().map((estado: any) => (
-                        <option key={estado.sigla} value={estado.sigla}>
-                          {estado.nome}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <Label htmlFor="city-filter">Cidades</Label>
-                    <select
-                      id="city-filter"
-                      multiple
-                      value={selectedCities}
-                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                        const selectedOptions = Array.from(e.target.selectedOptions, option => option.value)
-                        setSelectedCities(selectedOptions)
-                      }}
-                      className="w-full p-2 border rounded-md min-h-[100px]"
-                    >
-                      {stateFilter ? (
-                        getCidadesByEstado(stateFilter).map((cidade: string) => (
-                          <option key={cidade} value={cidade}>
-                            {cidade}
-                          </option>
-                        ))
-                      ) : (
-                        <option value="">Selecione um estado primeiro</option>
-                      )}
-                    </select>
-                    {stateFilter && (
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Pressione Ctrl (ou Cmd) para selecionar múltiplas cidades
-                      </div>
-                    )}
-                    {selectedCities.length > 0 && (
-                      <div className="mt-2">
-                        <div className="text-xs text-muted-foreground mb-1">
-                          Cidades selecionadas:
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {selectedCities.map((city) => (
-                            <Badge key={city} variant="secondary" className="text-xs">
-                              {city}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                {(searchQuery || stateFilter || selectedCities.length > 0) && (
+                {searchQuery && (
                   <div className="flex items-center gap-2">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => {
                         setSearchQuery("")
-                        setStateFilter("")
-                        setSelectedCities([])
                       }}
                     >
                       <X className="h-4 w-4 mr-2" />
