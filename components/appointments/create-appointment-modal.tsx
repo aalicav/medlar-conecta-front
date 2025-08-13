@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { toast } from "@/components/ui/use-toast"
 import {
   Dialog,
@@ -16,9 +17,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Loader2, Plus } from "lucide-react"
+import { Loader2, Plus, Search } from "lucide-react"
 import api from "@/services/api-client"
 import { formatDateTime } from "@/lib/utils"
+import debounce from "lodash/debounce"
 
 interface Solicitation {
   id: number
@@ -202,6 +204,9 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess, preSelec
   const [providers, setProviders] = useState<(Professional | Clinic)[]>([])
   const [selectedProvider, setSelectedProvider] = useState<(Professional | Clinic) | null>(null)
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null)
+  const [providerSearchTerm, setProviderSearchTerm] = useState("")
+  const [isSearchingProviders, setIsSearchingProviders] = useState(false)
+  const [providerOptions, setProviderOptions] = useState<{value: string, label: string}[]>([])
   const [customAddress, setCustomAddress] = useState({
     street: '',
     number: '',
@@ -233,12 +238,6 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess, preSelec
     }
   }, [selectedSolicitation, schedulingType, providerType])
 
-  useEffect(() => {
-    if (selectedProviderId && providerType) {
-      fetchProviderDetails(selectedProviderId, providerType)
-    }
-  }, [selectedProviderId, providerType])
-
   // Effect to handle pre-selected solicitation
   useEffect(() => {
     if (preSelectedSolicitation) {
@@ -248,6 +247,20 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess, preSelec
       fetchAvailabilities(preSelectedSolicitation.id)
     }
   }, [preSelectedSolicitation])
+
+  // Effect para limpar busca quando o tipo de provedor mudar
+  useEffect(() => {
+    setProviderSearchTerm("")
+    setSelectedProviderId(null)
+    setSelectedProvider(null)
+    setProviderOptions([])
+  }, [providerType])
+
+  useEffect(() => {
+    if (selectedProviderId && providerType) {
+      fetchProviderDetails(selectedProviderId, providerType)
+    }
+  }, [selectedProviderId, providerType])
 
   const fetchSolicitations = async (): Promise<void> => {
     try {
@@ -287,16 +300,30 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess, preSelec
     }
   }
 
-  const fetchProviders = async (solicitationId: number, type: string) => {
+  const fetchProviders = async (solicitationId: number, type: string, searchTerm?: string) => {
     try {
       const endpoint = `/solicitations/${solicitationId}/available-providers`
       
-      const response = await api.get(endpoint, {
-        params: {
-          provider_type: type
-        }
-      })
-      setProviders(response.data.data)
+      const params: any = {
+        provider_type: type
+      }
+      
+      // Adiciona o termo de busca se fornecido
+      if (searchTerm && searchTerm.trim().length >= 2) {
+        params.search = searchTerm.trim()
+      }
+      
+      const response = await api.get(endpoint, { params })
+      const providers = response.data.data
+      
+      // Converter para formato do Combobox
+      const options = providers.map((provider: any) => ({
+        value: provider.id.toString(),
+        label: `${provider.name}${provider.price ? ` - R$ ${provider.price.toFixed(2)}` : ''}`
+      }))
+      
+      setProviders(providers)
+      setProviderOptions(options)
     } catch (error) {
       console.error("Error fetching providers:", error)
       toast({
@@ -448,6 +475,8 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess, preSelec
     setSelectedProvider(null)
     setSelectedAddressId(null)
     setProviderType("")
+    setProviderSearchTerm("")
+    setProviderOptions([])
     setCustomAddress({
       street: '',
       number: '',
@@ -482,6 +511,39 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess, preSelec
     // Se não há endereço selecionado, verifica se o endereço personalizado está preenchido
     const { street, number, neighborhood, city, state, postal_code } = customAddress
     return street && number && neighborhood && city && state && postal_code
+  }
+
+  // Função com debounce para buscar provedores
+  const debouncedSearchProviders = debounce(async (searchTerm: string) => {
+    if (!selectedSolicitation || !providerType) return
+    
+    setIsSearchingProviders(true)
+    try {
+      await fetchProviders(selectedSolicitation.id, providerType, searchTerm)
+    } catch (error) {
+      console.error("Error searching providers:", error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível buscar os provedores",
+        variant: "destructive"
+      })
+    } finally {
+      setIsSearchingProviders(false)
+    }
+  }, 300)
+
+  // Função para lidar com a seleção do provedor
+  const handleProviderSelect = (providerId: string) => {
+    setSelectedProviderId(Number(providerId))
+    const selectedProvider = providers.find(p => p.id.toString() === providerId)
+    if (selectedProvider) {
+      setSelectedProvider(selectedProvider)
+    }
+  }
+
+  // Função para lidar com a busca de provedores
+  const handleProviderSearch = (searchTerm: string) => {
+    debouncedSearchProviders(searchTerm)
   }
 
   return (
@@ -785,25 +847,16 @@ export function CreateAppointmentModal({ open, onOpenChange, onSuccess, preSelec
                 {providerType && (
                   <div className="space-y-2">
                     <Label>{providerType.includes('Clinic') ? 'Estabelecimento' : 'Profissional'}</Label>
-                    <Select onValueChange={(value) => setSelectedProviderId(Number(value))}>
-                      <SelectTrigger>
-                        <SelectValue placeholder={`Selecione ${providerType.includes('Clinic') ? 'o estabelecimento' : 'o profissional'}`} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {providers.map((provider) => (
-                          <SelectItem key={provider.id} value={provider.id.toString()}>
-                            <div className="flex justify-between items-center w-full">
-                              <span>{provider.name}</span>
-                              {provider.price && (
-                                <span className="text-sm text-green-600 ml-2">
-                                  R$ {provider.price.toFixed(2)}
-                                </span>
-                              )}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    
+                    <Combobox
+                      options={providerOptions}
+                      value={selectedProviderId?.toString() || ""}
+                      onValueChange={handleProviderSelect}
+                      placeholder={`Buscar ${providerType.includes('Clinic') ? 'estabelecimento' : 'profissional'}...`}
+                      onSearch={handleProviderSearch}
+                      loading={isSearchingProviders}
+                      emptyText="Nenhum resultado encontrado"
+                    />
                   </div>
                 )}
 

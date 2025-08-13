@@ -196,7 +196,7 @@ export function NegotiationItemActions({
           </DropdownMenuItem>
         )}
         
-        {item.status === 'pending' && negotiation.status === 'approved' && canApproveExternally() && (
+        {item.status === 'pending' && (negotiation.status === 'approved' || negotiation.status === 'partially_complete') && canApproveExternally() && (
           <>
             <DropdownMenuItem onClick={() => handleExternalAction('approve')} className="text-green-600 focus:text-green-600">
               <CheckCircle className="mr-2 h-4 w-4" />
